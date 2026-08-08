@@ -6,6 +6,7 @@ export type User = {
   id: string;
   email: string;
   full_name: string | null;
+  username: string;
   is_active: boolean;
   is_verified: boolean;
   onboarding_completed: boolean;

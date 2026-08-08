@@ -6,7 +6,7 @@ export function fetchTags(): Promise<Tag[]> {
 }
 
 export type ProfileUpdatePayload = {
-  full_name: string | null;
+  username: string;
   location_lat: number;
   location_lng: number;
   location_label: string;
@@ -18,4 +18,15 @@ export function updateProfile(payload: ProfileUpdatePayload): Promise<User> {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export type UserSearchResult = {
+  id: string;
+  username: string;
+  full_name: string | null;
+  tags: Tag[];
+};
+
+export function searchUsers(query: string): Promise<UserSearchResult[]> {
+  return api.authed(`/users/search?q=${encodeURIComponent(query)}`);
 }

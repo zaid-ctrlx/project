@@ -10,8 +10,10 @@ import { colors, fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
 import TextField from "./TextField";
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+
 type Props = {
-  initialFullName?: string | null;
+  initialUsername?: string | null;
   initialTagIds?: string[];
   initialLocationLabel?: string | null;
   initialLocationCoords?: { lat: number; lng: number } | null;
@@ -23,14 +25,14 @@ type Props = {
 // later) — same fields, same validation, just different initial values and
 // submit-button copy.
 export default function ProfileForm({
-  initialFullName,
+  initialUsername,
   initialTagIds,
   initialLocationLabel,
   initialLocationCoords,
   submitLabel,
   onSaved,
 }: Props) {
-  const [fullName, setFullName] = useState(initialFullName ?? "");
+  const [username, setUsername] = useState(initialUsername ?? "");
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set(initialTagIds ?? []));
@@ -147,14 +149,21 @@ export default function ProfileForm({
 
   async function onSave() {
     setSaveError(null);
+
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length < 3 || !USERNAME_PATTERN.test(trimmedUsername)) {
+      setSaveError("Username must be at least 3 characters: letters, numbers, and underscores only.");
+      return;
+    }
     if (!locationCoords || !locationLabel) {
       setSaveError("Set a location before continuing.");
       return;
     }
+
     setSaving(true);
     try {
       const updated = await updateProfile({
-        full_name: fullName.trim() || null,
+        username: trimmedUsername,
         location_lat: locationCoords.lat,
         location_lng: locationCoords.lng,
         location_label: locationLabel,
@@ -170,8 +179,15 @@ export default function ProfileForm({
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={styles.sectionTitle}>Name</Text>
-      <TextField placeholder="Your name" value={fullName} onChangeText={setFullName} />
+      <Text style={styles.sectionTitle}>Username</Text>
+      <TextField
+        placeholder="e.g. zaid_123"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Text style={styles.helperText}>Unique — this is how people find and search for you.</Text>
 
       <Text style={styles.sectionTitle}>Interests</Text>
       {tagsLoading ? (
@@ -261,6 +277,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: spacing.md,
   },
+  helperText: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: -spacing.xs },
   tagsLoading: { alignSelf: "flex-start" },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   tagChip: {

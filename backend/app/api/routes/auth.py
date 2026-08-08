@@ -10,6 +10,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.username import generate_unique_username
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.token import RefreshRequest, Token
@@ -31,6 +32,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
         email=payload.email,
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
+        username=generate_unique_username(db, payload.email),
     )
     db.add(user)
     db.commit()
