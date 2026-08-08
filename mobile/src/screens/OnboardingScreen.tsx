@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 import { ApiError } from "../api/client";
-import { reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
+import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { fetchTags, updateProfile } from "../api/profile";
 import { Tag } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
@@ -26,8 +26,11 @@ export default function OnboardingScreen() {
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [searchText, setSearchText] = useState("");
-  const [locationBusy, setLocationBusy] = useState(false);
+  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
+  const [gpsBusy, setGpsBusy] = useState(false);
+  const [searchBusy, setSearchBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,7 +59,8 @@ export default function OnboardingScreen() {
 
   async function useCurrentLocation() {
     setLocationError(null);
-    setLocationBusy(true);
+    setGpsBusy(true);
+    setSearchResults([]);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
@@ -69,11 +73,14 @@ export default function OnboardingScreen() {
       // Set coords immediately so "Continue" is already valid even if the
       // reverse-geocode call below is slow or fails.
       setLocationCoords({ lat: latitude, lng: longitude });
-      setLocationLabel(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      const fallbackLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      setLocationLabel(fallbackLabel);
+      setSearchText(fallbackLabel);
 
       try {
         const { label } = await reverseGeocode(latitude, longitude);
         setLocationLabel(label);
+        setSearchText(label);
       } catch {
         // Backend/network hiccup — keep the raw-coordinate label already set
         // above rather than blocking the user from continuing.
@@ -81,28 +88,49 @@ export default function OnboardingScreen() {
     } catch {
       setLocationError("Couldn't get your location. Try searching for it instead.");
     } finally {
-      setLocationBusy(false);
+      setGpsBusy(false);
     }
   }
 
-  async function searchLocation() {
-    if (!searchText.trim()) return;
-    setLocationError(null);
-    setLocationBusy(true);
-    try {
-      const results = await searchLocationApi(searchText.trim());
-      if (results.length === 0) {
-        setLocationError("No matches found. Try a different search.");
-        return;
-      }
-      const { lat, lng, label } = results[0];
-      setLocationCoords({ lat, lng });
-      setLocationLabel(label);
-    } catch {
-      setLocationError("Search failed. Check your connection and try again.");
-    } finally {
-      setLocationBusy(false);
+  // Live autocomplete: search as the user types, debounced so we're not
+  // firing a request per keystroke. Skipped once searchText matches the
+  // already-selected label, so picking a result (which fills the input)
+  // doesn't immediately re-trigger a search against itself.
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (searchText.trim().length < 3 || searchText === locationLabel) {
+      setSearchResults([]);
+      return;
     }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchBusy(true);
+      setLocationError(null);
+      try {
+        const results = await searchLocationApi(searchText.trim());
+        setSearchResults(results);
+        if (results.length === 0) {
+          setLocationError("No matches found. Try a different search.");
+        }
+      } catch {
+        setLocationError("Search failed. Check your connection and try again.");
+      } finally {
+        setSearchBusy(false);
+      }
+    }, 400);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchText]);
+
+  function selectSearchResult(result: GeocodeResult) {
+    setLocationCoords({ lat: result.lat, lng: result.lng });
+    setLocationLabel(result.label);
+    setSearchText(result.label);
+    setSearchResults([]);
+    setLocationError(null);
   }
 
   async function onSave() {
@@ -156,29 +184,42 @@ export default function OnboardingScreen() {
 
       <Text style={styles.sectionTitle}>Location</Text>
 
-      <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={locationBusy}>
+      <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={gpsBusy}>
         <Text style={styles.secondaryButtonText}>
-          {locationBusy ? "Locating..." : "📍 Use my current location"}
+          {gpsBusy ? "Locating..." : "📍 Use my current location"}
         </Text>
       </Pressable>
 
       <Text style={styles.orText}>or search for it</Text>
 
-      <View style={styles.searchRow}>
-        <TextInput
-          style={[styles.input, styles.searchInput]}
-          placeholder="e.g. Gulshan, Karachi"
-          value={searchText}
-          onChangeText={setSearchText}
-          onSubmitEditing={searchLocation}
-        />
-        <Pressable style={styles.searchButton} onPress={searchLocation} disabled={locationBusy}>
-          <Text style={styles.secondaryButtonText}>Search</Text>
-        </Pressable>
+      <View>
+        <View style={styles.searchRow}>
+          <TextInput
+            style={[styles.input, styles.searchInput]}
+            placeholder="e.g. Gulshan, Karachi"
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+          {searchBusy && <ActivityIndicator style={styles.searchSpinner} />}
+        </View>
+
+        {searchResults.length > 0 && (
+          <View style={styles.dropdown}>
+            {searchResults.map((result, i) => (
+              <Pressable
+                key={`${result.lat},${result.lng}`}
+                onPress={() => selectSearchResult(result)}
+                style={[styles.dropdownItem, i < searchResults.length - 1 && styles.dropdownItemBorder]}
+              >
+                <Text style={styles.dropdownItemText}>{result.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
 
       {locationError && <Text style={styles.error}>{locationError}</Text>}
-      {locationLabel && (
+      {locationLabel && searchResults.length === 0 && (
         <Text style={styles.locationConfirm}>✓ Location set: {locationLabel}</Text>
       )}
 
@@ -216,10 +257,21 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { color: "#111", fontWeight: "600" },
   orText: { textAlign: "center", color: "#999", marginVertical: 12, fontSize: 13 },
-  searchRow: { flexDirection: "row", gap: 8 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12, fontSize: 16 },
   searchInput: { flex: 1 },
-  searchButton: { justifyContent: "center", paddingHorizontal: 16, borderWidth: 1, borderColor: "#111", borderRadius: 8 },
+  searchSpinner: { width: 24 },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    marginTop: 4,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  dropdownItem: { padding: 12 },
+  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdownItemText: { fontSize: 14, color: "#333" },
   error: { color: "#c00", marginTop: 12 },
   locationConfirm: { color: "#0a0", marginTop: 12, fontSize: 14 },
   button: { backgroundColor: "#111", borderRadius: 8, padding: 14, alignItems: "center", marginTop: 28 },
