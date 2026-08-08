@@ -34,6 +34,7 @@ class UserOut(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
+    full_name: str | None = Field(default=None, max_length=255)
     location_lat: float = Field(ge=-90, le=90)
     location_lng: float = Field(ge=-180, le=180)
     location_label: str = Field(min_length=1, max_length=255)

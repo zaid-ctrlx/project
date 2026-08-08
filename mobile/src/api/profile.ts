@@ -6,6 +6,7 @@ export function fetchTags(): Promise<Tag[]> {
 }
 
 export type ProfileUpdatePayload = {
+  full_name: string | null;
   location_lat: number;
   location_lng: number;
   location_label: string;
