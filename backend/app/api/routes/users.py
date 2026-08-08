@@ -62,7 +62,10 @@ def update_profile(
     else:
         current_user.tags = []
 
+    current_user.full_name = payload.full_name
     current_user.username = payload.username
+    current_user.bio = payload.bio
+    current_user.gender = payload.gender
     current_user.location_lat = payload.location_lat
     current_user.location_lng = payload.location_lng
     current_user.location_label = payload.location_label

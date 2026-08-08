@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Button from "../components/Button";
@@ -16,6 +16,15 @@ export default function ProfileScreen() {
   // always set here — this guard is just to satisfy TypeScript.
   if (!user) return null;
 
+  async function onShare() {
+    try {
+      await Share.share({ message: `Check out @${user!.username}'s profile` });
+    } catch {
+      // Share sheet unavailable on this platform (e.g. some desktop
+      // browsers) — nothing useful to do, just don't crash the screen.
+    }
+  }
+
   if (editing) {
     return (
       <View style={styles.wrapper}>
@@ -24,9 +33,13 @@ export default function ProfileScreen() {
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
           <Text style={styles.headerTitle}>Edit profile</Text>
+          <View style={styles.headerSpacer} />
         </View>
         <ProfileForm
+          initialFullName={user.full_name}
           initialUsername={user.username}
+          initialBio={user.bio}
+          initialGender={user.gender}
           initialTagIds={user.tags.map((t) => t.id)}
           initialLocationLabel={user.location_label}
           initialLocationCoords={
@@ -49,13 +62,26 @@ export default function ProfileScreen() {
       style={styles.wrapper}
       contentContainerStyle={[styles.viewContainer, { paddingTop: insets.top + spacing.lg }]}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+      <View style={styles.profileRow}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={styles.identity}>
+          <Text style={styles.username}>@{user.username}</Text>
+          {user.full_name && <Text style={styles.fullName}>{user.full_name}</Text>}
+        </View>
       </View>
 
-      <Text style={styles.username}>@{user.username}</Text>
-      {user.full_name && <Text style={styles.fullName}>{user.full_name}</Text>}
-      <Text style={styles.email}>{user.email}</Text>
+      {user.bio && <Text style={styles.bio}>{user.bio}</Text>}
+
+      <View style={styles.actionRow}>
+        <View style={styles.actionButton}>
+          <Button label="Edit profile" onPress={() => setEditing(true)} variant="secondary" />
+        </View>
+        <View style={styles.actionButton}>
+          <Button label="Share profile" onPress={onShare} variant="secondary" />
+        </View>
+      </View>
 
       {(user.location_label || user.tags.length > 0) && (
         <View style={styles.metaBlock}>
@@ -72,11 +98,7 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <View style={styles.actions}>
-        <Button label="Edit profile" onPress={() => setEditing(true)} variant="secondary" />
-        <View style={styles.buttonGap} />
-        <Button label="Log out" onPress={logout} variant="text" danger />
-      </View>
+      <Button label="Log out" onPress={logout} variant="text" danger />
     </ScrollView>
   );
 }
@@ -91,24 +113,29 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   cancel: { fontSize: fontSize.md, color: colors.text, width: 70 },
+  headerSpacer: { width: 70 },
   headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  viewContainer: { alignItems: "center", paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+  viewContainer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+  profileRow: { flexDirection: "row", alignItems: "center" },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colors.chipBackground,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
+    marginRight: spacing.lg,
   },
-  avatarText: { fontSize: 32, fontWeight: "700", color: colors.text },
+  avatarText: { fontSize: 30, fontWeight: "700", color: colors.text },
+  identity: { flex: 1 },
   username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
-  fullName: { fontSize: fontSize.md, color: colors.textMuted, marginTop: spacing.xs },
-  email: { fontSize: fontSize.base, color: colors.textFaint, marginTop: spacing.xs },
-  metaBlock: { alignItems: "center", marginTop: spacing.lg, width: "100%" },
+  fullName: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
+  bio: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.md },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
+  actionButton: { flex: 1 },
+  metaBlock: { marginTop: spacing.xl },
   meta: { fontSize: fontSize.base, color: colors.textMuted, marginBottom: spacing.sm },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   tagChip: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -118,6 +145,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.chipBackground,
   },
   tagChipText: { fontSize: fontSize.sm, color: colors.text },
-  actions: { marginTop: spacing.xxl, alignItems: "center", width: "100%" },
-  buttonGap: { height: spacing.md },
 });

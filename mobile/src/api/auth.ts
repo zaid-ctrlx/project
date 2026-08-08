@@ -2,11 +2,16 @@ import { api } from "./client";
 
 export type Tag = { id: string; name: string; slug: string };
 
+export const GENDER_OPTIONS = ["Male", "Female", "Prefer not to say"] as const;
+export type Gender = (typeof GENDER_OPTIONS)[number];
+
 export type User = {
   id: string;
   email: string;
   full_name: string | null;
   username: string;
+  bio: string | null;
+  gender: Gender | null;
   is_active: boolean;
   is_verified: boolean;
   onboarding_completed: boolean;

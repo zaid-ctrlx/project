@@ -2,7 +2,7 @@ import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Tag, User } from "../api/auth";
+import { Gender, GENDER_OPTIONS, Tag, User } from "../api/auth";
 import { ApiError } from "../api/client";
 import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { fetchTags, updateProfile } from "../api/profile";
@@ -13,7 +13,10 @@ import TextField from "./TextField";
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
 type Props = {
+  initialFullName?: string | null;
   initialUsername?: string | null;
+  initialBio?: string | null;
+  initialGender?: Gender | null;
   initialTagIds?: string[];
   initialLocationLabel?: string | null;
   initialLocationCoords?: { lat: number; lng: number } | null;
@@ -25,14 +28,20 @@ type Props = {
 // later) — same fields, same validation, just different initial values and
 // submit-button copy.
 export default function ProfileForm({
+  initialFullName,
   initialUsername,
+  initialBio,
+  initialGender,
   initialTagIds,
   initialLocationLabel,
   initialLocationCoords,
   submitLabel,
   onSaved,
 }: Props) {
+  const [fullName, setFullName] = useState(initialFullName ?? "");
   const [username, setUsername] = useState(initialUsername ?? "");
+  const [bio, setBio] = useState(initialBio ?? "");
+  const [gender, setGender] = useState<Gender | null>(initialGender ?? null);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set(initialTagIds ?? []));
@@ -163,7 +172,10 @@ export default function ProfileForm({
     setSaving(true);
     try {
       const updated = await updateProfile({
+        full_name: fullName.trim() || null,
         username: trimmedUsername,
+        bio: bio.trim() || null,
+        gender,
         location_lat: locationCoords.lat,
         location_lng: locationCoords.lng,
         location_label: locationLabel,
@@ -179,8 +191,10 @@ export default function ProfileForm({
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={styles.sectionTitle}>Username</Text>
+      <TextField label="Name" placeholder="Your name" value={fullName} onChangeText={setFullName} />
+
       <TextField
+        label="Username"
         placeholder="e.g. zaid_123"
         value={username}
         onChangeText={setUsername}
@@ -188,6 +202,32 @@ export default function ProfileForm({
         autoCorrect={false}
       />
       <Text style={styles.helperText}>Unique — this is how people find and search for you.</Text>
+
+      <TextField
+        label="Bio"
+        placeholder="Tell people a bit about yourself"
+        value={bio}
+        onChangeText={setBio}
+        multiline
+        maxLength={150}
+        style={styles.bioInput}
+      />
+
+      <Text style={styles.sectionTitle}>Gender</Text>
+      <View style={styles.tagRow}>
+        {GENDER_OPTIONS.map((option) => {
+          const selected = gender === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => setGender(selected ? null : option)}
+              style={[styles.tagChip, selected && styles.tagChipSelected]}
+            >
+              <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>{option}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Text style={styles.sectionTitle}>Interests</Text>
       {tagsLoading ? (
@@ -278,6 +318,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   helperText: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: -spacing.xs },
+  bioInput: { minHeight: 60, textAlignVertical: "top" },
   tagsLoading: { alignSelf: "flex-start" },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   tagChip: {
