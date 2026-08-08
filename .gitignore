@@ -1,0 +1,20 @@
+# --- Python / backend ---
+backend/venv/
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+
+# --- Node / mobile ---
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+*.log
+npm-debug.*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
