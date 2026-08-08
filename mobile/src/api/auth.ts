@@ -1,11 +1,18 @@
 import { api } from "./client";
 
+export type Tag = { id: string; name: string; slug: string };
+
 export type User = {
   id: string;
   email: string;
   full_name: string | null;
   is_active: boolean;
   is_verified: boolean;
+  onboarding_completed: boolean;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_label: string | null;
+  tags: Tag[];
   created_at: string;
 };
 

@@ -6,11 +6,13 @@ import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import HomeScreen from "./src/screens/HomeScreen";
 import LoginScreen from "./src/screens/LoginScreen";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
+  Onboarding: undefined;
   Home: undefined;
 };
 
@@ -30,7 +32,11 @@ function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
-        <Stack.Screen name="Home" component={HomeScreen} />
+        user.onboarding_completed ? (
+          <Stack.Screen name="Home" component={HomeScreen} />
+        ) : (
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        )
       ) : (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />

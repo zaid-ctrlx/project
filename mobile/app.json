@@ -20,6 +20,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow this app to use your location to suggest nearby events and communities."
+        }
+      ]
+    ]
   }
 }
