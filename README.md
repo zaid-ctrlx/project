@@ -53,15 +53,19 @@ npm start
 ```
 Scan the QR code with Expo Go.
 
-## Auth flow implemented so far
+## API implemented so far
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login` → access + refresh JWTs
 - `POST /api/v1/auth/refresh`
 - `GET /api/v1/users/me` (protected)
+- `GET /api/v1/tags` — starter interest tags (seed via `python -m scripts.seed_tags`)
+- `PUT /api/v1/users/me/profile` (protected) — sets location + interest tags, flips `onboarding_completed`
 
-Mobile app has Login/Register/Home screens wired to these, with tokens
-persisted in AsyncStorage and silent refresh-on-401 in the API client
+Mobile app: Login/Register screens, then a one-time Onboarding screen
+(interest tag chips + GPS or text-search location) before landing on Home.
+Routing between them is driven by `user.onboarding_completed`. Tokens
+persist in AsyncStorage with silent refresh-on-401 in the API client
 (`mobile/src/api/client.ts`).
 
 ## Not done yet
@@ -70,4 +74,10 @@ persisted in AsyncStorage and silent refresh-on-401 in the API client
   with `expo-secure-store` before this matters)
 - No email verification / password reset
 - No rate limiting on auth endpoints
-- Everything past auth (events, recommendations, profiles) — not started
+- Location is stored at full precision; no endpoint shows a user's location
+  to *other* users yet, so no rounding-for-privacy logic exists yet either
+  (needed before any "nearby users/events" feature ships — see proposal
+  Section 6)
+- `expo-location`'s geocode/reverse-geocode only work on a real device —
+  they degrade gracefully (not crash) in the web preview
+- Events, interactions, recommendations — not started
