@@ -1,19 +1,14 @@
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Tag, User } from "../api/auth";
 import { ApiError } from "../api/client";
 import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { fetchTags, updateProfile } from "../api/profile";
+import { colors, fontSize, radius, spacing } from "../theme";
+import Button from "./Button";
+import TextField from "./TextField";
 
 type Props = {
   initialFullName?: string | null;
@@ -174,18 +169,13 @@ export default function ProfileForm({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.sectionTitle}>Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Your name"
-        value={fullName}
-        onChangeText={setFullName}
-      />
+      <TextField placeholder="Your name" value={fullName} onChangeText={setFullName} />
 
       <Text style={styles.sectionTitle}>Interests</Text>
       {tagsLoading ? (
-        <ActivityIndicator />
+        <ActivityIndicator style={styles.tagsLoading} />
       ) : (
         <View style={styles.tagRow}>
           {tags.map((tag) => {
@@ -197,7 +187,8 @@ export default function ProfileForm({
                 style={[styles.tagChip, selected && styles.tagChipSelected]}
               >
                 <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>
-                  {selected ? `${tag.name} ✕` : tag.name}
+                  {tag.name}
+                  {selected ? "  ✕" : ""}
                 </Text>
               </Pressable>
             );
@@ -207,18 +198,19 @@ export default function ProfileForm({
 
       <Text style={styles.sectionTitle}>Location</Text>
 
-      <Pressable style={styles.secondaryButton} onPress={useCurrentLocation} disabled={gpsBusy}>
-        <Text style={styles.secondaryButtonText}>
-          {gpsBusy ? "Locating..." : "📍 Use my current location"}
-        </Text>
-      </Pressable>
+      <Button
+        label={gpsBusy ? "Locating..." : "📍 Use my current location"}
+        onPress={useCurrentLocation}
+        loading={gpsBusy}
+        variant="secondary"
+      />
 
       <Text style={styles.orText}>or search for it</Text>
 
       <View>
         <View style={styles.searchRow}>
-          <TextInput
-            style={[styles.input, styles.searchInput]}
+          <TextField
+            containerStyle={styles.searchInputContainer}
             placeholder="e.g. Gulshan, Karachi"
             value={searchText}
             onChangeText={setSearchText}
@@ -232,7 +224,11 @@ export default function ProfileForm({
               <Pressable
                 key={`${result.lat},${result.lng}`}
                 onPress={() => selectSearchResult(result)}
-                style={[styles.dropdownItem, i < searchResults.length - 1 && styles.dropdownItemBorder]}
+                style={({ pressed }) => [
+                  styles.dropdownItem,
+                  i < searchResults.length - 1 && styles.dropdownItemBorder,
+                  pressed && styles.dropdownItemPressed,
+                ]}
               >
                 <Text style={styles.dropdownItemText}>{result.label}</Text>
               </Pressable>
@@ -248,53 +244,53 @@ export default function ProfileForm({
 
       {saveError && <Text style={styles.error}>{saveError}</Text>}
 
-      <Pressable style={styles.button} onPress={onSave} disabled={saving}>
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{submitLabel}</Text>}
-      </Pressable>
+      <View style={styles.submitRow}>
+        <Button label={submitLabel} onPress={onSave} loading={saving} />
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24, backgroundColor: "#fff" },
-  sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 16, marginBottom: 12 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  container: { flexGrow: 1, padding: spacing.xl, backgroundColor: colors.background, gap: spacing.md },
+  sectionTitle: {
+    fontSize: fontSize.base,
+    fontWeight: "600",
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: spacing.md,
+  },
+  tagsLoading: { alignSelf: "flex-start" },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   tagChip: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.chipBackground,
   },
-  tagChipSelected: { backgroundColor: "#111", borderColor: "#111" },
-  tagChipText: { fontSize: 14, color: "#333" },
-  tagChipTextSelected: { color: "#fff" },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: "#111",
-    borderRadius: 8,
-    padding: 12,
-    alignItems: "center",
-  },
-  secondaryButtonText: { color: "#111", fontWeight: "600" },
-  orText: { textAlign: "center", color: "#999", marginVertical: 12, fontSize: 13 },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12, fontSize: 16 },
-  searchInput: { flex: 1 },
-  searchSpinner: { width: 24 },
+  tagChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tagChipText: { fontSize: fontSize.base, color: colors.text },
+  tagChipTextSelected: { color: colors.primaryText },
+  orText: { textAlign: "center", color: colors.textFaint, fontSize: fontSize.sm },
+  searchRow: { flexDirection: "row", alignItems: "center" },
+  searchInputContainer: { flex: 1 },
+  searchSpinner: { position: "absolute", right: spacing.md },
   dropdown: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    marginTop: 4,
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    marginTop: spacing.xs,
+    backgroundColor: colors.background,
     overflow: "hidden",
   },
-  dropdownItem: { padding: 12 },
-  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: "#eee" },
-  dropdownItemText: { fontSize: 14, color: "#333" },
-  error: { color: "#c00", marginTop: 12 },
-  locationConfirm: { color: "#0a0", marginTop: 12, fontSize: 14 },
-  button: { backgroundColor: "#111", borderRadius: 8, padding: 14, alignItems: "center", marginTop: 28 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  dropdownItem: { padding: spacing.md },
+  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  dropdownItemPressed: { backgroundColor: colors.chipBackground },
+  dropdownItemText: { fontSize: fontSize.base, color: colors.text },
+  error: { color: colors.danger, fontSize: fontSize.base },
+  locationConfirm: { color: colors.success, fontSize: fontSize.base },
+  submitRow: { marginTop: spacing.lg, marginBottom: spacing.xl },
 });
