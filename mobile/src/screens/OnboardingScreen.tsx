@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { ApiError } from "../api/client";
+import { reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { fetchTags, updateProfile } from "../api/profile";
 import { Tag } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
@@ -65,22 +66,18 @@ export default function OnboardingScreen() {
 
       const position = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = position.coords;
-
-      let label = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-      try {
-        const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (place) {
-          label = [place.city ?? place.subregion, place.region, place.country]
-            .filter(Boolean)
-            .join(", ");
-        }
-      } catch {
-        // Reverse geocoding can fail (e.g. no Play Services) — fall back to
-        // raw coordinates, which is still a valid, usable location.
-      }
-
+      // Set coords immediately so "Continue" is already valid even if the
+      // reverse-geocode call below is slow or fails.
       setLocationCoords({ lat: latitude, lng: longitude });
-      setLocationLabel(label || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      setLocationLabel(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+
+      try {
+        const { label } = await reverseGeocode(latitude, longitude);
+        setLocationLabel(label);
+      } catch {
+        // Backend/network hiccup — keep the raw-coordinate label already set
+        // above rather than blocking the user from continuing.
+      }
     } catch {
       setLocationError("Couldn't get your location. Try searching for it instead.");
     } finally {
@@ -93,14 +90,14 @@ export default function OnboardingScreen() {
     setLocationError(null);
     setLocationBusy(true);
     try {
-      const results = await Location.geocodeAsync(searchText.trim());
+      const results = await searchLocationApi(searchText.trim());
       if (results.length === 0) {
         setLocationError("No matches found. Try a different search.");
         return;
       }
-      const { latitude, longitude } = results[0];
-      setLocationCoords({ lat: latitude, lng: longitude });
-      setLocationLabel(searchText.trim());
+      const { lat, lng, label } = results[0];
+      setLocationCoords({ lat, lng });
+      setLocationLabel(label);
     } catch {
       setLocationError("Search failed. Check your connection and try again.");
     } finally {
