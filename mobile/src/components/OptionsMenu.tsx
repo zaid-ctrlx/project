@@ -7,6 +7,9 @@ export type OptionsMenuItem = {
   label: string;
   onPress: () => void;
   destructive?: boolean;
+  // Visible but inert — "not built yet", distinct from not showing the row
+  // at all. Renders greyed out and ignores taps (see EventsScreen's "Sort").
+  disabled?: boolean;
 };
 
 type Props = {
@@ -40,9 +43,22 @@ export default function OptionsMenu({ visible, onClose, title, items }: Props) {
             <Pressable
               key={item.label}
               onPress={() => run(item.onPress)}
-              style={({ pressed }) => [styles.option, styles.optionBorder, pressed && styles.optionPressed]}
+              disabled={item.disabled}
+              style={({ pressed }) => [
+                styles.option,
+                styles.optionBorder,
+                pressed && !item.disabled && styles.optionPressed,
+              ]}
             >
-              <Text style={[styles.optionText, item.destructive && styles.optionTextDestructive]}>{item.label}</Text>
+              <Text
+                style={[
+                  styles.optionText,
+                  item.destructive && styles.optionTextDestructive,
+                  item.disabled && styles.optionTextDisabled,
+                ]}
+              >
+                {item.label}
+              </Text>
             </Pressable>
           ))}
           <Pressable onPress={onClose} style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}>
@@ -84,5 +100,6 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: colors.chipBackground },
   optionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
   optionTextDestructive: { color: colors.danger },
+  optionTextDisabled: { color: colors.textFaint },
   cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
 });

@@ -4,23 +4,32 @@ import React from "react";
 import { Event } from "../api/events";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
 import ChatScreen from "../screens/ChatScreen";
+import ContactInfoScreen from "../screens/ContactInfoScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
+import EditEventScreen from "../screens/EditEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
+import GroupInfoScreen from "../screens/GroupInfoScreen";
+import MyEventsScreen from "../screens/MyEventsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
 import MainTabs from "./MainTabs";
 
 // Wraps the bottom tabs in a stack so screens reachable from a tab (e.g.
 // Settings, pushed from Profile; Chat/CreateGroup/GroupChat, pushed from
-// Messages; EventDetail, pushed from Events) can slide in over the tab bar
-// instead of needing to be a tab themselves.
+// Messages; EventDetail/MyEvents/EditEvent, pushed from Events) can slide in
+// over the tab bar instead of needing to be a tab themselves.
 export type AppStackParamList = {
   Tabs: undefined;
   Settings: undefined;
   Chat: { userId: string; username: string; avatarUrl: string | null };
   UserProfile: { userId: string };
   EventDetail: { event: Event };
+  // Pushed from Events' ⋯ menu ("My Events").
+  MyEvents: undefined;
+  // Pushed from MyEventsScreen's Edit action — full event, not just an id,
+  // same reasoning as EventDetail (already fetched, no round trip needed).
+  EditEvent: { event: Event };
   CreateGroup: undefined;
   // unreadCount is optional — passed by MessagesScreen (which already knows
   // it from the conversation list) so the tab badge can be decremented by
@@ -30,6 +39,12 @@ export type AppStackParamList = {
   // and nothing is marked read.
   GroupChat: { groupId: string; groupName: string; memberCount: number; unreadCount?: number };
   AddGroupMember: { groupId: string };
+  // Pushed by tapping the group name in GroupChatScreen's header.
+  GroupInfo: { groupId: string };
+  // Pushed from GroupInfo's member list. groupId (not just userId) because
+  // "Remove from group" is a group-scoped action, and it's the same screen
+  // used from any group's member list.
+  ContactInfo: { groupId: string; userId: string };
 };
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -42,9 +57,13 @@ export default function AppStack() {
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
+      <Stack.Screen name="MyEvents" component={MyEventsScreen} />
+      <Stack.Screen name="EditEvent" component={EditEventScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="GroupChat" component={GroupChatScreen} />
       <Stack.Screen name="AddGroupMember" component={AddGroupMemberScreen} />
+      <Stack.Screen name="GroupInfo" component={GroupInfoScreen} />
+      <Stack.Screen name="ContactInfo" component={ContactInfoScreen} />
     </Stack.Navigator>
   );
 }

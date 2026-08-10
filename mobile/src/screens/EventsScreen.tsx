@@ -1,7 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import OptionsMenu from "../components/OptionsMenu";
+import type { AppStackParamList } from "../navigation/AppStack";
 import { colors, fontSize, radius, spacing } from "../theme";
 import BookmarksView from "./events/BookmarksView";
 import CreateEventView from "./events/CreateEventView";
@@ -17,11 +22,21 @@ const TABS: { key: SubTab; label: string }[] = [
 
 export default function EventsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [tab, setTab] = useState<SubTab>("discover");
+  // Filter/Sort turned out to belong inline on Discover (below its search
+  // bar, see EventDiscoverView), not here — "My Events" is this menu's
+  // first real item.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <Text style={styles.title}>Events</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Events</Text>
+        <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
+          <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
+        </Pressable>
+      </View>
 
       <View style={styles.segmented}>
         {TABS.map(({ key, label }) => (
@@ -38,13 +53,26 @@ export default function EventsScreen() {
       {tab === "discover" && <EventDiscoverView />}
       {tab === "create" && <CreateEventView onCreated={() => setTab("discover")} />}
       {tab === "bookmarks" && <BookmarksView />}
+
+      <OptionsMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title="Events"
+        items={[{ label: "My Events", onPress: () => navigation.navigate("MyEvents") }]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-  title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text, marginBottom: spacing.lg },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
+  },
+  title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
   segmented: {
     flexDirection: "row",
     backgroundColor: colors.chipBackground,

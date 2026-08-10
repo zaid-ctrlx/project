@@ -7,9 +7,9 @@ export type EventCreator = {
   avatar_url: string | null;
 };
 
-// Who can join. Set at creation only for now — there's no join/attendance
-// mechanism yet for this to gate, and no edit endpoint yet either (see
-// backend app/models/event.py's Event.join_policy).
+// Who can join. Editable after creation now (see updateEvent) — there's
+// still no join/attendance mechanism yet for this to actually gate, though
+// (see backend app/models/event.py's Event.join_policy).
 export type JoinPolicy = "open" | "invite_only" | "closed";
 
 // Four fixed-vocabulary, single-select category fields (replaces the
@@ -126,6 +126,22 @@ export function listEvents(filters?: EventListFilters): Promise<Event[]> {
 
 export function listBookmarkedEvents(): Promise<Event[]> {
   return api.authed("/events/bookmarks");
+}
+
+// Events the current user created — see MyEventsScreen.
+export function listMyEvents(): Promise<Event[]> {
+  return api.authed("/events/mine");
+}
+
+// Creator-only server-side (403 otherwise) — full replace, same payload
+// shape as createEvent, not a partial patch. See EventForm.
+export function updateEvent(id: string, payload: EventCreatePayload): Promise<Event> {
+  return api.authed(`/events/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+// Creator-only server-side (403 otherwise).
+export function deleteEvent(id: string): Promise<void> {
+  return api.authed(`/events/${id}`, { method: "DELETE" });
 }
 
 export function bookmarkEvent(id: string): Promise<void> {

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy import DateTime, ForeignKey, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,3 +28,29 @@ class Message(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DmClear(Base):
+    """"Clear chat" for a DM thread, per user: everything with created_at <=
+    cleared_at is hidden from *this* user only — the other side's view is
+    untouched (same one-sided semantics as WhatsApp/Telegram's "Clear Chat",
+    distinct from a "delete for everyone" feature, which doesn't exist here).
+
+    Groups have a natural per-user row to hang this off already
+    (GroupMember.cleared_at) since membership is already modeled; DMs have
+    no such row (see Message's docstring — no Conversation table), hence
+    this separate table rather than a column on Message itself, which is
+    shared by both sides and isn't the right place for a one-sided marker.
+    """
+
+    __tablename__ = "dm_clears"
+    __table_args__ = (UniqueConstraint("user_id", "other_user_id", name="uq_dm_clears_user_other"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    other_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    cleared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

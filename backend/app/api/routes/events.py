@@ -105,6 +105,77 @@ def list_bookmarked_events(
     return events
 
 
+@router.get("/mine", response_model=list[EventOut])
+def list_my_events(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    stmt = select(Event).options(selectinload(Event.creator)).where(Event.creator_id == current_user.id)
+    stmt = _with_bookmark_flag(stmt, current_user.id).order_by(Event.created_at.desc())
+
+    events: list[Event] = []
+    for event, bookmarked in db.execute(stmt).all():
+        event.is_bookmarked = bookmarked
+        events.append(event)
+    return events
+
+
+def _get_own_event(db: Session, event_id: uuid.UUID, current_user: User) -> Event:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    if event.creator_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the event's creator can do that")
+    return event
+
+
+@router.put("/{event_id}", response_model=EventOut)
+def update_event(
+    event_id: uuid.UUID,
+    payload: EventCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Event:
+    # Full replace (not a partial PATCH) — matches how the mobile form
+    # submits it: EventForm always sends every field, prefilled from the
+    # event being edited, same shape as create_event's payload.
+    if payload.starts_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event must start in the future")
+
+    event = _get_own_event(db, event_id, current_user)
+    event.title = payload.title
+    event.description = payload.description
+    event.starts_at = payload.starts_at
+    event.location_lat = payload.location_lat
+    event.location_lng = payload.location_lng
+    event.location_label = payload.location_label
+    event.join_policy = payload.join_policy
+    event.activity_type = payload.activity_type
+    event.community_vibe = payload.community_vibe
+    event.skill_level = payload.skill_level
+    event.event_style = payload.event_style
+
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    event.is_bookmarked = db.execute(
+        select(exists().where(event_bookmarks.c.event_id == event.id, event_bookmarks.c.user_id == current_user.id))
+    ).scalar_one()
+    return event
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    event = _get_own_event(db, event_id, current_user)
+    # event_bookmarks rows cascade via its own FK ondelete — see app/models/event.py.
+    db.delete(event)
+    db.commit()
+
+
 @router.post("/{event_id}/bookmark", status_code=status.HTTP_204_NO_CONTENT)
 def bookmark_event(
     event_id: uuid.UUID,

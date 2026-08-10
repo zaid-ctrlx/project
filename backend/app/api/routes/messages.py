@@ -9,7 +9,7 @@ from app.core.security import decode_token
 from app.core.ws_manager import manager
 from app.db.session import SessionLocal, get_db
 from app.models.group import ChatGroup, GroupMember, GroupMessage
-from app.models.message import Message
+from app.models.message import DmClear, Message
 from app.models.user import User
 from app.schemas.message import ConversationOut, MessageCreate, MessageOut, MessageParticipantOut
 
@@ -56,6 +56,14 @@ def _dm_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
         else_=Message.sender_id,
     ).label("counterpart_id")
 
+    # If I've cleared this counterpart's chat (DmClear.cleared_at), messages
+    # at or before that point are excluded here too — same cutoff
+    # get_thread applies, so the list preview can't show something the
+    # thread itself would no longer display. A counterpart with nothing
+    # left after their clear point just drops out of the list entirely
+    # (there's no separate DM "conversation" row to keep an empty entry
+    # alive on, unlike a group's permanent membership row — see
+    # _group_conversations below).
     ranked = (
         select(
             Message.id,
@@ -68,7 +76,11 @@ def _dm_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
             .over(partition_by=counterpart_id, order_by=Message.created_at.desc())
             .label("rn"),
         )
-        .where(or_(Message.sender_id == me, Message.recipient_id == me))
+        .outerjoin(DmClear, and_(DmClear.user_id == me, DmClear.other_user_id == counterpart_id))
+        .where(
+            or_(Message.sender_id == me, Message.recipient_id == me),
+            or_(DmClear.cleared_at.is_(None), Message.created_at > DmClear.cleared_at),
+        )
         .subquery()
     )
 
@@ -81,11 +93,18 @@ def _dm_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
 
     # Second, lightweight aggregate query for unread counts, merged in
     # Python rather than folded into the window-function query above — two
-    # small readable queries beat one contorted one at FYP scale.
+    # small readable queries beat one contorted one at FYP scale. Same
+    # clear-cutoff join as above, so a cleared-but-unread-at-the-time
+    # message doesn't leave a phantom badge behind.
     unread_counts = dict(
         db.execute(
             select(Message.sender_id, func.count())
-            .where(Message.recipient_id == me, Message.read_at.is_(None))
+            .outerjoin(DmClear, and_(DmClear.user_id == me, DmClear.other_user_id == Message.sender_id))
+            .where(
+                Message.recipient_id == me,
+                Message.read_at.is_(None),
+                or_(DmClear.cleared_at.is_(None), Message.created_at > DmClear.cleared_at),
+            )
             .group_by(Message.sender_id)
         ).all()
     )
@@ -113,8 +132,18 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
         return []
     group_ids = [row.GroupMember.group_id for row in memberships]
 
+    # Reused in both queries below — each needs *my* membership row
+    # (cleared_at / last_read_at) joined back in per group message. Safe to
+    # reuse the same aliased() construct across two separate select()s;
+    # it's just a query-building object, not tied to one statement.
+    my_membership = aliased(GroupMember)
+
     # Latest message per group — same groupwise-max approach as the DM query
-    # above, partitioned by group instead of by counterpart.
+    # above, partitioned by group instead of by counterpart. Messages at or
+    # before my own cleared_at (if I've cleared this group) are excluded,
+    # same cutoff get_group_thread applies — unlike a DM, a fully-cleared
+    # group can't vanish from the list (its membership row persists
+    # regardless of messages), it just shows no preview below.
     ranked = (
         select(
             GroupMessage.group_id,
@@ -125,7 +154,11 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
             .over(partition_by=GroupMessage.group_id, order_by=GroupMessage.created_at.desc())
             .label("rn"),
         )
-        .where(GroupMessage.group_id.in_(group_ids))
+        .join(my_membership, and_(my_membership.group_id == GroupMessage.group_id, my_membership.user_id == me))
+        .where(
+            GroupMessage.group_id.in_(group_ids),
+            or_(my_membership.cleared_at.is_(None), GroupMessage.created_at > my_membership.cleared_at),
+        )
         .subquery()
     )
     latest_by_group = {row.group_id: row for row in db.execute(select(ranked).where(ranked.c.rn == 1)).all()}
@@ -137,10 +170,10 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
     )
 
     # Unread = messages from someone else, newer than *my* last_read_at on
-    # that group (NULL last_read_at = never opened = everything's unread) —
-    # expressed as a self-join back to my own membership row so it can stay
-    # one grouped query instead of one query per group.
-    my_membership = aliased(GroupMember)
+    # that group (NULL last_read_at = never opened = everything's unread)
+    # and newer than my own cleared_at, if set (NULL = never cleared) —
+    # same self-join back to my own membership row as the "latest message"
+    # query above, so this stays one grouped query instead of one per group.
     unread_counts = dict(
         db.execute(
             select(GroupMessage.group_id, func.count())
@@ -149,6 +182,7 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
                 GroupMessage.group_id.in_(group_ids),
                 GroupMessage.sender_id != me,
                 or_(my_membership.last_read_at.is_(None), GroupMessage.created_at > my_membership.last_read_at),
+                or_(my_membership.cleared_at.is_(None), GroupMessage.created_at > my_membership.cleared_at),
             )
             .group_by(GroupMessage.group_id)
         ).all()
@@ -199,14 +233,23 @@ def get_thread(
     if db.get(User, user_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    stmt = (
-        select(Message)
-        .where(
-            or_(
-                and_(Message.sender_id == current_user.id, Message.recipient_id == user_id),
-                and_(Message.sender_id == user_id, Message.recipient_id == current_user.id),
-            )
+    # If cleared, everything at or before that point is permanently hidden
+    # from *this* user — not just the default view, pagination can't scroll
+    # back past it either. See DmClear's docstring.
+    clear = db.execute(
+        select(DmClear.cleared_at).where(DmClear.user_id == current_user.id, DmClear.other_user_id == user_id)
+    ).scalar_one_or_none()
+
+    stmt = select(Message).where(
+        or_(
+            and_(Message.sender_id == current_user.id, Message.recipient_id == user_id),
+            and_(Message.sender_id == user_id, Message.recipient_id == current_user.id),
         )
+    )
+    if clear is not None:
+        stmt = stmt.where(Message.created_at > clear)
+    stmt = (
+        stmt
         # Newest-first, paginated like GET /events. The mobile client keeps
         # this order and renders via an inverted FlatList for the natural
         # oldest-at-top chat layout, rather than reversing client-side.
@@ -234,6 +277,25 @@ def mark_thread_read(
         )
         .values(read_at=func.now())
     )
+    db.commit()
+
+
+@router.post("/with/{user_id}/clear", status_code=status.HTTP_204_NO_CONTENT)
+def clear_dm_thread(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    # Hand-rolled upsert (check then insert/update) rather than an ON
+    # CONFLICT clause — matches this codebase's existing style for
+    # first-or-create rows (bookmark_event, add_group_member).
+    existing = db.execute(
+        select(DmClear).where(DmClear.user_id == current_user.id, DmClear.other_user_id == user_id)
+    ).scalar_one_or_none()
+    if existing is None:
+        db.add(DmClear(user_id=current_user.id, other_user_id=user_id, cleared_at=func.now()))
+    else:
+        db.execute(update(DmClear).where(DmClear.id == existing.id).values(cleared_at=func.now()))
     db.commit()
 
 
