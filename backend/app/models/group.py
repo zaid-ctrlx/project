@@ -51,6 +51,11 @@ class GroupMember(Base):
     # NULL means "never opened this thread" — every message counts as
     # unread, same semantics as a DM's read_at being NULL.
     last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "Clear chat", one-sided (this member's view only) — see DmClear's
+    # docstring in app/models/message.py for the DM-side equivalent and why
+    # groups get a column here instead of their own separate table (a
+    # per-membership row already exists to hang it off).
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     group: Mapped[ChatGroup] = relationship(back_populates="members")
     user: Mapped[User] = relationship()
