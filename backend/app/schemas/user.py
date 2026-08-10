@@ -29,6 +29,7 @@ class UserOut(BaseModel):
     username: str
     bio: str | None
     gender: str | None
+    avatar_url: str | None
     is_active: bool
     is_verified: bool
     onboarding_completed: bool
@@ -59,4 +60,21 @@ class UserSearchResult(BaseModel):
     id: uuid.UUID
     username: str
     full_name: str | None
+    avatar_url: str | None
+    tags: list[TagOut]
+
+
+class UserPublicOut(BaseModel):
+    """What one user is allowed to see of another's profile — deliberately
+    excludes email, gender, and location, matching the privacy stance
+    already established on UserSearchResult (location in particular has no
+    rounding-for-privacy logic yet, so it stays fully unexposed to others)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    username: str
+    full_name: str | None
+    bio: str | None
+    avatar_url: str | None
     tags: list[TagOut]

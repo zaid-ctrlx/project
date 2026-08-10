@@ -32,6 +32,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     bio: Mapped[str | None] = mapped_column(String(150), nullable=True)
     gender: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Relative path under the /media static mount (e.g. "/media/avatars/<id>_<hash>.jpg"),
+    # not an absolute URL — the client prefixes it with the API origin.
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

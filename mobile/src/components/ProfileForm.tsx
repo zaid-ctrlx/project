@@ -1,13 +1,18 @@
-import * as Location from "expo-location";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { File } from "expo-file-system";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import React, { useState } from "react";
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Gender, GENDER_OPTIONS, Tag, User } from "../api/auth";
-import { ApiError } from "../api/client";
-import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
-import { fetchTags, updateProfile } from "../api/profile";
+import { Gender, GENDER_OPTIONS, User } from "../api/auth";
+import { ApiError, mediaUrl } from "../api/client";
+import { updateProfile, uploadAvatar } from "../api/profile";
 import { colors, fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
+import LocationPicker, { LocationValue } from "./LocationPicker";
+import Select from "./Select";
+import TagMultiSelect from "./TagMultiSelect";
 import TextField from "./TextField";
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
@@ -17,11 +22,17 @@ type Props = {
   initialUsername?: string | null;
   initialBio?: string | null;
   initialGender?: Gender | null;
+  initialAvatarUrl?: string | null;
   initialTagIds?: string[];
   initialLocationLabel?: string | null;
   initialLocationCoords?: { lat: number; lng: number } | null;
   submitLabel: string;
   onSaved: (user: User) => void;
+  // Avatar upload persists (and is reflected server-side) the moment it's
+  // picked, independent of the Save button — this lets the caller update
+  // its own copy of `user` right away without closing the edit form the
+  // way onSaved does.
+  onAvatarUpdated?: (user: User) => void;
 };
 
 // Shared by onboarding (first-time setup) and the profile screen (editing
@@ -32,128 +43,111 @@ export default function ProfileForm({
   initialUsername,
   initialBio,
   initialGender,
+  initialAvatarUrl,
   initialTagIds,
   initialLocationLabel,
   initialLocationCoords,
   submitLabel,
   onSaved,
+  onAvatarUpdated,
 }: Props) {
   const [fullName, setFullName] = useState(initialFullName ?? "");
   const [username, setUsername] = useState(initialUsername ?? "");
   const [bio, setBio] = useState(initialBio ?? "");
   const [gender, setGender] = useState<Gender | null>(initialGender ?? null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl ?? null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
 
-  const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set(initialTagIds ?? []));
-  const [tagsLoading, setTagsLoading] = useState(true);
 
-  const [locationLabel, setLocationLabel] = useState<string | null>(initialLocationLabel ?? null);
-  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(
-    initialLocationCoords ?? null
+  const [location, setLocation] = useState<LocationValue | null>(
+    initialLocationCoords && initialLocationLabel
+      ? { label: initialLocationLabel, lat: initialLocationCoords.lat, lng: initialLocationCoords.lng }
+      : null
   );
-  const [searchText, setSearchText] = useState(initialLocationLabel ?? "");
-  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
-  const [gpsBusy, setGpsBusy] = useState(false);
-  const [searchBusy, setSearchBusy] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setTags(await fetchTags());
-      } catch {
-        // Non-fatal: user can still save with location/name only, and
-        // retry tags by reopening the screen.
-      } finally {
-        setTagsLoading(false);
-      }
-    })();
-  }, []);
-
-  function toggleTag(id: string) {
-    setSelectedTagIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function useCurrentLocation() {
-    setLocationError(null);
-    setGpsBusy(true);
-    setSearchResults([]);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLocationError("Location permission denied. You can search for your location instead.");
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = position.coords;
-      setLocationCoords({ lat: latitude, lng: longitude });
-      const fallbackLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-      setLocationLabel(fallbackLabel);
-      setSearchText(fallbackLabel);
-
-      try {
-        const { label } = await reverseGeocode(latitude, longitude);
-        setLocationLabel(label);
-        setSearchText(label);
-      } catch {
-        // Backend/network hiccup — keep the raw-coordinate label already set
-        // above rather than blocking the user from continuing.
-      }
-    } catch {
-      setLocationError("Couldn't get your location. Try searching for it instead.");
-    } finally {
-      setGpsBusy(false);
-    }
-  }
-
-  // Live autocomplete: search as the user types, debounced. Skipped once
-  // searchText matches the already-selected label, so picking a result
-  // (which fills the input) doesn't immediately re-trigger a search.
-  useEffect(() => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-
-    if (searchText.trim().length < 3 || searchText === locationLabel) {
-      setSearchResults([]);
+  async function pickAndUploadAvatar(source: "camera" | "library") {
+    setSaveError(null);
+    const permission =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setSaveError(
+        source === "camera"
+          ? "Camera permission denied. Enable it in your device settings to take a photo."
+          : "Photo library permission denied. Enable it in your device settings to choose a photo."
+      );
       return;
     }
 
-    searchDebounceRef.current = setTimeout(async () => {
-      setSearchBusy(true);
-      setLocationError(null);
-      try {
-        const results = await searchLocationApi(searchText.trim());
-        setSearchResults(results);
-        if (results.length === 0) {
-          setLocationError("No matches found. Try a different search.");
-        }
-      } catch {
-        setLocationError("Search failed. Check your connection and try again.");
-      } finally {
-        setSearchBusy(false);
-      }
-    }, 400);
-
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
     };
-  }, [searchText]);
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync(pickerOptions)
+        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
-  function selectSearchResult(result: GeocodeResult) {
-    setLocationCoords({ lat: result.lat, lng: result.lng });
-    setLocationLabel(result.label);
-    setSearchText(result.label);
-    setSearchResults([]);
-    setLocationError(null);
+    if (result.canceled || !result.assets?.length) return;
+
+    const asset = result.assets[0];
+    setAvatarUploading(true);
+    try {
+      // Phone cameras can produce multi-megabyte originals even after the
+      // picker's own `quality` compression — downscale to a sensible avatar
+      // size first so the upload is small and fast regardless of source
+      // resolution (also keeps it comfortably under the backend's 5MB cap).
+      const resized = await ImageManipulator.manipulate(asset.uri)
+        .resize({ width: 640, height: 640 })
+        .renderAsync();
+      const saved = await resized.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
+
+      // Need a real Blob-like part for FormData (see PickedAvatar for why).
+      // Web: saved.uri is a blob: URL — re-fetching it gives a real Blob.
+      // Native: expo-file-system's File wraps the local file:// uri and
+      // implements the Blob interface (.bytes()) without expo-file-system
+      // being web-supported, hence the platform split.
+      const file: Blob =
+        Platform.OS === "web"
+          ? await (await fetch(saved.uri)).blob()
+          : (new File(saved.uri) as unknown as Blob);
+
+      const updated = await uploadAvatar({ file, mimeType: "image/jpeg" });
+      setAvatarUrl(updated.avatar_url);
+      onAvatarUpdated?.(updated);
+    } catch (err) {
+      // Surface the real reason instead of a blanket message — a bare
+      // fetch failure (e.g. the picked file couldn't be read/attached)
+      // throws a plain Error before the backend ever sees the request, so
+      // ApiError won't catch it and swallowing it here hides the cause.
+      console.error("Avatar upload failed:", err);
+      setSaveError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? `Couldn't upload photo: ${err.message}`
+            : "Couldn't upload photo. Try again."
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  function chooseAvatarSource() {
+    setAvatarSheetOpen(true);
+  }
+
+  function pickFromSheet(source: "camera" | "library") {
+    setAvatarSheetOpen(false);
+    pickAndUploadAvatar(source);
   }
 
   async function onSave() {
@@ -164,7 +158,7 @@ export default function ProfileForm({
       setSaveError("Username must be at least 3 characters: letters, numbers, and underscores only.");
       return;
     }
-    if (!locationCoords || !locationLabel) {
+    if (!location) {
       setSaveError("Set a location before continuing.");
       return;
     }
@@ -176,9 +170,9 @@ export default function ProfileForm({
         username: trimmedUsername,
         bio: bio.trim() || null,
         gender,
-        location_lat: locationCoords.lat,
-        location_lng: locationCoords.lng,
-        location_label: locationLabel,
+        location_lat: location.lat,
+        location_lng: location.lng,
+        location_label: location.label,
         tag_ids: Array.from(selectedTagIds),
       });
       onSaved(updated);
@@ -191,6 +185,62 @@ export default function ProfileForm({
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <View style={styles.avatarSection}>
+        <Pressable onPress={chooseAvatarSource} disabled={avatarUploading} style={styles.avatarWrap}>
+          {avatarUrl ? (
+            <Image source={{ uri: mediaUrl(avatarUrl)! }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarPlaceholderText}>{(username || "?").charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={styles.avatarBadge}>
+            {avatarUploading ? (
+              <ActivityIndicator size="small" color={colors.primaryText} />
+            ) : (
+              <Ionicons name="camera" size={16} color={colors.primaryText} />
+            )}
+          </View>
+        </Pressable>
+        <Pressable onPress={chooseAvatarSource} disabled={avatarUploading} hitSlop={8}>
+          <Text style={styles.changePhotoText}>{avatarUploading ? "Uploading..." : "Change photo"}</Text>
+        </Pressable>
+      </View>
+
+      {/* Custom sheet instead of Alert.alert — RN Web's Alert doesn't
+          support multiple interactive buttons, so a 3-option chooser
+          silently does nothing there. This renders identically on both. */}
+      <Modal
+        visible={avatarSheetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarSheetOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setAvatarSheetOpen(false)}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Change profile photo</Text>
+            <Pressable
+              onPress={() => pickFromSheet("camera")}
+              style={({ pressed }) => [styles.sheetOption, styles.sheetOptionBorder, pressed && styles.sheetOptionPressed]}
+            >
+              <Text style={styles.sheetOptionText}>Take Photo</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => pickFromSheet("library")}
+              style={({ pressed }) => [styles.sheetOption, styles.sheetOptionBorder, pressed && styles.sheetOptionPressed]}
+            >
+              <Text style={styles.sheetOptionText}>Choose from Library</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setAvatarSheetOpen(false)}
+              style={({ pressed }) => [styles.sheetOption, pressed && styles.sheetOptionPressed]}
+            >
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
       <TextField label="Name" placeholder="Your name" value={fullName} onChangeText={setFullName} />
 
       <TextField
@@ -213,90 +263,13 @@ export default function ProfileForm({
         style={styles.bioInput}
       />
 
-      <Text style={styles.sectionTitle}>Gender</Text>
-      <View style={styles.tagRow}>
-        {GENDER_OPTIONS.map((option) => {
-          const selected = gender === option;
-          return (
-            <Pressable
-              key={option}
-              onPress={() => setGender(selected ? null : option)}
-              style={[styles.tagChip, selected && styles.tagChipSelected]}
-            >
-              <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>{option}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Select label="Gender" placeholder="Select gender" value={gender} options={GENDER_OPTIONS} onChange={setGender} />
 
       <Text style={styles.sectionTitle}>Interests</Text>
-      {tagsLoading ? (
-        <ActivityIndicator style={styles.tagsLoading} />
-      ) : (
-        <View style={styles.tagRow}>
-          {tags.map((tag) => {
-            const selected = selectedTagIds.has(tag.id);
-            return (
-              <Pressable
-                key={tag.id}
-                onPress={() => toggleTag(tag.id)}
-                style={[styles.tagChip, selected && styles.tagChipSelected]}
-              >
-                <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>
-                  {tag.name}
-                  {selected ? "  ✕" : ""}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
+      <TagMultiSelect selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
 
       <Text style={styles.sectionTitle}>Location</Text>
-
-      <Button
-        label={gpsBusy ? "Locating..." : "📍 Use my current location"}
-        onPress={useCurrentLocation}
-        loading={gpsBusy}
-        variant="secondary"
-      />
-
-      <Text style={styles.orText}>or search for it</Text>
-
-      <View>
-        <View style={styles.searchRow}>
-          <TextField
-            containerStyle={styles.searchInputContainer}
-            placeholder="e.g. Gulshan, Karachi"
-            value={searchText}
-            onChangeText={setSearchText}
-          />
-          {searchBusy && <ActivityIndicator style={styles.searchSpinner} />}
-        </View>
-
-        {searchResults.length > 0 && (
-          <View style={styles.dropdown}>
-            {searchResults.map((result, i) => (
-              <Pressable
-                key={`${result.lat},${result.lng}`}
-                onPress={() => selectSearchResult(result)}
-                style={({ pressed }) => [
-                  styles.dropdownItem,
-                  i < searchResults.length - 1 && styles.dropdownItemBorder,
-                  pressed && styles.dropdownItemPressed,
-                ]}
-              >
-                <Text style={styles.dropdownItemText}>{result.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {locationError && <Text style={styles.error}>{locationError}</Text>}
-      {locationLabel && searchResults.length === 0 && (
-        <Text style={styles.locationConfirm}>✓ Location set: {locationLabel}</Text>
-      )}
+      <LocationPicker initialLabel={initialLocationLabel} onChange={setLocation} />
 
       {saveError && <Text style={styles.error}>{saveError}</Text>}
 
@@ -309,6 +282,61 @@ export default function ProfileForm({
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: spacing.xl, backgroundColor: colors.background, gap: spacing.md },
+  avatarSection: { alignItems: "center", marginBottom: spacing.sm },
+  avatarWrap: { width: 96, height: 96 },
+  avatarImage: { width: 96, height: 96, borderRadius: 48 },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.chipBackground,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarPlaceholderText: { fontSize: 36, fontWeight: "700", color: colors.text },
+  avatarBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  sheet: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    paddingVertical: spacing.sm,
+  },
+  sheetTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  sheetOptionPressed: { backgroundColor: colors.chipBackground },
+  sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+  sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
   sectionTitle: {
     fontSize: fontSize.base,
     fontWeight: "600",
@@ -319,36 +347,6 @@ const styles = StyleSheet.create({
   },
   helperText: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: -spacing.xs },
   bioInput: { minHeight: 60, textAlignVertical: "top" },
-  tagsLoading: { alignSelf: "flex-start" },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.chipBackground,
-  },
-  tagChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tagChipText: { fontSize: fontSize.base, color: colors.text },
-  tagChipTextSelected: { color: colors.primaryText },
-  orText: { textAlign: "center", color: colors.textFaint, fontSize: fontSize.sm },
-  searchRow: { flexDirection: "row", alignItems: "center" },
-  searchInputContainer: { flex: 1 },
-  searchSpinner: { position: "absolute", right: spacing.md },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    marginTop: spacing.xs,
-    backgroundColor: colors.background,
-    overflow: "hidden",
-  },
-  dropdownItem: { padding: spacing.md },
-  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  dropdownItemPressed: { backgroundColor: colors.chipBackground },
-  dropdownItemText: { fontSize: fontSize.base, color: colors.text },
   error: { color: colors.danger, fontSize: fontSize.base },
-  locationConfirm: { color: colors.success, fontSize: fontSize.base },
   submitRow: { marginTop: spacing.lg, marginBottom: spacing.xl },
 });

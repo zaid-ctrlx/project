@@ -1,14 +1,20 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Button from "../components/Button";
 import ProfileForm from "../components/ProfileForm";
 import { useAuth } from "../context/AuthContext";
+import { mediaUrl } from "../api/client";
+import type { AppStackParamList } from "../navigation/AppStack";
 import { colors, fontSize, radius, spacing } from "../theme";
 
 export default function ProfileScreen() {
-  const { user, setUser, logout } = useAuth();
+  const { user, setUser } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
 
@@ -40,6 +46,7 @@ export default function ProfileScreen() {
           initialUsername={user.username}
           initialBio={user.bio}
           initialGender={user.gender}
+          initialAvatarUrl={user.avatar_url}
           initialTagIds={user.tags.map((t) => t.id)}
           initialLocationLabel={user.location_label}
           initialLocationCoords={
@@ -48,6 +55,7 @@ export default function ProfileScreen() {
               : null
           }
           submitLabel="Save changes"
+          onAvatarUpdated={setUser}
           onSaved={(updated) => {
             setUser(updated);
             setEditing(false);
@@ -62,12 +70,22 @@ export default function ProfileScreen() {
       style={styles.wrapper}
       contentContainerStyle={[styles.viewContainer, { paddingTop: insets.top + spacing.lg }]}
     >
+      <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={12}>
+          <Ionicons name="settings-outline" size={24} color={colors.text} />
+        </Pressable>
+      </View>
+
       <View style={styles.profileRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
-        </View>
+        {user.avatar_url ? (
+          <Image source={{ uri: mediaUrl(user.avatar_url)! }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
         <View style={styles.identity}>
-          <Text style={styles.username}>@{user.username}</Text>
+          <Text style={styles.username}>{user.username}</Text>
           {user.full_name && <Text style={styles.fullName}>{user.full_name}</Text>}
         </View>
       </View>
@@ -97,8 +115,6 @@ export default function ProfileScreen() {
           )}
         </View>
       )}
-
-      <Button label="Log out" onPress={logout} variant="text" danger />
     </ScrollView>
   );
 }
@@ -116,6 +132,7 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 70 },
   headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
   viewContainer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+  topBar: { flexDirection: "row", justifyContent: "flex-end", marginBottom: spacing.sm },
   profileRow: { flexDirection: "row", alignItems: "center" },
   avatar: {
     width: 80,
@@ -126,6 +143,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: spacing.lg,
   },
+  avatarImage: { width: 80, height: 80, borderRadius: 40, marginRight: spacing.lg },
   avatarText: { fontSize: 30, fontWeight: "700", color: colors.text },
   identity: { flex: 1 },
   username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },

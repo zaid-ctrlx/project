@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import Tag, User
-from app.schemas.user import ProfileUpdate, UserOut, UserSearchResult
+from app.schemas.user import ProfileUpdate, UserOut, UserPublicOut, UserSearchResult
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5MB
+AVATAR_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 
 
 @router.get("/me", response_model=UserOut)
@@ -75,3 +82,55 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if file.content_type not in AVATAR_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only JPEG, PNG, or WEBP images are allowed",
+        )
+
+    contents = await file.read()
+    if len(contents) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image must be under 5MB")
+
+    avatars_dir = Path(settings.MEDIA_ROOT) / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+
+    # Old avatar(s) for this user are removed before writing the new one —
+    # and the new filename gets a fresh random suffix (rather than reusing a
+    # fixed per-user name) so cached copies of the old image on-device don't
+    # get mistaken for the new one at the same URL.
+    for old in avatars_dir.glob(f"{current_user.id}_*"):
+        old.unlink(missing_ok=True)
+
+    ext = AVATAR_EXTENSIONS[file.content_type]
+    filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}.{ext}"
+    (avatars_dir / filename).write_bytes(contents)
+
+    current_user.avatar_url = f"/media/avatars/{filename}"
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+# Registered last (and after the /me, /search literal paths above) so it
+# never shadows them — "me" or "search" would otherwise be swallowed here
+# as an (invalid) {user_id} first, per FastAPI's registration-order matching.
+@router.get("/{user_id}", response_model=UserPublicOut)
+def read_user_profile(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user

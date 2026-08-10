@@ -5,7 +5,8 @@ import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import MainTabs from "./src/navigation/MainTabs";
+import { MessagingProvider } from "./src/context/MessagingContext";
+import AppStack from "./src/navigation/AppStack";
 import LoginScreen from "./src/screens/LoginScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -34,7 +35,7 @@ function RootNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
         user.onboarding_completed ? (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Main" component={AppStack} />
         ) : (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         )
@@ -52,9 +53,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
+        <MessagingProvider>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </MessagingProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
