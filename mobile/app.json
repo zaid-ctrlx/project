@@ -27,7 +27,15 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow this app to use your location to suggest nearby events and communities."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set a profile picture.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take a profile picture."
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }

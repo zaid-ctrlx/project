@@ -1,12 +1,22 @@
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "./storage";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+export const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 if (!API_URL) {
   // Fail loud in dev rather than silently hitting "undefined/auth/login".
   throw new Error(
     "EXPO_PUBLIC_API_URL is not set — copy mobile/.env.example to mobile/.env and set your LAN IP."
   );
+}
+
+// API_URL includes the "/api/v1" prefix; strip it to get the origin that
+// relative paths returned by the API (e.g. avatar_url) are served from.
+const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
+
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
+  return `${API_ORIGIN}${path}`;
 }
 
 export class ApiError extends Error {
@@ -18,8 +28,11 @@ export class ApiError extends Error {
 }
 
 async function rawRequest(path: string, options: RequestInit = {}, accessToken?: string | null) {
+  // FormData bodies (e.g. avatar upload) must NOT get a manual Content-Type —
+  // fetch sets one itself with the multipart boundary included.
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string> | undefined),
   };
   if (accessToken) {

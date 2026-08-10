@@ -12,6 +12,7 @@ export type User = {
   username: string;
   bio: string | null;
   gender: Gender | null;
+  avatar_url: string | null;
   is_active: boolean;
   is_verified: boolean;
   onboarding_completed: boolean;

@@ -19,5 +19,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Niche Events API"
     API_V1_PREFIX: str = "/api/v1"
 
+    # Local disk storage for user-uploaded files (avatars, etc.). Served
+    # back out at the /media mount in main.py. Fine for dev; swap for
+    # object storage (S3/R2) before any real deployment.
+    MEDIA_ROOT: str = "media"
+
 
 settings = Settings()
