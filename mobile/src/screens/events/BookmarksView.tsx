@@ -1,7 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import { Event, listBookmarkedEvents, unbookmarkEvent } from "../../api/events";
 import EventCard from "../../components/EventCard";
@@ -12,24 +12,33 @@ export default function BookmarksView() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent skips the full-screen spinner — used by pull-to-refresh, which
+  // has its own (the native RefreshControl one).
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       setEvents(await listBookmarkedEvents());
     } catch {
       setError("Couldn't load bookmarks. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
+  }
 
   async function removeBookmark(event: Event) {
     setBusyIds((prev) => new Set(prev).add(event.id));
@@ -57,6 +66,9 @@ export default function BookmarksView() {
           data={events}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
           renderItem={({ item }) => (
             <EventCard
               event={item}

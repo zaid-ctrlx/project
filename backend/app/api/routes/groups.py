@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
@@ -113,6 +113,31 @@ def add_group_member(
     return _load_group(db, group_id)
 
 
+@router.delete("/{group_id}/members/{user_id}", response_model=ChatGroupOut)
+def remove_group_member(
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ChatGroup:
+    membership = _get_membership(db, group_id, current_user.id)
+    if membership.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only a group admin can remove members")
+    if user_id == current_user.id:
+        # Deliberately distinct from "leave group" (not built yet) — an
+        # admin removing themselves through this endpoint would silently
+        # drop their own access, which isn't what this button is for. The
+        # mobile client already never shows "Remove" on your own contact
+        # info; this is the server-side backstop.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Use leave group instead of removing yourself"
+        )
+
+    db.execute(delete(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user_id))
+    db.commit()
+    return _load_group(db, group_id)
+
+
 @router.post("/{group_id}/avatar", response_model=ChatGroupOut)
 async def upload_group_avatar(
     group_id: uuid.UUID,
@@ -165,10 +190,15 @@ def get_group_thread(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[GroupMessage]:
-    _get_membership(db, group_id, current_user.id)
+    membership = _get_membership(db, group_id, current_user.id)
+    stmt = select(GroupMessage).where(GroupMessage.group_id == group_id)
+    if membership.cleared_at is not None:
+        # Permanently hidden from me past this point, same as
+        # GET /messages/with/{user_id} — pagination can't scroll back past
+        # it either. See DmClear's docstring (app/models/message.py).
+        stmt = stmt.where(GroupMessage.created_at > membership.cleared_at)
     stmt = (
-        select(GroupMessage)
-        .where(GroupMessage.group_id == group_id)
+        stmt
         # Newest-first, paginated, inverted-FlatList on the client — same
         # convention as GET /messages/with/{user_id}.
         .order_by(GroupMessage.created_at.desc())
@@ -217,5 +247,23 @@ def mark_group_read(
         update(GroupMember)
         .where(GroupMember.group_id == group_id, GroupMember.user_id == current_user.id)
         .values(last_read_at=func.now())
+    )
+    db.commit()
+
+
+@router.post("/{group_id}/clear", status_code=status.HTTP_204_NO_CONTENT)
+def clear_group_chat(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    # One-sided — see DmClear's docstring (app/models/message.py) for why
+    # this is a column here (a per-membership row already exists) rather
+    # than a whole separate table like the DM side needs.
+    _get_membership(db, group_id, current_user.id)
+    db.execute(
+        update(GroupMember)
+        .where(GroupMember.group_id == group_id, GroupMember.user_id == current_user.id)
+        .values(cleared_at=func.now())
     )
     db.commit()

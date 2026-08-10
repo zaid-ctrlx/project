@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
@@ -31,6 +31,7 @@ export default function MessagesScreen() {
   const { subscribe, subscribeGroup, isThreadActive, isGroupActive, markRead, markGroupRead } = useMessaging();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -68,17 +69,25 @@ export default function MessagesScreen() {
     };
   }, [query, isSearching]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent skips the full-screen spinner — used by pull-to-refresh, which
+  // has its own (the native RefreshControl one).
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       setConversations(await listConversations());
     } catch {
       setError("Couldn't load messages. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
+  }
 
   // Source-of-truth resync on every focus — including after backing out of
   // a thread, which stays mounted underneath Chat on the native-stack, so
@@ -219,6 +228,9 @@ export default function MessagesScreen() {
           data={conversations}
           keyExtractor={(item) => (item.type === "dm" ? `dm-${item.other_user.id}` : `group-${item.group_id}`)}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
           renderItem={({ item }) =>
             item.type === "dm" ? (
               <Pressable

@@ -16,11 +16,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError, mediaUrl } from "../api/client";
-import { getThread, Message, sendMessage } from "../api/messages";
+import { clearDmChat, getThread, Message, sendMessage } from "../api/messages";
 import Button from "../components/Button";
+import ChatOptionsMenu from "../components/ChatOptionsMenu";
+import ConfirmSheet from "../components/ConfirmSheet";
+import SearchField from "../components/SearchField";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { useMessaging } from "../context/MessagingContext";
+import { filterMessagesByText } from "../lib/chatSearch";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { colors, fontSize, radius, spacing } from "../theme";
 
@@ -46,6 +50,14 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // ⋯ menu -> Search (filters currently-loaded messages, see chatSearch.ts)
+  // and Clear chat (confirm-then-wipe, one-sided — see clearDmChat).
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,49 +136,96 @@ export default function ChatScreen() {
     }
   }
 
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchQuery("");
+  }
+
+  async function onConfirmClear() {
+    setClearing(true);
+    try {
+      await clearDmChat(userId);
+      setMessages([]);
+      setHasMore(false);
+      setClearConfirmOpen(false);
+    } catch {
+      setLoadError("Couldn't clear this chat. Try again.");
+      setClearConfirmOpen(false);
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  const displayedMessages = searchOpen ? filterMessagesByText(messages, searchQuery) : messages;
+
   return (
     <KeyboardAvoidingView
       style={styles.wrapper}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      // "undefined" on Android means KeyboardAvoidingView does nothing at
+      // all — that was the actual bug (composer sat there, keyboard just
+      // covered it). "height" is the standard Android pairing for this;
+      // "padding" is iOS's.
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={insets.top}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
-        </Pressable>
-        <Pressable
-          style={styles.headerIdentity}
-          onPress={() => navigation.navigate("UserProfile", { userId })}
-          hitSlop={4}
-        >
-          {avatarUrl ? (
-            <Image source={{ uri: mediaUrl(avatarUrl)! }} style={styles.headerAvatar} />
-          ) : (
-            <View style={styles.headerAvatarPlaceholder}>
-              <Text style={styles.headerAvatarText}>{username.charAt(0).toUpperCase()}</Text>
+        {searchOpen ? (
+          <>
+            <View style={styles.searchFieldWrap}>
+              <SearchField placeholder="Search in chat" value={searchQuery} onChangeText={setSearchQuery} />
             </View>
-          )}
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {username}
-          </Text>
-        </Pressable>
-        <View style={styles.headerSpacer} />
+            <Pressable onPress={closeSearch} hitSlop={12} style={styles.cancelSearch}>
+              <Text style={styles.cancelSearchText}>Cancel</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+              <Ionicons name="chevron-back" size={26} color={colors.text} />
+            </Pressable>
+            <Pressable
+              style={styles.headerIdentity}
+              onPress={() => navigation.navigate("UserProfile", { userId })}
+              hitSlop={4}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: mediaUrl(avatarUrl)! }} style={styles.headerAvatar} />
+              ) : (
+                <View style={styles.headerAvatarPlaceholder}>
+                  <Text style={styles.headerAvatarText}>{username.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {username}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+            </Pressable>
+          </>
+        )}
       </View>
 
       {loadingInitial ? (
         <ActivityIndicator style={styles.spinner} />
       ) : (
         <FlatList
-          data={messages}
+          data={displayedMessages}
           keyExtractor={(item) => item.id}
           inverted
           contentContainerStyle={styles.list}
+          // Drag the message list down and the keyboard dismisses with the
+          // gesture, WhatsApp/Instagram-style — built into FlatList, no
+          // extra dependency.
+          keyboardDismissMode="interactive"
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.loadingMore} /> : null}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyBody}>{loadError ?? `Say hi to ${username}.`}</Text>
+              <Text style={styles.emptyBody}>
+                {searchOpen && searchQuery.trim() ? "No matching messages." : (loadError ?? `Say hi to ${username}.`)}
+              </Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -194,6 +253,22 @@ export default function ChatScreen() {
         <Button label="Send" onPress={onSend} loading={sending} disabled={!draft.trim()} />
       </View>
       {sendError && <Text style={styles.sendError}>{sendError}</Text>}
+
+      <ChatOptionsMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onSearch={() => setSearchOpen(true)}
+        onClearChat={() => setClearConfirmOpen(true)}
+      />
+      <ConfirmSheet
+        visible={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        title="Clear this chat?"
+        body="Messages will be cleared from your view only — it stays visible for the other person."
+        confirmLabel="Clear chat"
+        onConfirm={onConfirmClear}
+        busy={clearing}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -222,7 +297,9 @@ const styles = StyleSheet.create({
   },
   headerAvatarText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
   headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, flexShrink: 1 },
-  headerSpacer: { width: 26 },
+  searchFieldWrap: { flex: 1 },
+  cancelSearch: { marginLeft: spacing.md },
+  cancelSearchText: { fontSize: fontSize.base, color: colors.primary, fontWeight: "600" },
   spinner: { marginTop: spacing.xl },
   loadingMore: { marginVertical: spacing.md },
   list: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, flexGrow: 1, justifyContent: "flex-end" },

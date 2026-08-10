@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
@@ -22,7 +22,28 @@ export default function GroupInfoScreen() {
 
   const [group, setGroup] = useState<ChatGroup | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // silent skips the full-screen spinner — used by pull-to-refresh, which
+  // has its own (the native RefreshControl one). Not that `loading` alone
+  // would show it again here anyway once `group` is already set (see the
+  // `loading && !group` render check below) — silent just also skips the
+  // pointless setLoading churn.
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      setError(null);
+      try {
+        const g = await getGroup(groupId);
+        setGroup(g);
+      } catch {
+        setError("Couldn't load this group.");
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [groupId]
+  );
 
   // Refetches on every focus, not just on mount — unlike most
   // eventual-consistency spots in this app (see GroupChatScreen's own
@@ -31,23 +52,15 @@ export default function GroupInfoScreen() {
   // pattern MessagesScreen uses for its conversation list.
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        setError(null);
-        try {
-          const g = await getGroup(groupId);
-          if (!cancelled) setGroup(g);
-        } catch {
-          if (!cancelled) setError("Couldn't load this group.");
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [groupId])
+      load();
+    }, [load])
   );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
+  }
 
   const isAdmin = group?.members.find((m) => m.user.id === currentUser?.id)?.role === "admin";
 
@@ -70,6 +83,9 @@ export default function GroupInfoScreen() {
           data={group.members}
           keyExtractor={(m: GroupMember) => m.user.id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
           ListHeaderComponent={
             <View style={styles.identity}>
               {group.avatar_url ? (

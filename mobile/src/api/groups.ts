@@ -46,6 +46,12 @@ export function addGroupMember(groupId: string, userId: string): Promise<ChatGro
   });
 }
 
+// Admin-only server-side; also rejects removing yourself (400) — see
+// routes/groups.py's remove_group_member.
+export function removeGroupMember(groupId: string, userId: string): Promise<ChatGroup> {
+  return api.authed(`/groups/${groupId}/members/${userId}`, { method: "DELETE" });
+}
+
 // Admin-only server-side, same as addGroupMember. Called right after
 // createGroup succeeds (from the same "Create group" button press) rather
 // than folded into that request — there's no group id to save the file
@@ -67,4 +73,11 @@ export function sendGroupMessage(groupId: string, text: string): Promise<GroupMe
 
 export function markGroupRead(groupId: string): Promise<void> {
   return api.authed(`/groups/${groupId}/read`, { method: "POST" });
+}
+
+// One-sided — hides everything up to now from *this* member only; other
+// members' views are untouched. See backend DmClear's docstring (same
+// semantics, group side just has a per-membership column instead).
+export function clearGroupChat(groupId: string): Promise<void> {
+  return api.authed(`/groups/${groupId}/clear`, { method: "POST" });
 }

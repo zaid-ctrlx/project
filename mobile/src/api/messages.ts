@@ -63,6 +63,12 @@ export function markThreadRead(userId: string): Promise<void> {
   return api.authed(`/messages/with/${userId}/read`, { method: "POST" });
 }
 
+// One-sided — hides everything up to now from *this* user only; the other
+// side's view is untouched. See backend DmClear's docstring.
+export function clearDmChat(userId: string): Promise<void> {
+  return api.authed(`/messages/with/${userId}/clear`, { method: "POST" });
+}
+
 // --- WebSocket ---
 // API_URL already includes the /api/v1 prefix and an http(s) scheme (and is
 // guaranteed non-empty by client.ts's own module-level check) — swap the
