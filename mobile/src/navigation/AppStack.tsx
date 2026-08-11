@@ -2,33 +2,47 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 
 import { Event } from "../api/events";
+import { useTheme } from "../context/ThemeContext";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
+import BookmarksScreen from "../screens/BookmarksScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
+import CreateEventScreen from "../screens/CreateEventScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
 import EditEventScreen from "../screens/EditEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
+import EventSearchScreen from "../screens/EventSearchScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
 import GroupInfoScreen from "../screens/GroupInfoScreen";
-import MyEventsScreen from "../screens/MyEventsScreen";
+import MessageSearchScreen from "../screens/MessageSearchScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
 import MainTabs from "./MainTabs";
 
 // Wraps the bottom tabs in a stack so screens reachable from a tab (e.g.
-// Settings, pushed from Profile; Chat/CreateGroup/GroupChat, pushed from
-// Messages; EventDetail/MyEvents/EditEvent, pushed from Events) can slide in
-// over the tab bar instead of needing to be a tab themselves.
+// Settings/Bookmarks, pushed from Profile; Chat/CreateGroup/GroupChat/
+// MessageSearch, pushed from Messages; EventDetail/EditEvent/EventSearch,
+// pushed from Home/Events; CreateEvent, pushed from Profile's top-left
+// button) can slide in over the tab bar instead of needing to be a tab
+// themselves — EventSearch and MessageSearch lean on this specifically so
+// starting a search hides the tab bar and can only be left via swipe-back/
+// the hardware back button/the header back arrow, not by switching tabs.
 export type AppStackParamList = {
   Tabs: undefined;
   Settings: undefined;
+  // Pushed from Settings ("My bookmarks" row).
+  Bookmarks: undefined;
   Chat: { userId: string; username: string; avatarUrl: string | null };
   UserProfile: { userId: string };
   EventDetail: { event: Event };
-  // Pushed from Events' ⋯ menu ("My Events").
-  MyEvents: undefined;
-  // Pushed from MyEventsScreen's Edit action — full event, not just an id,
-  // same reasoning as EventDetail (already fetched, no round trip needed).
+  // Pushed from Home's search bar (see EventDiscoverView.onRequestSearch).
+  EventSearch: undefined;
+  // Pushed from Messages' search bar.
+  MessageSearch: undefined;
+  // Pushed from Profile's top-left "+" button.
+  CreateEvent: undefined;
+  // Pushed from Events' (My Events) Edit action — full event, not just an
+  // id, same reasoning as EventDetail (already fetched, no round trip needed).
   EditEvent: { event: Event };
   CreateGroup: undefined;
   // unreadCount is optional — passed by MessagesScreen (which already knows
@@ -50,14 +64,18 @@ export type AppStackParamList = {
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export default function AppStack() {
+  const { colors } = useTheme();
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="Tabs" component={MainTabs} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Bookmarks" component={BookmarksScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
-      <Stack.Screen name="MyEvents" component={MyEventsScreen} />
+      <Stack.Screen name="EventSearch" component={EventSearchScreen} />
+      <Stack.Screen name="MessageSearch" component={MessageSearchScreen} />
+      <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="GroupChat" component={GroupChatScreen} />

@@ -1,7 +1,8 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = {
   visible: boolean;
@@ -17,6 +18,38 @@ type Props = {
 // options, Cancel) — one component instead of two near-identical copies,
 // since group chat is these same three items plus "Add members".
 export default function ChatOptionsMenu({ visible, onClose, onSearch, onClearChat, onAddMembers }: Props) {
+  const { styles } = useThemedStyles((colors) => ({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    title: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    optionPressed: { backgroundColor: colors.chipBackground },
+    optionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+    cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+  }));
+
   function run(action: () => void) {
     onClose();
     action();
@@ -55,35 +88,3 @@ export default function ChatOptionsMenu({ visible, onClose, onSearch, onClearCha
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  title: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  optionPressed: { backgroundColor: colors.chipBackground },
-  optionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
-  cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-});

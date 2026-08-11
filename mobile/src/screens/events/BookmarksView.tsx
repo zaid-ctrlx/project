@@ -1,12 +1,13 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, Text, View } from "react-native";
 
 import { Event, listBookmarkedEvents, unbookmarkEvent } from "../../api/events";
 import EventCard from "../../components/EventCard";
+import { useThemedStyles } from "../../hooks/useThemedStyles";
 import type { AppStackParamList } from "../../navigation/AppStack";
-import { colors, fontSize, spacing } from "../../theme";
+import { fontSize, spacing } from "../../theme";
 
 export default function BookmarksView() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -15,6 +16,12 @@ export default function BookmarksView() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1 },
+    spinner: { marginTop: spacing.xl },
+    list: { paddingTop: spacing.lg, paddingBottom: spacing.xl },
+    empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
+  }));
 
   // silent skips the full-screen spinner — used by pull-to-refresh, which
   // has its own (the native RefreshControl one).
@@ -83,10 +90,3 @@ export default function BookmarksView() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  spinner: { marginTop: spacing.xl },
-  list: { paddingTop: spacing.lg, paddingBottom: spacing.xl },
-  empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
-});

@@ -2,15 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
 import { ChatGroup, getGroup, removeGroupMember } from "../api/groups";
 import ConfirmSheet from "../components/ConfirmSheet";
 import { useAuth } from "../context/AuthContext";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 // Reached by tapping a member in GroupInfoScreen's list. Layout is
 // deliberately minimal per spec: photo, name, a row of three equal blocks
@@ -28,6 +29,68 @@ export default function ContactInfoScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    headerSpacer: { width: 26 },
+    spinner: { marginTop: spacing.xl },
+    container: { alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+    avatarImage: { width: 112, height: 112, borderRadius: 56 },
+    avatarPlaceholder: {
+      width: 112,
+      height: 112,
+      borderRadius: 56,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarPlaceholderText: { fontSize: 40, fontWeight: "700", color: colors.text },
+    username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginTop: spacing.md, textAlign: "center" },
+    roleBadge: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
+    actionRow: {
+      flexDirection: "row",
+      alignSelf: "stretch",
+      justifyContent: "space-around",
+      marginTop: spacing.xl,
+      paddingVertical: spacing.lg,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: colors.borderLight,
+    },
+    actionBlock: { alignItems: "center", gap: spacing.xs, minWidth: 72 },
+    actionCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionCircleEmpty: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.borderLight },
+    actionLabel: { fontSize: fontSize.sm, color: colors.text },
+    removeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "stretch",
+      justifyContent: "center",
+      gap: spacing.sm,
+      marginTop: spacing.xxl,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+    },
+    removeRowPressed: { backgroundColor: colors.chipBackground },
+    removeText: { fontSize: fontSize.md, color: colors.danger, fontWeight: "600" },
+    error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.lg },
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -148,66 +211,3 @@ export default function ContactInfoScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  headerSpacer: { width: 26 },
-  spinner: { marginTop: spacing.xl },
-  container: { alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
-  avatarImage: { width: 112, height: 112, borderRadius: 56 },
-  avatarPlaceholder: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarPlaceholderText: { fontSize: 40, fontWeight: "700", color: colors.text },
-  username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginTop: spacing.md, textAlign: "center" },
-  roleBadge: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
-  actionRow: {
-    flexDirection: "row",
-    alignSelf: "stretch",
-    justifyContent: "space-around",
-    marginTop: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  actionBlock: { alignItems: "center", gap: spacing.xs, minWidth: 72 },
-  actionCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionCircleEmpty: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.borderLight },
-  actionLabel: { fontSize: fontSize.sm, color: colors.text },
-  removeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "stretch",
-    justifyContent: "center",
-    gap: spacing.sm,
-    marginTop: spacing.xxl,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-  },
-  removeRowPressed: { backgroundColor: colors.chipBackground },
-  removeText: { fontSize: fontSize.md, color: colors.danger, fontWeight: "600" },
-  error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.lg },
-});

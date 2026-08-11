@@ -128,7 +128,7 @@ export function listBookmarkedEvents(): Promise<Event[]> {
   return api.authed("/events/bookmarks");
 }
 
-// Events the current user created — see MyEventsScreen.
+// Events the current user created — see EventsScreen.
 export function listMyEvents(): Promise<Event[]> {
   return api.authed("/events/mine");
 }

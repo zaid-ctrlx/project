@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import { bookmarkEvent, Event, JoinPolicy, listEvents, unbookmarkEvent } from "../../api/events";
 import EventCard from "../../components/EventCard";
@@ -10,8 +10,9 @@ import PickerSheet from "../../components/PickerSheet";
 import SearchField from "../../components/SearchField";
 import { labelsToOptions } from "../../constants/eventTags";
 import { JOIN_POLICY_LABELS } from "../../constants/joinPolicy";
+import { useThemedStyles } from "../../hooks/useThemedStyles";
 import type { AppStackParamList } from "../../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../../theme";
+import { fontSize, radius, spacing } from "../../theme";
 
 const ALL_LABEL = "All";
 const JOIN_POLICY_FILTER = labelsToOptions(JOIN_POLICY_LABELS);
@@ -24,6 +25,20 @@ const JOIN_POLICY_FILTER_OPTIONS = [ALL_LABEL, ...JOIN_POLICY_FILTER.options];
 // today, see list_events in the backend).
 const SORT_PLACEHOLDER = "Newest first";
 
+type Props = {
+  // Autofocuses the search input on mount — set by EventSearchScreen, whose
+  // whole reason for existing is to drop the user straight into typing.
+  autoFocus?: boolean;
+  // When set, the search field becomes a display-only tap target (wrapped
+  // in a Pressable) that calls this instead of accepting input — Home uses
+  // it to hand typing off to EventSearchScreen (a real stack push, so it
+  // gets the tab bar hidden and swipe-back/hardware-back for free, neither
+  // of which a same-screen "search mode" toggle could do). Filters and the
+  // (unfiltered) list underneath stay fully interactive either way — only
+  // the text query is deferred to that screen.
+  onRequestSearch?: () => void;
+};
+
 // The recommendation feed proper (matching a user's interests/behavior) is
 // separate future work — see project notes. This is reverse-chronological
 // with basic text search plus filters, which that can later slot into.
@@ -33,7 +48,7 @@ const SORT_PLACEHOLDER = "Newest first";
 // count, and category tags are planned next — each is meant to add one more
 // piece of filter state here plus one more field on EventListFilters
 // (mobile/src/api/events.ts), same shape as joinPolicyFilter below.
-export default function EventDiscoverView() {
+export default function EventDiscoverView({ autoFocus, onRequestSearch }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const [query, setQuery] = useState("");
   const [joinPolicyFilter, setJoinPolicyFilter] = useState<JoinPolicy | null>(null);
@@ -44,6 +59,27 @@ export default function EventDiscoverView() {
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1 },
+    filterRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
+    filterChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.background,
+    },
+    filterChipDisabled: { backgroundColor: colors.chipBackground, borderColor: colors.borderLight },
+    filterChipText: { fontSize: fontSize.sm, color: colors.text, fontWeight: "600" },
+    filterChipTextDisabled: { color: colors.textFaint },
+    spinner: { marginTop: spacing.xl },
+    list: { paddingTop: spacing.lg, paddingBottom: spacing.xl },
+    empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
+  }));
 
   // silent skips the full-screen spinner — used by pull-to-refresh, which
   // has its own (the native RefreshControl one) and shouldn't also yank the
@@ -98,9 +134,25 @@ export default function EventDiscoverView() {
 
   const joinPolicyLabel = joinPolicyFilter ? JOIN_POLICY_LABELS[joinPolicyFilter] : ALL_LABEL;
 
+  const searchField = (
+    <SearchField
+      placeholder="Search events"
+      value={query}
+      onChangeText={setQuery}
+      editable={!onRequestSearch}
+      autoFocus={autoFocus}
+    />
+  );
+
   return (
     <View style={styles.wrapper}>
-      <SearchField placeholder="Search events" value={query} onChangeText={setQuery} />
+      {onRequestSearch ? (
+        <Pressable onPress={onRequestSearch}>
+          <View pointerEvents="none">{searchField}</View>
+        </Pressable>
+      ) : (
+        searchField
+      )}
 
       {/* Small, left/right-anchored chips rather than full-width boxes —
           Filter is real (opens PickerSheet directly, not via Select, since
@@ -149,25 +201,3 @@ export default function EventDiscoverView() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  filterRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.background,
-  },
-  filterChipDisabled: { backgroundColor: colors.chipBackground, borderColor: colors.borderLight },
-  filterChipText: { fontSize: fontSize.sm, color: colors.text, fontWeight: "600" },
-  filterChipTextDisabled: { color: colors.textFaint },
-  spinner: { marginTop: spacing.xl },
-  list: { paddingTop: spacing.lg, paddingBottom: spacing.xl },
-  empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
-});

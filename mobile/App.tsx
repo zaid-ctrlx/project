@@ -1,4 +1,4 @@
-import { NavigationContainer } from "@react-navigation/native";
+import { DarkTheme as NavDarkTheme, DefaultTheme as NavDefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { MessagingProvider } from "./src/context/MessagingContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import AppStack from "./src/navigation/AppStack";
 import LoginScreen from "./src/screens/LoginScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
@@ -22,17 +23,18 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
+  const { colors } = useTheme();
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       {user ? (
         user.onboarding_completed ? (
           <Stack.Screen name="Main" component={AppStack} />
@@ -49,16 +51,25 @@ function RootNavigator() {
   );
 }
 
+function ThemedNavigationContainer() {
+  const { mode } = useTheme();
+  return (
+    <NavigationContainer theme={mode === "dark" ? NavDarkTheme : NavDefaultTheme}>
+      <RootNavigator />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <MessagingProvider>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </MessagingProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <MessagingProvider>
+            <ThemedNavigationContainer />
+          </MessagingProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }

@@ -1,9 +1,10 @@
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
 import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
 import TextField from "./TextField";
 
@@ -31,6 +32,26 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
   const [searchBusy, setSearchBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { styles } = useThemedStyles((colors) => ({
+    orText: { textAlign: "center", color: colors.textFaint, fontSize: fontSize.sm },
+    searchRow: { flexDirection: "row", alignItems: "center" },
+    searchInputContainer: { flex: 1 },
+    searchSpinner: { position: "absolute", right: spacing.md },
+    dropdown: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      marginTop: spacing.xs,
+      backgroundColor: colors.background,
+      overflow: "hidden",
+    },
+    dropdownItem: { padding: spacing.md },
+    dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    dropdownItemPressed: { backgroundColor: colors.chipBackground },
+    dropdownItemText: { fontSize: fontSize.base, color: colors.text },
+    error: { color: colors.danger, fontSize: fontSize.base },
+    locationConfirm: { color: colors.success, fontSize: fontSize.base },
+  }));
 
   function commit(label: string, lat: number, lng: number) {
     setLocationLabel(label);
@@ -154,24 +175,3 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  orText: { textAlign: "center", color: colors.textFaint, fontSize: fontSize.sm },
-  searchRow: { flexDirection: "row", alignItems: "center" },
-  searchInputContainer: { flex: 1 },
-  searchSpinner: { position: "absolute", right: spacing.md },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    marginTop: spacing.xs,
-    backgroundColor: colors.background,
-    overflow: "hidden",
-  },
-  dropdownItem: { padding: spacing.md },
-  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  dropdownItemPressed: { backgroundColor: colors.chipBackground },
-  dropdownItemText: { fontSize: fontSize.base, color: colors.text },
-  error: { color: colors.danger, fontSize: fontSize.base },
-  locationConfirm: { color: colors.success, fontSize: fontSize.base },
-});

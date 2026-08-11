@@ -2,14 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
 import { ChatGroup, getGroup, GroupMember } from "../api/groups";
 import { useAuth } from "../context/AuthContext";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 // WhatsApp-style group profile, scoped down to what's actually built so
 // far: group identity + the members list (tap a member -> ContactInfo).
@@ -24,6 +25,93 @@ export default function GroupInfoScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    headerSpacer: { width: 26 },
+    spinner: { marginTop: spacing.xl },
+    error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.xl },
+    list: { paddingBottom: spacing.xxl },
+    identity: { alignItems: "center", paddingVertical: spacing.xl, paddingHorizontal: spacing.xl },
+    avatarImage: { width: 112, height: 112, borderRadius: 56 },
+    avatarPlaceholder: {
+      width: 112,
+      height: 112,
+      borderRadius: 56,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    groupName: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginTop: spacing.md, textAlign: "center" },
+    memberCount: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
+    addRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "stretch",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      marginTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    addRowPressed: { backgroundColor: colors.chipBackground },
+    addIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    addText: { fontSize: fontSize.md, color: colors.primary, fontWeight: "600" },
+    sectionTitle: {
+      alignSelf: "stretch",
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+      paddingTop: spacing.md,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      gap: spacing.md,
+    },
+    rowPressed: { backgroundColor: colors.chipBackground },
+    avatarSm: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarImageSm: { width: 44, height: 44, borderRadius: 22 },
+    avatarSmText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
+    username: { flex: 1, fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+    adminBadge: {
+      borderRadius: radius.pill,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.chipBackground,
+    },
+    adminBadgeText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600" },
+  }));
 
   // silent skips the full-screen spinner — used by pull-to-refresh, which
   // has its own (the native RefreshControl one). Not that `loading` alone
@@ -141,91 +229,3 @@ export default function GroupInfoScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  headerSpacer: { width: 26 },
-  spinner: { marginTop: spacing.xl },
-  error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.xl },
-  list: { paddingBottom: spacing.xxl },
-  identity: { alignItems: "center", paddingVertical: spacing.xl, paddingHorizontal: spacing.xl },
-  avatarImage: { width: 112, height: 112, borderRadius: 56 },
-  avatarPlaceholder: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  groupName: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginTop: spacing.md, textAlign: "center" },
-  memberCount: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
-  addRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "stretch",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-  },
-  addRowPressed: { backgroundColor: colors.chipBackground },
-  addIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addText: { fontSize: fontSize.md, color: colors.primary, fontWeight: "600" },
-  sectionTitle: {
-    alignSelf: "stretch",
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: spacing.md,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    gap: spacing.md,
-  },
-  rowPressed: { backgroundColor: colors.chipBackground },
-  avatarSm: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarImageSm: { width: 44, height: 44, borderRadius: 22 },
-  avatarSmText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
-  username: { flex: 1, fontSize: fontSize.md, fontWeight: "600", color: colors.text },
-  adminBadge: {
-    borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.chipBackground,
-  },
-  adminBadgeText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600" },
-});

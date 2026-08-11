@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 import PickerSheet from "./PickerSheet";
 
 type Props<T extends string> = {
@@ -28,6 +29,25 @@ export default function Select<T extends string>({
   disabled,
 }: Props<T>) {
   const [open, setOpen] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    box: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+      backgroundColor: colors.background,
+    },
+    boxDisabled: { backgroundColor: colors.chipBackground, borderColor: colors.borderLight },
+    textCol: { flex: 1 },
+    label: { fontSize: fontSize.sm, color: colors.textMuted },
+    value: { fontSize: fontSize.md, color: colors.text, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+    placeholder: { color: colors.textFaint },
+  }));
 
   return (
     <View>
@@ -54,23 +74,3 @@ export default function Select<T extends string>({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  box: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    backgroundColor: colors.background,
-  },
-  boxDisabled: { backgroundColor: colors.chipBackground, borderColor: colors.borderLight },
-  textCol: { flex: 1 },
-  label: { fontSize: fontSize.sm, color: colors.textMuted },
-  value: { fontSize: fontSize.md, color: colors.text, paddingTop: spacing.xs, paddingBottom: spacing.sm },
-  placeholder: { color: colors.textFaint },
-});

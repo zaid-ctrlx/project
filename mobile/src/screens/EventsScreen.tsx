@@ -1,87 +1,173 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import OptionsMenu from "../components/OptionsMenu";
+import { bookmarkEvent, deleteEvent, Event, listMyEvents, unbookmarkEvent } from "../api/events";
+import ConfirmSheet from "../components/ConfirmSheet";
+import EventCard from "../components/EventCard";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
-import BookmarksView from "./events/BookmarksView";
-import CreateEventView from "./events/CreateEventView";
-import EventDiscoverView from "./events/EventDiscoverView";
+import { fontSize, spacing } from "../theme";
 
-type SubTab = "discover" | "create" | "bookmarks";
-
-const TABS: { key: SubTab; label: string }[] = [
-  { key: "discover", label: "Discover" },
-  { key: "create", label: "Create" },
-  { key: "bookmarks", label: "Bookmarks" },
-];
-
+// Discover moved to the Home tab, Create moved to Profile's top-left button,
+// and Bookmarks moved under Profile > Settings — so this tab (formerly a
+// 3-way segmented Discover/Create/Bookmarks screen, with "My Events" tucked
+// behind a ⋯ menu) is now just My Events, directly. Refetches on every
+// focus (not just mount), so coming back here after an edit/create shows
+// the change immediately.
 export default function EventsScreen() {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  const [tab, setTab] = useState<SubTab>("discover");
-  // Filter/Sort turned out to belong inline on Discover (below its search
-  // bar, see EventDiscoverView), not here — "My Events" is this menu's
-  // first real item.
-  const [menuOpen, setMenuOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bookmarkBusyIds, setBookmarkBusyIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
+    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text, marginBottom: spacing.lg },
+    spinner: { marginTop: spacing.xl },
+    list: { paddingBottom: spacing.xl },
+    cardWrap: { marginBottom: spacing.md },
+    actionRow: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: spacing.md,
+      marginTop: -spacing.sm,
+    },
+    actionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: spacing.sm,
+    },
+    actionButtonPressed: { backgroundColor: colors.chipBackground },
+    actionText: { fontSize: fontSize.sm, color: colors.text, fontWeight: "600" },
+    deleteText: { color: colors.danger },
+    empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
+  }));
+
+  // silent skips the full-screen spinner — used by pull-to-refresh, which
+  // has its own (the native RefreshControl one).
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    setError(null);
+    try {
+      setEvents(await listMyEvents());
+    } catch {
+      setError("Couldn't load your events. Check your connection and try again.");
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
+  }
+
+  async function toggleBookmark(event: Event) {
+    const next = !event.is_bookmarked;
+    setBookmarkBusyIds((prev) => new Set(prev).add(event.id));
+    setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, is_bookmarked: next } : e)));
+    try {
+      await (next ? bookmarkEvent(event.id) : unbookmarkEvent(event.id));
+    } catch {
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, is_bookmarked: !next } : e)));
+    } finally {
+      setBookmarkBusyIds((prev) => {
+        const s = new Set(prev);
+        s.delete(event.id);
+        return s;
+      });
+    }
+  }
+
+  async function onConfirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteEvent(deleteTarget.id);
+      setEvents((prev) => prev.filter((e) => e.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setError("Couldn't delete this event. Try again.");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Events</Text>
-        <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
-        </Pressable>
-      </View>
+      <Text style={styles.title}>Events</Text>
 
-      <View style={styles.segmented}>
-        {TABS.map(({ key, label }) => (
-          <Pressable key={key} onPress={() => setTab(key)} style={[styles.segment, tab === key && styles.segmentActive]}>
-            <Text style={[styles.segmentText, tab === key && styles.segmentTextActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {loading ? (
+        <ActivityIndicator style={styles.spinner} />
+      ) : (
+        <FlatList
+          data={events}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.cardWrap}>
+              <EventCard
+                event={item}
+                onPress={(event) => navigation.navigate("EventDetail", { event })}
+                onToggleBookmark={toggleBookmark}
+                bookmarkBusy={bookmarkBusyIds.has(item.id)}
+              />
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+                  onPress={() => navigation.navigate("EditEvent", { event: item })}
+                >
+                  <Ionicons name="pencil-outline" size={16} color={colors.text} />
+                  <Text style={styles.actionText}>Edit</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+                  onPress={() => setDeleteTarget(item)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                  <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.empty}>{error ?? "You haven't created any events yet."}</Text>
+          }
+        />
+      )}
 
-      {/* Conditionally (not always) mounted — switching sub-tabs away and
-          back always remounts the target view, so Discover/Bookmarks pick
-          up any changes (e.g. a bookmark toggled elsewhere) automatically
-          on their own mount-time fetch, with no focus-listener needed. */}
-      {tab === "discover" && <EventDiscoverView />}
-      {tab === "create" && <CreateEventView onCreated={() => setTab("discover")} />}
-      {tab === "bookmarks" && <BookmarksView />}
-
-      <OptionsMenu
-        visible={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        title="Events"
-        items={[{ label: "My Events", onPress: () => navigation.navigate("MyEvents") }]}
+      <ConfirmSheet
+        visible={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete "${deleteTarget?.title}"?`}
+        body="This can't be undone — anyone who bookmarked it will lose that too."
+        confirmLabel="Delete"
+        onConfirm={onConfirmDelete}
+        busy={deleting}
       />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
-  },
-  title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.chipBackground,
-    borderRadius: radius.pill,
-    padding: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  segment: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.pill, alignItems: "center" },
-  segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
-  segmentTextActive: { color: colors.primaryText },
-});

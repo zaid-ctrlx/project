@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 
 import { mediaUrl } from "../api/client";
 import { searchUsers, UserSearchResult } from "../api/profile";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 import SearchField from "./SearchField";
 
 const SEARCH_MIN_LENGTH = 2;
@@ -27,6 +28,39 @@ export default function UserMultiPicker({ selected, onChange, excludeIds }: Prop
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [busy, setBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
+    chip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.chipBackground,
+    },
+    chipText: { fontSize: fontSize.base, color: colors.text },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      borderRadius: spacing.sm,
+      gap: spacing.md,
+    },
+    rowPressed: { backgroundColor: colors.chipBackground },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarImage: { width: 40, height: 40, borderRadius: 20 },
+    avatarText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
+    rowText: { flex: 1 },
+    username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+    fullName: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
+  }));
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -106,37 +140,3 @@ export default function UserMultiPicker({ selected, onChange, excludeIds }: Prop
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.chipBackground,
-  },
-  chipText: { fontSize: fontSize.base, color: colors.text },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderRadius: spacing.sm,
-    gap: spacing.md,
-  },
-  rowPressed: { backgroundColor: colors.chipBackground },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarImage: { width: 40, height: 40, borderRadius: 20 },
-  avatarText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
-  rowText: { flex: 1 },
-  username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
-  fullName: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
-});
