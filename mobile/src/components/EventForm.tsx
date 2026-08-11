@@ -7,7 +7,9 @@ import {
   CommunityVibe,
   createEvent,
   Event,
+  EventKind,
   EventStyle,
+  Frequency,
   JoinPolicy,
   SkillLevel,
   updateEvent,
@@ -19,6 +21,7 @@ import {
   labelsToOptions,
   SKILL_LEVEL_LABELS,
 } from "../constants/eventTags";
+import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, spacing } from "../theme";
@@ -33,6 +36,10 @@ type Props = {
   // mode (PUT /events/{id}, prefilled from it) — same fields either way,
   // same as ProfileForm's initial*/onSaved shape for user profiles.
   initialEvent?: Event;
+  // Which kind of post this is — required in create mode (there's no
+  // initialEvent to read it from); in edit mode initialEvent.kind wins,
+  // since this form has no way to change an existing post's kind.
+  kind?: EventKind;
   submitLabel: string;
   onSaved: (event: Event) => void;
 };
@@ -46,17 +53,26 @@ const ACTIVITY_TYPE = labelsToOptions(ACTIVITY_TYPE_LABELS);
 const COMMUNITY_VIBE = labelsToOptions(COMMUNITY_VIBE_LABELS);
 const SKILL_LEVEL = labelsToOptions(SKILL_LEVEL_LABELS);
 const EVENT_STYLE = labelsToOptions(EVENT_STYLE_LABELS);
+const FREQUENCY = labelsToOptions(FREQUENCY_LABELS);
 
-// Shared by Create Event and Edit Event (reached from My Events) — same
-// fields, same validation, just different initial values, submit copy, and
-// which API call the submit makes.
-export default function EventForm({ initialEvent, submitLabel, onSaved }: Props) {
+// Shared by both post kinds and both Create/Edit (reached from My Posts) —
+// same fields, same validation either way, except the one that differs by
+// kind (a single date/time for "event" vs a repeat frequency for
+// "community") and different initial values/submit copy/API call for
+// create vs edit.
+export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: Props) {
+  const effectiveKind: EventKind = initialEvent?.kind ?? kind ?? "event";
   const [title, setTitle] = useState(initialEvent?.title ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
   const [joinPolicyLabel, setJoinPolicyLabel] = useState<string>(
     initialEvent ? JOIN_POLICY_LABELS[initialEvent.join_policy] : JOIN_POLICY_LABELS.open
   );
-  const [startsAt, setStartsAt] = useState<Date | null>(initialEvent ? new Date(initialEvent.starts_at) : null);
+  const [startsAt, setStartsAt] = useState<Date | null>(
+    initialEvent?.starts_at ? new Date(initialEvent.starts_at) : null
+  );
+  const [frequencyLabel, setFrequencyLabel] = useState<string | null>(
+    initialEvent?.frequency ? FREQUENCY_LABELS[initialEvent.frequency] : null
+  );
   const [location, setLocation] = useState<LocationValue | null>(
     initialEvent?.location_lat != null && initialEvent?.location_lng != null && initialEvent?.location_label
       ? { lat: initialEvent.location_lat, lng: initialEvent.location_lng, label: initialEvent.location_label }
@@ -94,11 +110,15 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
   async function onSubmit() {
     setError(null);
     if (!title.trim()) {
-      setError("Give your event a title.");
+      setError("Give it a title.");
       return;
     }
-    if (!startsAt) {
+    if (effectiveKind === "event" && !startsAt) {
       setError("Pick a date and time.");
+      return;
+    }
+    if (effectiveKind === "community" && !frequencyLabel) {
+      setError("Pick how often this repeats.");
       return;
     }
     if (!location) {
@@ -109,9 +129,11 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
     setSaving(true);
     try {
       const payload = {
+        kind: effectiveKind,
         title: title.trim(),
         description: description.trim() || null,
-        starts_at: startsAt.toISOString(),
+        starts_at: effectiveKind === "event" ? startsAt!.toISOString() : null,
+        frequency: effectiveKind === "community" ? (FREQUENCY.byLabel[frequencyLabel!] as Frequency) : null,
         location_lat: location.lat,
         location_lng: location.lng,
         location_label: location.label,
@@ -131,6 +153,7 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
         setDescription("");
         setJoinPolicyLabel(JOIN_POLICY_LABELS.open);
         setStartsAt(null);
+        setFrequencyLabel(null);
         setLocation(null);
         setActivityTypeLabel(null);
         setCommunityVibeLabel(null);
@@ -147,13 +170,21 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.sectionTitle, styles.firstSectionTitle]}>Event Settings</Text>
+      <Text style={[styles.sectionTitle, styles.firstSectionTitle]}>
+        {effectiveKind === "event" ? "Event Settings" : "Community Settings"}
+      </Text>
 
-      <TextField label="Title" placeholder="Event title" value={title} onChangeText={setTitle} maxLength={150} />
+      <TextField
+        label="Title"
+        placeholder={effectiveKind === "event" ? "Event title" : "Community title"}
+        value={title}
+        onChangeText={setTitle}
+        maxLength={150}
+      />
 
       <TextField
         label="Description"
-        placeholder="What's this event about?"
+        placeholder={effectiveKind === "event" ? "What's this event about?" : "What's this community about?"}
         value={description}
         onChangeText={setDescription}
         multiline
@@ -168,7 +199,17 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
         onChange={setJoinPolicyLabel}
       />
 
-      <DateTimeField label="Date & time" value={startsAt} onChange={setStartsAt} minimumDate={new Date()} />
+      {effectiveKind === "event" ? (
+        <DateTimeField label="Date & time" value={startsAt} onChange={setStartsAt} minimumDate={new Date()} />
+      ) : (
+        <Select
+          label="How often"
+          placeholder="Pick a frequency"
+          value={frequencyLabel}
+          options={FREQUENCY.options}
+          onChange={setFrequencyLabel}
+        />
+      )}
 
       <Text style={styles.sectionTitle}>Location</Text>
       <LocationPicker initialLabel={initialEvent?.location_label} onChange={setLocation} />

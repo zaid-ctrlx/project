@@ -9,7 +9,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.event import Event, event_bookmarks
 from app.models.user import User
-from app.schemas.event import JOIN_POLICY_OPTIONS, EventCreate, EventOut
+from app.schemas.event import EVENT_KIND_OPTIONS, JOIN_POLICY_OPTIONS, EventCreate, EventOut
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -31,13 +31,17 @@ def create_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Event:
-    if payload.starts_at < datetime.now(timezone.utc):
+    # payload.starts_at is only set for kind="event" (enforced by
+    # EventCreate's validator) — communities have no date to check.
+    if payload.kind == "event" and payload.starts_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event must start in the future")
 
     event = Event(
+        kind=payload.kind,
         title=payload.title,
         description=payload.description,
         starts_at=payload.starts_at,
+        frequency=payload.frequency,
         location_lat=payload.location_lat,
         location_lng=payload.location_lng,
         location_label=payload.location_label,
@@ -59,6 +63,7 @@ def create_event(
 @router.get("", response_model=list[EventOut])
 def list_events(
     q: str | None = Query(default=None, min_length=1, max_length=100),
+    kind: EVENT_KIND_OPTIONS | None = Query(default=None),
     join_policy: JOIN_POLICY_OPTIONS | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
@@ -69,10 +74,11 @@ def list_events(
     if q:
         pattern = f"%{q}%"
         stmt = stmt.where(or_(Event.title.ilike(pattern), Event.description.ilike(pattern)))
-    # First of several planned filters (see Event model comments) — distance,
-    # attendee count, and category tags are meant to follow the same shape:
-    # an optional Query param, applied here before the bookmark-flag/order/
-    # paginate tail.
+    # Omitted = both kinds (Home's "All") — mobile's Filter chip now cycles
+    # kind (All/Event/Community) instead of join_policy; join_policy stays
+    # queryable here (still a real column) even though nothing sends it today.
+    if kind:
+        stmt = stmt.where(Event.kind == kind)
     if join_policy:
         stmt = stmt.where(Event.join_policy == join_policy)
     stmt = _with_bookmark_flag(stmt, current_user.id).order_by(Event.created_at.desc()).limit(limit).offset(offset)
@@ -138,14 +144,18 @@ def update_event(
 ) -> Event:
     # Full replace (not a partial PATCH) — matches how the mobile form
     # submits it: EventForm always sends every field, prefilled from the
-    # event being edited, same shape as create_event's payload.
-    if payload.starts_at < datetime.now(timezone.utc):
+    # event being edited, same shape as create_event's payload. Editing
+    # never changes an event's kind (EventForm doesn't offer that) but
+    # nothing here enforces it — a same-kind resubmit is all that's built.
+    if payload.kind == "event" and payload.starts_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event must start in the future")
 
     event = _get_own_event(db, event_id, current_user)
+    event.kind = payload.kind
     event.title = payload.title
     event.description = payload.description
     event.starts_at = payload.starts_at
+    event.frequency = payload.frequency
     event.location_lat = payload.location_lat
     event.location_lng = payload.location_lng
     event.location_label = payload.location_label

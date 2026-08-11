@@ -25,10 +25,27 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # "event" (one-time, has starts_at) or "community" (repeating, has
+    # frequency instead) — two post kinds sharing this table rather than a
+    # second near-identical one, since almost everything else here (title,
+    # location, join_policy, the four category tags, bookmarks, creator)
+    # applies to both. More kinds are meant to slot in the same way later
+    # (see app/schemas/event.py's EVENT_KIND_OPTIONS). Plain String, not a
+    # Postgres ENUM, validated at the Pydantic layer — same pattern as
+    # join_policy below.
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, server_default="event")
+
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Single start datetime, timezone-aware; no end time for this pass.
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    # Required for kind="event", null for kind="community" (see
+    # EventCreate's validator) — hence nullable here despite the index.
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    # How often a "community" repeats — daily/weekly/biweekly/monthly, no
+    # specific day-of-week or time slot yet (see FREQUENCY_OPTIONS). Null
+    # for kind="event".
+    frequency: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Mirrors User's location fields (see app/models/user.py).
     location_lat: Mapped[float | None] = mapped_column(Float, nullable=True)

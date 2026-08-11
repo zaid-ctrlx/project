@@ -6,6 +6,7 @@ import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import EventForm from "../components/EventForm";
+import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, spacing } from "../theme";
@@ -36,13 +37,13 @@ export default function EditEventScreen() {
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Edit Event</Text>
+        <Text style={styles.headerTitle}>Edit {EVENT_KIND_LABELS[event.kind]}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.formWrap}>
-        {/* EventsScreen (My Events) refetches on focus, so just going back
-            after a successful save is enough for the list there to show the
+        {/* MyPostsScreen refetches on focus, so just going back after a
+            successful save is enough for the list there to show the
             update — no need to thread the saved event back through here. */}
         <EventForm initialEvent={event} submitLabel="Save changes" onSaved={() => navigation.goBack()} />
       </View>
