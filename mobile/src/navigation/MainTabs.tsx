@@ -4,7 +4,6 @@ import React from "react";
 
 import { useMessaging } from "../context/MessagingContext";
 import { useTheme } from "../context/ThemeContext";
-import EventsScreen from "../screens/EventsScreen";
 import HomeScreen from "../screens/HomeScreen";
 import MessagesScreen from "../screens/MessagesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
@@ -14,12 +13,14 @@ import ProfileScreen from "../screens/ProfileScreen";
 // (search -> straight into a chat). Having both was two ways to do the same
 // thing, so this tab is gone; SearchScreen.tsx is unused now.
 //
-// Home carries the event discovery feed (was Events' "Discover" sub-tab);
-// Events is now just "my events" (was reached via Events' ⋯ menu).
+// Home carries the event/community discovery feed (was Events' "Discover"
+// sub-tab). Events itself is gone entirely now — "My Posts" (events +
+// communities you created) moved under Profile > Settings instead (see
+// MyPostsScreen), and creating either kind moved to Profile's top-left "+"
+// button (see ProfileScreen), so there was nothing left for this tab to do.
 export type MainTabParamList = {
   Home: undefined;
   Messages: undefined;
-  Events: undefined;
   Profile: undefined;
 };
 
@@ -28,7 +29,6 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
   Home: "home-outline",
   Messages: "paper-plane-outline",
-  Events: "calendar-outline",
   Profile: "person-circle-outline",
 };
 
@@ -54,7 +54,6 @@ export default function MainTabs() {
         component={MessagesScreen}
         options={{ tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined }}
       />
-      <Tab.Screen name="Events" component={EventsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

@@ -7,7 +7,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
 import Button from "../components/Button";
+import OptionsMenu from "../components/OptionsMenu";
 import ProfileForm from "../components/ProfileForm";
+import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
@@ -18,6 +20,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -117,7 +120,7 @@ export default function ProfileScreen() {
       contentContainerStyle={[styles.viewContainer, { paddingTop: insets.top + spacing.xxl }]}
     >
       <View style={styles.topBar}>
-        <Pressable onPress={() => navigation.navigate("CreateEvent")} hitSlop={12}>
+        <Pressable onPress={() => setCreateMenuOpen(true)} hitSlop={12}>
           <Ionicons name="add-circle-outline" size={26} color={colors.text} />
         </Pressable>
         <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={12}>
@@ -164,6 +167,24 @@ export default function ProfileScreen() {
           )}
         </View>
       )}
+
+      {/* Only two kinds for now — event (one-time) and community
+          (repeating); more are meant to slot into this same list later. */}
+      <OptionsMenu
+        visible={createMenuOpen}
+        onClose={() => setCreateMenuOpen(false)}
+        title="Create"
+        items={[
+          {
+            label: EVENT_KIND_LABELS.event,
+            onPress: () => navigation.navigate("CreatePost", { kind: "event" }),
+          },
+          {
+            label: EVENT_KIND_LABELS.community,
+            onPress: () => navigation.navigate("CreatePost", { kind: "community" }),
+          },
+        ]}
+      />
     </ScrollView>
   );
 }

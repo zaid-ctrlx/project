@@ -2,10 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { JoinPolicy } from "../api/events";
 
-// Shared by CreateEventScreen/EditEventScreen (choosing it, via EventForm),
-// EventDetailScreen (showing it), and Home's EventDiscoverView (filtering
-// by it) — was duplicated across the first two until the filter became a
-// third use site.
+// Shared by CreatePostScreen/EditEventScreen (choosing it, via EventForm)
+// and EventDetailScreen (showing it) — was duplicated across the two forms
+// until EventForm unified them.
 export const JOIN_POLICY_LABELS: Record<JoinPolicy, string> = {
   open: "Anyone can join",
   invite_only: "Invited only",

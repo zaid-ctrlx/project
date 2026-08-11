@@ -12,6 +12,8 @@ import {
   EVENT_STYLE_LABELS,
   SKILL_LEVEL_LABELS,
 } from "../constants/eventTags";
+import { EVENT_KIND_LABELS } from "../constants/eventKind";
+import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_ICONS, JOIN_POLICY_LABELS } from "../constants/joinPolicy";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
@@ -96,7 +98,7 @@ export default function EventDetailScreen() {
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Event</Text>
+        <Text style={styles.headerTitle}>{EVENT_KIND_LABELS[event.kind]}</Text>
         <Pressable onPress={toggleBookmark} disabled={bookmarkBusy} hitSlop={12}>
           <Ionicons
             name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
@@ -109,10 +111,19 @@ export default function EventDetailScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>{event.title}</Text>
 
-        <View style={styles.metaRow}>
-          <Ionicons name="time-outline" size={18} color={colors.textMuted} />
-          <Text style={styles.metaText}>{formatDateTime(event.starts_at)}</Text>
-        </View>
+        {event.kind === "event" && event.starts_at ? (
+          <View style={styles.metaRow}>
+            <Ionicons name="time-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.metaText}>{formatDateTime(event.starts_at)}</Text>
+          </View>
+        ) : (
+          event.frequency && (
+            <View style={styles.metaRow}>
+              <Ionicons name="repeat-outline" size={18} color={colors.textMuted} />
+              <Text style={styles.metaText}>Repeats {FREQUENCY_LABELS[event.frequency].toLowerCase()}</Text>
+            </View>
+          )
+        )}
 
         {event.location_label && (
           <View style={styles.metaRow}>

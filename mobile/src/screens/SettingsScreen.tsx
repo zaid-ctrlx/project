@@ -65,6 +65,14 @@ export default function SettingsScreen() {
       )}
 
       <Pressable
+        onPress={() => navigation.navigate("MyPosts")}
+        style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
+      >
+        <Ionicons name="document-text-outline" size={20} color={colors.text} />
+        <Text style={styles.rowText}>My Posts</Text>
+      </Pressable>
+
+      <Pressable
         onPress={() => navigation.navigate("Bookmarks")}
         style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
       >

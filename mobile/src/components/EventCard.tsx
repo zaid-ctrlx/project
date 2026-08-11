@@ -3,6 +3,7 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { Event } from "../api/events";
+import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";
 
@@ -28,7 +29,20 @@ export default function EventCard({ event, onPress, onToggleBookmark, bookmarkBu
     },
     cardPressed: { backgroundColor: colors.chipBackground },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
-    title: { flex: 1, fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+    titleCol: { flex: 1 },
+    kindBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      alignSelf: "flex-start",
+      borderRadius: radius.pill,
+      paddingVertical: 2,
+      paddingHorizontal: spacing.sm,
+      backgroundColor: colors.chipBackground,
+      marginBottom: spacing.xs,
+    },
+    kindBadgeText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600" },
+    title: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
     meta: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
     description: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.sm },
   }));
@@ -39,9 +53,15 @@ export default function EventCard({ event, onPress, onToggleBookmark, bookmarkBu
       onPress={() => onPress(event)}
     >
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={2}>
-          {event.title}
-        </Text>
+        <View style={styles.titleCol}>
+          <View style={styles.kindBadge}>
+            <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={12} color={colors.textMuted} />
+            <Text style={styles.kindBadgeText}>{EVENT_KIND_LABELS[event.kind]}</Text>
+          </View>
+          <Text style={styles.title} numberOfLines={2}>
+            {event.title}
+          </Text>
+        </View>
         <Pressable onPress={() => onToggleBookmark(event)} disabled={bookmarkBusy} hitSlop={8}>
           <Ionicons
             name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}

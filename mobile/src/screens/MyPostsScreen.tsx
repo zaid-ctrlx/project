@@ -12,13 +12,13 @@ import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, spacing } from "../theme";
 
-// Discover moved to the Home tab, Create moved to Profile's top-left button,
-// and Bookmarks moved under Profile > Settings — so this tab (formerly a
-// 3-way segmented Discover/Create/Bookmarks screen, with "My Events" tucked
-// behind a ⋯ menu) is now just My Events, directly. Refetches on every
-// focus (not just mount), so coming back here after an edit/create shows
-// the change immediately.
-export default function EventsScreen() {
+// Pushed from Profile > Settings ("My Posts" row) — was the Events tab
+// (formerly a 3-way segmented Discover/Create/Bookmarks screen, then just
+// "My Events" once those moved out; now events and communities together,
+// now that Events is gone from the tab bar entirely — see MainTabs).
+// Refetches on every focus (not just mount), so coming back here after an
+// edit/create shows the change immediately.
+export default function MyPostsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
 
@@ -30,10 +30,20 @@ export default function EventsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { styles, colors } = useThemedStyles((colors) => ({
-    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text, marginBottom: spacing.lg },
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    headerSpacer: { width: 26 },
     spinner: { marginTop: spacing.xl },
-    list: { paddingBottom: spacing.xl },
+    list: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xl },
     cardWrap: { marginBottom: spacing.md },
     actionRow: {
       flexDirection: "row",
@@ -63,7 +73,7 @@ export default function EventsScreen() {
     try {
       setEvents(await listMyEvents());
     } catch {
-      setError("Couldn't load your events. Check your connection and try again.");
+      setError("Couldn't load your posts. Check your connection and try again.");
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -106,7 +116,7 @@ export default function EventsScreen() {
       setEvents((prev) => prev.filter((e) => e.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch {
-      setError("Couldn't delete this event. Try again.");
+      setError("Couldn't delete this. Try again.");
       setDeleteTarget(null);
     } finally {
       setDeleting(false);
@@ -114,8 +124,14 @@ export default function EventsScreen() {
   }
 
   return (
-    <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <Text style={styles.title}>Events</Text>
+    <View style={styles.wrapper}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>My Posts</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
       {loading ? (
         <ActivityIndicator style={styles.spinner} />
@@ -154,7 +170,7 @@ export default function EventsScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>{error ?? "You haven't created any events yet."}</Text>
+            <Text style={styles.empty}>{error ?? "You haven't created any events or communities yet."}</Text>
           }
         />
       )}

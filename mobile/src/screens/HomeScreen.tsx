@@ -19,9 +19,10 @@ import EventDiscoverView from "./events/EventDiscoverView";
 const ICON_FLIP_MS = 300;
 
 // Bottom-tab Home — what used to be Events' "Discover" sub-tab, promoted to
-// its own tab now that Events is just My Events (see EventsScreen). Same
-// discovery feed (search + filters, reverse-chronological), just the app's
-// front door instead of one of three tabs buried under Events.
+// its own tab once Events was just My Events, and now the only place to
+// browse at all since the Events tab itself is gone (see MainTabs). Shows
+// both post kinds — events and communities — filterable via the All/Event/
+// Community control in EventDiscoverView.
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
