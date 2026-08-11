@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
 import { Tag } from "../api/auth";
 import { fetchTags } from "../api/profile";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = {
   selectedIds: Set<string>;
@@ -17,6 +18,21 @@ type Props = {
 export default function TagMultiSelect({ selectedIds, onChange }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
+  const { styles } = useThemedStyles((colors) => ({
+    tagsLoading: { alignSelf: "flex-start" },
+    tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    tagChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.chipBackground,
+    },
+    tagChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+    tagChipText: { fontSize: fontSize.base, color: colors.text },
+    tagChipTextSelected: { color: colors.primaryText },
+  }));
 
   useEffect(() => {
     (async () => {
@@ -55,19 +71,3 @@ export default function TagMultiSelect({ selectedIds, onChange }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  tagsLoading: { alignSelf: "flex-start" },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.chipBackground,
-  },
-  tagChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tagChipText: { fontSize: fontSize.base, color: colors.text },
-  tagChipTextSelected: { color: colors.primaryText },
-});

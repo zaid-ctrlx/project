@@ -1,7 +1,8 @@
 import React from "react";
-import { StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
+import { Text, TextInput, TextInputProps, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = TextInputProps & {
   containerStyle?: object;
@@ -12,6 +13,36 @@ type Props = TextInputProps & {
 };
 
 export default function TextField({ style, containerStyle, label, ...rest }: Props) {
+  const { styles, colors } = useThemedStyles((colors) => ({
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      fontSize: fontSize.md,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    labeledBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+      backgroundColor: colors.background,
+    },
+    label: { fontSize: fontSize.sm, color: colors.textMuted },
+    labeledInput: {
+      fontSize: fontSize.md,
+      color: colors.text,
+      padding: 0,
+      paddingTop: spacing.xs,
+      paddingBottom: spacing.sm,
+    },
+  }));
+
   if (label) {
     return (
       <View style={[styles.labeledBox, containerStyle]}>
@@ -31,33 +62,3 @@ export default function TextField({ style, containerStyle, label, ...rest }: Pro
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    fontSize: fontSize.md,
-    color: colors.text,
-    backgroundColor: colors.background,
-  },
-  labeledBox: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    backgroundColor: colors.background,
-  },
-  label: { fontSize: fontSize.sm, color: colors.textMuted },
-  labeledInput: {
-    fontSize: fontSize.md,
-    color: colors.text,
-    padding: 0,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-  },
-});

@@ -1,14 +1,16 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 export type OptionsMenuItem = {
   label: string;
   onPress: () => void;
   destructive?: boolean;
   // Visible but inert — "not built yet", distinct from not showing the row
-  // at all. Renders greyed out and ignores taps (see EventsScreen's "Sort").
+  // at all. Renders greyed out and ignores taps (see Home's "Sort" chip,
+  // EventDiscoverView).
   disabled?: boolean;
 };
 
@@ -17,7 +19,7 @@ type Props = {
   onClose: () => void;
   title?: string;
   // Empty array renders as just title + Cancel — a valid "nothing here yet"
-  // state, not an error (see EventsScreen's ⋯ menu, awaiting real items).
+  // state, not an error.
   items: OptionsMenuItem[];
 };
 
@@ -29,6 +31,40 @@ type Props = {
 // fixed Search/Clear/Add-members actions; this one takes a plain items
 // array for menus anywhere else, including ones not fully decided yet.
 export default function OptionsMenu({ visible, onClose, title, items }: Props) {
+  const { styles } = useThemedStyles((colors) => ({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    title: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    optionPressed: { backgroundColor: colors.chipBackground },
+    optionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+    optionTextDestructive: { color: colors.danger },
+    optionTextDisabled: { color: colors.textFaint },
+    cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+  }));
+
   function run(action: () => void) {
     onClose();
     action();
@@ -69,37 +105,3 @@ export default function OptionsMenu({ visible, onClose, title, items }: Props) {
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  title: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  optionPressed: { backgroundColor: colors.chipBackground },
-  optionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
-  optionTextDestructive: { color: colors.danger },
-  optionTextDisabled: { color: colors.textFaint },
-  cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-});

@@ -1,14 +1,21 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProfileForm from "../components/ProfileForm";
 import { useAuth } from "../context/AuthContext";
-import { colors, fontSize, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, spacing } from "../theme";
 
 export default function OnboardingScreen() {
   const { setUser } = useAuth();
   const insets = useSafeAreaInsets();
+  const { styles } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: { paddingHorizontal: spacing.xl },
+    title: { fontSize: fontSize.xxl, fontWeight: "700", marginBottom: spacing.xs, color: colors.text },
+    subtitle: { fontSize: fontSize.base, color: colors.textMuted },
+  }));
 
   return (
     <View style={styles.wrapper}>
@@ -20,10 +27,3 @@ export default function OnboardingScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.xl },
-  title: { fontSize: fontSize.xxl, fontWeight: "700", marginBottom: spacing.xs, color: colors.text },
-  subtitle: { fontSize: fontSize.base, color: colors.textMuted },
-});

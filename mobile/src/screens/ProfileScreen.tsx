@@ -2,21 +2,67 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { mediaUrl } from "../api/client";
 import Button from "../components/Button";
 import ProfileForm from "../components/ProfileForm";
 import { useAuth } from "../context/AuthContext";
-import { mediaUrl } from "../api/client";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 export default function ProfileScreen() {
   const { user, setUser } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+    },
+    cancel: { fontSize: fontSize.md, color: colors.text, width: 70 },
+    headerSpacer: { width: 70 },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    viewContainer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+    topBar: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+    profileRow: { flexDirection: "row", alignItems: "center" },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing.lg,
+    },
+    avatarImage: { width: 80, height: 80, borderRadius: 40, marginRight: spacing.lg },
+    avatarText: { fontSize: 30, fontWeight: "700", color: colors.text },
+    identity: { flex: 1 },
+    username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
+    fullName: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
+    bio: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.md },
+    actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
+    actionButton: { flex: 1 },
+    metaBlock: { marginTop: spacing.xl },
+    meta: { fontSize: fontSize.base, color: colors.textMuted, marginBottom: spacing.sm },
+    tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    tagChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.chipBackground,
+    },
+    tagChipText: { fontSize: fontSize.sm, color: colors.text },
+  }));
 
   // Screen is only reachable once logged in (see App.tsx), so user is
   // always set here — this guard is just to satisfy TypeScript.
@@ -34,7 +80,7 @@ export default function ProfileScreen() {
   if (editing) {
     return (
       <View style={styles.wrapper}>
-        <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.xxl }]}>
           <Pressable onPress={() => setEditing(false)} hitSlop={12}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
@@ -68,9 +114,12 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={styles.wrapper}
-      contentContainerStyle={[styles.viewContainer, { paddingTop: insets.top + spacing.lg }]}
+      contentContainerStyle={[styles.viewContainer, { paddingTop: insets.top + spacing.xxl }]}
     >
       <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.navigate("CreateEvent")} hitSlop={12}>
+          <Ionicons name="add-circle-outline" size={26} color={colors.text} />
+        </Pressable>
         <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={12}>
           <Ionicons name="settings-outline" size={24} color={colors.text} />
         </Pressable>
@@ -118,49 +167,3 @@ export default function ProfileScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-  },
-  cancel: { fontSize: fontSize.md, color: colors.text, width: 70 },
-  headerSpacer: { width: 70 },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  viewContainer: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
-  topBar: { flexDirection: "row", justifyContent: "flex-end", marginBottom: spacing.sm },
-  profileRow: { flexDirection: "row", alignItems: "center" },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.lg,
-  },
-  avatarImage: { width: 80, height: 80, borderRadius: 40, marginRight: spacing.lg },
-  avatarText: { fontSize: 30, fontWeight: "700", color: colors.text },
-  identity: { flex: 1 },
-  username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
-  fullName: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
-  bio: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.md },
-  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
-  actionButton: { flex: 1 },
-  metaBlock: { marginTop: spacing.xl },
-  meta: { fontSize: fontSize.base, color: colors.textMuted, marginBottom: spacing.sm },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.chipBackground,
-  },
-  tagChipText: { fontSize: fontSize.sm, color: colors.text },
-});

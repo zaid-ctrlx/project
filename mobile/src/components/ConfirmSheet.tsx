@@ -1,7 +1,8 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = {
   visible: boolean;
@@ -22,6 +23,45 @@ type Props = {
 // than one interactive button. Pulled out once a third call site (Clear
 // Chat, on top of Remove from group) needed the identical shape.
 export default function ConfirmSheet({ visible, onClose, title, body, confirmLabel, onConfirm, busy, busyLabel }: Props) {
+  const { styles } = useThemedStyles((colors) => ({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    title: {
+      fontSize: fontSize.md,
+      fontWeight: "700",
+      color: colors.text,
+      textAlign: "center",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    body: {
+      fontSize: fontSize.sm,
+      color: colors.textMuted,
+      textAlign: "center",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xs,
+      paddingBottom: spacing.md,
+    },
+    option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    optionPressed: { backgroundColor: colors.chipBackground },
+    destructiveText: { fontSize: fontSize.md, color: colors.danger, fontWeight: "600", textAlign: "center" },
+    cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+  }));
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -47,42 +87,3 @@ export default function ConfirmSheet({ visible, onClose, title, body, confirmLab
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  title: {
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    color: colors.text,
-    textAlign: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  body: {
-    fontSize: fontSize.sm,
-    color: colors.textMuted,
-    textAlign: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
-  },
-  option: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  optionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  optionPressed: { backgroundColor: colors.chipBackground },
-  destructiveText: { fontSize: fontSize.md, color: colors.danger, fontWeight: "600", textAlign: "center" },
-  cancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-});

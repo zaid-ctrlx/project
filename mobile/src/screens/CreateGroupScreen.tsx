@@ -13,7 +13,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -26,8 +25,9 @@ import { searchUsers } from "../api/profile";
 import Button from "../components/Button";
 import SearchField from "../components/SearchField";
 import TextField from "../components/TextField";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 type Person = {
   id: string;
@@ -121,6 +121,132 @@ export default function CreateGroupScreen() {
   const [photoPicking, setPhotoPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    headerSpacer: { width: 26 },
+
+    // --- Step 1 ---
+    membersContainer: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+    sectionTitle: {
+      fontSize: fontSize.base,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginTop: spacing.lg,
+      marginBottom: spacing.xs,
+    },
+    spinner: { marginTop: spacing.xl },
+    list: { paddingBottom: 96 }, // clears the floating arrow button
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      borderRadius: spacing.sm,
+      gap: spacing.md,
+    },
+    rowPressed: { backgroundColor: colors.chipBackground },
+    avatarSm: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarImageSm: { width: 44, height: 44, borderRadius: 22 },
+    avatarSmText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
+    rowText: { flex: 1 },
+    username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+    fullName: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
+    emptyBody: { fontSize: fontSize.base, color: colors.textFaint, textAlign: "center", marginTop: spacing.xl },
+    fab: {
+      position: "absolute",
+      right: spacing.xl,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+
+    // --- Step 2 ---
+    detailsContainer: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+    avatarSection: { alignItems: "center", marginBottom: spacing.sm },
+    avatarWrap: { width: 96, height: 96, alignSelf: "center" },
+    avatarImage: { width: 96, height: 96, borderRadius: 48 },
+    avatarPlaceholder: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
+    memberSummary: { fontSize: fontSize.sm, color: colors.textMuted },
+    error: { color: colors.danger, fontSize: fontSize.base },
+
+    // --- Photo-source sheet (mirrors ProfileForm's) ---
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    sheetTitle: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    sheetOptionPressed: { backgroundColor: colors.chipBackground },
+    sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+    sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+  }));
 
   // Mirrors ProfileForm's pickAndUploadAvatar (permission -> launch ->
   // resize) but stops short of uploading — the group doesn't exist yet, so
@@ -350,130 +476,3 @@ export default function CreateGroupScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  headerSpacer: { width: 26 },
-
-  // --- Step 1 ---
-  membersContainer: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  sectionTitle: {
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.lg,
-    marginBottom: spacing.xs,
-  },
-  spinner: { marginTop: spacing.xl },
-  list: { paddingBottom: 96 }, // clears the floating arrow button
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderRadius: spacing.sm,
-    gap: spacing.md,
-  },
-  rowPressed: { backgroundColor: colors.chipBackground },
-  avatarSm: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarImageSm: { width: 44, height: 44, borderRadius: 22 },
-  avatarSmText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
-  rowText: { flex: 1 },
-  username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
-  fullName: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  emptyBody: { fontSize: fontSize.base, color: colors.textFaint, textAlign: "center", marginTop: spacing.xl },
-  fab: {
-    position: "absolute",
-    right: spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-
-  // --- Step 2 ---
-  detailsContainer: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
-  avatarSection: { alignItems: "center", marginBottom: spacing.sm },
-  avatarWrap: { width: 96, height: 96, alignSelf: "center" },
-  avatarImage: { width: 96, height: 96, borderRadius: 48 },
-  avatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.background,
-  },
-  changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
-  memberSummary: { fontSize: fontSize.sm, color: colors.textMuted },
-  error: { color: colors.danger, fontSize: fontSize.base },
-
-  // --- Photo-source sheet (mirrors ProfileForm's) ---
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  sheetTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  sheetOptionPressed: { backgroundColor: colors.chipBackground },
-  sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
-  sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-});

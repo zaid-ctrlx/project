@@ -1,7 +1,8 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = {
   label: string;
@@ -25,6 +26,21 @@ function toInputValue(date: Date): string {
 }
 
 export default function DateTimeField({ label, value, onChange, minimumDate }: Props) {
+  const { styles, colors } = useThemedStyles((colors) => ({
+    // Mirrors DateTimeField.tsx's box styling for visual consistency with the
+    // rest of the form (and with Select.tsx, which the native version also
+    // matches).
+    box: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      backgroundColor: colors.background,
+    },
+    label: { fontSize: fontSize.sm, color: colors.textMuted },
+  }));
+
   return (
     <View style={styles.box}>
       <Text style={styles.label}>{label}</Text>
@@ -53,18 +69,3 @@ export default function DateTimeField({ label, value, onChange, minimumDate }: P
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  // Mirrors DateTimeField.tsx's box styling for visual consistency with the
-  // rest of the form (and with Select.tsx, which the native version also
-  // matches).
-  box: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.background,
-  },
-  label: { fontSize: fontSize.sm, color: colors.textMuted },
-});

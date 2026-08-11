@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError } from "../api/client";
@@ -10,8 +10,9 @@ import { addGroupMember, ChatGroup, getGroup } from "../api/groups";
 import { UserSearchResult } from "../api/profile";
 import Button from "../components/Button";
 import UserMultiPicker from "../components/UserMultiPicker";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, spacing } from "../theme";
+import { fontSize, spacing } from "../theme";
 
 // Reachable only from GroupChatScreen's header, which only shows the
 // entry point to admins — but that's a UI nicety, not the real gate: the
@@ -27,6 +28,23 @@ export default function AddGroupMemberScreen() {
   const [picked, setPicked] = useState<UserSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    headerSpacer: { width: 26 },
+    spinner: { marginTop: spacing.xl },
+    container: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+    error: { color: colors.danger, fontSize: fontSize.base },
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -87,21 +105,3 @@ export default function AddGroupMemberScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  headerSpacer: { width: 26 },
-  spinner: { marginTop: spacing.xl },
-  container: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
-  error: { color: colors.danger, fontSize: fontSize.base },
-});

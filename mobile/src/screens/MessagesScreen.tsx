@@ -1,20 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
 import { GroupMessage } from "../api/groups";
 import { ConversationSummary, listConversations, Message } from "../api/messages";
-import { searchUsers, UserSearchResult } from "../api/profile";
 import SearchField from "../components/SearchField";
 import { useMessaging } from "../context/MessagingContext";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
-
-const SEARCH_MIN_LENGTH = 2;
+import { fontSize, radius, spacing } from "../theme";
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -34,40 +32,87 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // Search-to-start-a-chat — separate from the conversation list above.
-  // Finding someone here skips profile inspection entirely and lands
-  // straight in their chat (unlike the Search tab, which goes to their
-  // profile first); this is the fast path for "I know who I want to message".
-  const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-  const [searchBusy, setSearchBusy] = useState(false);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isSearching = query.trim().length >= SEARCH_MIN_LENGTH;
-
-  useEffect(() => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-
-    if (!isSearching) {
-      setSearchResults([]);
-      return;
-    }
-
-    searchDebounceRef.current = setTimeout(async () => {
-      setSearchBusy(true);
-      try {
-        setSearchResults(await searchUsers(query.trim()));
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchBusy(false);
-      }
-    }, 400);
-
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
-  }, [query, isSearching]);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: spacing.lg,
+    },
+    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
+    searchFieldWrap: { marginBottom: spacing.md },
+    spinner: { marginTop: spacing.xl },
+    list: { paddingBottom: spacing.xl },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      borderRadius: spacing.sm,
+    },
+    rowPressed: { backgroundColor: colors.chipBackground },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing.md,
+    },
+    avatarImage: { width: 48, height: 48, borderRadius: 24, marginRight: spacing.md },
+    avatarText: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    rowText: { flex: 1 },
+    username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+    preview: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
+    rowMeta: { alignItems: "flex-end", gap: spacing.xs },
+    timestamp: { fontSize: fontSize.sm, color: colors.textFaint },
+    badge: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: spacing.xs,
+    },
+    badgeText: { fontSize: fontSize.sm, color: colors.primaryText, fontWeight: "700" },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing.xxl, gap: spacing.sm },
+    emptyTitle: { fontSize: fontSize.lg, fontWeight: "600", color: colors.text },
+    emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center", maxWidth: 260 },
+    // Mirrors ProfileForm's avatar-source sheet styling exactly (see its
+    // comment on why a custom Modal instead of Alert.alert).
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    sheetTitle: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    sheetOptionPressed: { backgroundColor: colors.chipBackground },
+    sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+    sheetOptionTextDisabled: { fontSize: fontSize.md, color: colors.textFaint, textAlign: "center" },
+    sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+  }));
 
   // silent skips the full-screen spinner — used by pull-to-refresh, which
   // has its own (the native RefreshControl one).
@@ -188,40 +233,17 @@ export default function MessagesScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.searchFieldWrap}>
-        <SearchField placeholder="Search people to message" value={query} onChangeText={setQuery} busy={searchBusy} />
-      </View>
+      {/* Tapping search pushes MessageSearch instead of typing in place —
+          a real stack screen, so it hides the bottom tab bar and picks up
+          swipe-back/hardware-back for free (same reasoning as Home's
+          EventDiscoverView.onRequestSearch). */}
+      <Pressable style={styles.searchFieldWrap} onPress={() => navigation.navigate("MessageSearch")}>
+        <View pointerEvents="none">
+          <SearchField placeholder="Search people to message" value="" onChangeText={() => {}} editable={false} />
+        </View>
+      </Pressable>
 
-      {isSearching ? (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <Pressable
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              onPress={() => goToChat(item.id, item.username, item.avatar_url)}
-            >
-              {item.avatar_url ? (
-                <Image source={{ uri: mediaUrl(item.avatar_url)! }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.username.charAt(0).toUpperCase()}</Text>
-                </View>
-              )}
-              <View style={styles.rowText}>
-                <Text style={styles.username}>{item.username}</Text>
-                {item.full_name && (
-                  <Text style={styles.preview} numberOfLines={1}>
-                    {item.full_name}
-                  </Text>
-                )}
-              </View>
-            </Pressable>
-          )}
-          ListEmptyComponent={!searchBusy ? <Text style={styles.emptyBody}>No users found.</Text> : null}
-        />
-      ) : loading ? (
+      {loading ? (
         <ActivityIndicator style={styles.spinner} />
       ) : (
         <FlatList
@@ -337,85 +359,3 @@ export default function MessagesScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
-  },
-  title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-  searchFieldWrap: { marginBottom: spacing.md },
-  spinner: { marginTop: spacing.xl },
-  list: { paddingBottom: spacing.xl },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderRadius: spacing.sm,
-  },
-  rowPressed: { backgroundColor: colors.chipBackground },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  avatarImage: { width: 48, height: 48, borderRadius: 24, marginRight: spacing.md },
-  avatarText: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  rowText: { flex: 1 },
-  username: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
-  preview: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
-  rowMeta: { alignItems: "flex-end", gap: spacing.xs },
-  timestamp: { fontSize: fontSize.sm, color: colors.textFaint },
-  badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xs,
-  },
-  badgeText: { fontSize: fontSize.sm, color: colors.primaryText, fontWeight: "700" },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing.xxl, gap: spacing.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: "600", color: colors.text },
-  emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center", maxWidth: 260 },
-  // Mirrors ProfileForm's avatar-source sheet styling exactly (see its
-  // comment on why a custom Modal instead of Alert.alert).
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  sheetTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  sheetOptionPressed: { backgroundColor: colors.chipBackground },
-  sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
-  sheetOptionTextDisabled: { fontSize: fontSize.md, color: colors.textFaint, textAlign: "center" },
-  sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-});

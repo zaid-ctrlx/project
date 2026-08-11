@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -24,9 +23,10 @@ import SearchField from "../components/SearchField";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { useMessaging } from "../context/MessagingContext";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import { filterMessagesByText } from "../lib/chatSearch";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 const PAGE_SIZE = 30;
 
@@ -58,6 +58,60 @@ export default function ChatScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    headerIdentity: { flexDirection: "row", alignItems: "center", flex: 1, marginHorizontal: spacing.md },
+    headerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: spacing.sm },
+    headerAvatarPlaceholder: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing.sm,
+    },
+    headerAvatarText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, flexShrink: 1 },
+    searchFieldWrap: { flex: 1 },
+    cancelSearch: { marginLeft: spacing.md },
+    cancelSearchText: { fontSize: fontSize.base, color: colors.primary, fontWeight: "600" },
+    spinner: { marginTop: spacing.xl },
+    loadingMore: { marginVertical: spacing.md },
+    list: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, flexGrow: 1, justifyContent: "flex-end" },
+    bubbleRow: { marginVertical: spacing.xs, maxWidth: "80%" },
+    bubbleRowMine: { alignSelf: "flex-end", alignItems: "flex-end" },
+    bubbleRowTheirs: { alignSelf: "flex-start", alignItems: "flex-start" },
+    bubble: { borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+    bubbleMine: { backgroundColor: colors.primary },
+    bubbleTheirs: { backgroundColor: colors.chipBackground },
+    bubbleText: { fontSize: fontSize.base, color: colors.text },
+    bubbleTextMine: { color: colors.primaryText },
+    timestamp: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.xs },
+    timestampMine: { textAlign: "right" },
+    empty: { alignItems: "center", justifyContent: "center", paddingVertical: spacing.xxl },
+    emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center" },
+    composerRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    composerInput: { flex: 1 },
+    sendError: { color: colors.danger, fontSize: fontSize.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -272,58 +326,3 @@ export default function ChatScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerIdentity: { flexDirection: "row", alignItems: "center", flex: 1, marginHorizontal: spacing.md },
-  headerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: spacing.sm },
-  headerAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.sm,
-  },
-  headerAvatarText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, flexShrink: 1 },
-  searchFieldWrap: { flex: 1 },
-  cancelSearch: { marginLeft: spacing.md },
-  cancelSearchText: { fontSize: fontSize.base, color: colors.primary, fontWeight: "600" },
-  spinner: { marginTop: spacing.xl },
-  loadingMore: { marginVertical: spacing.md },
-  list: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, flexGrow: 1, justifyContent: "flex-end" },
-  bubbleRow: { marginVertical: spacing.xs, maxWidth: "80%" },
-  bubbleRowMine: { alignSelf: "flex-end", alignItems: "flex-end" },
-  bubbleRowTheirs: { alignSelf: "flex-start", alignItems: "flex-start" },
-  bubble: { borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-  bubbleMine: { backgroundColor: colors.primary },
-  bubbleTheirs: { backgroundColor: colors.chipBackground },
-  bubbleText: { fontSize: fontSize.base, color: colors.text },
-  bubbleTextMine: { color: colors.primaryText },
-  timestamp: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.xs },
-  timestampMine: { textAlign: "right" },
-  empty: { alignItems: "center", justifyContent: "center", paddingVertical: spacing.xxl },
-  emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center" },
-  composerRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-  },
-  composerInput: { flex: 1 },
-  sendError: { color: colors.danger, fontSize: fontSize.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
-});

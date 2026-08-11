@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { bookmarkEvent, Event, unbookmarkEvent } from "../api/events";
@@ -13,8 +13,9 @@ import {
   SKILL_LEVEL_LABELS,
 } from "../constants/eventTags";
 import { JOIN_POLICY_ICONS, JOIN_POLICY_LABELS } from "../constants/joinPolicy";
+import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -39,6 +40,42 @@ export default function EventDetailScreen() {
 
   const [event, setEvent] = useState<Event>(initialEvent);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
+    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
+    metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    metaText: { fontSize: fontSize.base, color: colors.textMuted },
+    metaBlock: { marginTop: spacing.sm },
+    sectionTitle: {
+      fontSize: fontSize.base,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: spacing.sm,
+    },
+    description: { fontSize: fontSize.base, color: colors.text, lineHeight: 20 },
+    tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    tagChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.chipBackground,
+    },
+    tagChipText: { fontSize: fontSize.sm, color: colors.text },
+    creator: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.md },
+  }));
 
   async function toggleBookmark() {
     const next = !event.is_bookmarked;
@@ -129,40 +166,3 @@ export default function EventDetailScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-  },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
-  title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  metaText: { fontSize: fontSize.base, color: colors.textMuted },
-  metaBlock: { marginTop: spacing.sm },
-  sectionTitle: {
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  description: { fontSize: fontSize.base, color: colors.text, lineHeight: 20 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  tagChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.chipBackground,
-  },
-  tagChipText: { fontSize: fontSize.sm, color: colors.text },
-  creator: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.md },
-});

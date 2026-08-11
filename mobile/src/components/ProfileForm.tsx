@@ -3,12 +3,13 @@ import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
 
 import { Gender, GENDER_OPTIONS, User } from "../api/auth";
 import { ApiError, mediaUrl } from "../api/client";
 import { updateProfile, uploadAvatar } from "../api/profile";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
 import LocationPicker, { LocationValue } from "./LocationPicker";
 import Select from "./Select";
@@ -69,6 +70,76 @@ export default function ProfileForm({
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    container: { flexGrow: 1, padding: spacing.xl, backgroundColor: colors.background, gap: spacing.md },
+    avatarSection: { alignItems: "center", marginBottom: spacing.sm },
+    avatarWrap: { width: 96, height: 96 },
+    avatarImage: { width: 96, height: 96, borderRadius: 48 },
+    avatarPlaceholder: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    avatarPlaceholderText: { fontSize: 36, fontWeight: "700", color: colors.text },
+    avatarBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+    },
+    sheetTitle: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    sheetOptionPressed: { backgroundColor: colors.chipBackground },
+    sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
+    sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
+    sectionTitle: {
+      fontSize: fontSize.base,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginTop: spacing.md,
+    },
+    helperText: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: -spacing.xs },
+    bioInput: { minHeight: 60, textAlignVertical: "top" },
+    error: { color: colors.danger, fontSize: fontSize.base },
+    submitRow: { marginTop: spacing.lg, marginBottom: spacing.xl },
+  }));
 
   async function pickAndUploadAvatar(source: "camera" | "library") {
     setSaveError(null);
@@ -279,74 +350,3 @@ export default function ProfileForm({
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: spacing.xl, backgroundColor: colors.background, gap: spacing.md },
-  avatarSection: { alignItems: "center", marginBottom: spacing.sm },
-  avatarWrap: { width: 96, height: 96 },
-  avatarImage: { width: 96, height: 96, borderRadius: 48 },
-  avatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.chipBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarPlaceholderText: { fontSize: 36, fontWeight: "700", color: colors.text },
-  avatarBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.background,
-  },
-  changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    paddingVertical: spacing.sm,
-  },
-  sheetTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  sheetOption: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  sheetOptionBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  sheetOptionPressed: { backgroundColor: colors.chipBackground },
-  sheetOptionText: { fontSize: fontSize.md, color: colors.text, textAlign: "center" },
-  sheetCancelText: { fontSize: fontSize.md, color: colors.textMuted, textAlign: "center" },
-  sectionTitle: {
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.md,
-  },
-  helperText: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: -spacing.xs },
-  bioInput: { minHeight: 60, textAlignVertical: "top" },
-  error: { color: colors.danger, fontSize: fontSize.base },
-  submitRow: { marginTop: spacing.lg, marginBottom: spacing.xl },
-});

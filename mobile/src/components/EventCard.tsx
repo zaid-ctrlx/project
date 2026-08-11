@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { Event } from "../api/events";
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 
 type Props = {
   event: Event;
@@ -17,6 +18,21 @@ type Props = {
 // other detail (date/time, tags, creator) lives on EventDetailScreen, one
 // tap away.
 export default function EventCard({ event, onPress, onToggleBookmark, bookmarkBusy }: Props) {
+  const { styles, colors } = useThemedStyles((colors) => ({
+    card: {
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      borderRadius: radius.md,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    cardPressed: { backgroundColor: colors.chipBackground },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
+    title: { flex: 1, fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+    meta: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
+    description: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.sm },
+  }));
+
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -47,18 +63,3 @@ export default function EventCard({ event, onPress, onToggleBookmark, bookmarkBu
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  cardPressed: { backgroundColor: colors.chipBackground },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
-  title: { flex: 1, fontSize: fontSize.md, fontWeight: "700", color: colors.text },
-  meta: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
-  description: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.sm },
-});

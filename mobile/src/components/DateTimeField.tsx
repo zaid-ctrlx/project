@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import React, { useState } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, Text, View } from "react-native";
 
-import { colors, fontSize, radius, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
 
 type Props = {
@@ -32,6 +33,41 @@ function formatDateTime(date: Date): string {
 export default function DateTimeField({ label, value, onChange, minimumDate }: Props) {
   const [iosPickerOpen, setIosPickerOpen] = useState(false);
   const [draft, setDraft] = useState<Date>(value ?? minimumDate ?? new Date());
+  const { styles, colors } = useThemedStyles((colors) => ({
+    // box/textCol/label/value/placeholder mirror Select.tsx exactly for
+    // visual consistency with the rest of the form.
+    box: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+      backgroundColor: colors.background,
+    },
+    textCol: { flex: 1 },
+    label: { fontSize: fontSize.sm, color: colors.textMuted },
+    value: { fontSize: fontSize.md, color: colors.text, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+    placeholder: { color: colors.textFaint },
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    sheet: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      padding: spacing.lg,
+    },
+    doneRow: { marginTop: spacing.md },
+  }));
 
   function openPicker() {
     if (Platform.OS === "android") {
@@ -101,39 +137,3 @@ export default function DateTimeField({ label, value, onChange, minimumDate }: P
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  // box/textCol/label/value/placeholder mirror Select.tsx exactly for
-  // visual consistency with the rest of the form.
-  box: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    backgroundColor: colors.background,
-  },
-  textCol: { flex: 1 },
-  label: { fontSize: fontSize.sm, color: colors.textMuted },
-  value: { fontSize: fontSize.md, color: colors.text, paddingTop: spacing.xs, paddingBottom: spacing.sm },
-  placeholder: { color: colors.textFaint },
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-  },
-  doneRow: { marginTop: spacing.md },
-});

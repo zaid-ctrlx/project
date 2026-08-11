@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
+import { ScrollView, Text } from "react-native";
 
 import { ApiError } from "../api/client";
 import {
@@ -20,7 +20,8 @@ import {
   SKILL_LEVEL_LABELS,
 } from "../constants/eventTags";
 import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
-import { colors, fontSize, spacing } from "../theme";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import { fontSize, spacing } from "../theme";
 import Button from "./Button";
 import DateTimeField from "./DateTimeField";
 import LocationPicker, { LocationValue } from "./LocationPicker";
@@ -75,6 +76,20 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { styles } = useThemedStyles((colors) => ({
+    container: { flexGrow: 1, paddingBottom: spacing.xxl, gap: spacing.md },
+    descriptionInput: { minHeight: 60, textAlignVertical: "top" },
+    sectionTitle: {
+      fontSize: fontSize.base,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginTop: spacing.md,
+    },
+    firstSectionTitle: { marginTop: 0 },
+    error: { color: colors.danger, fontSize: fontSize.base },
+  }));
 
   async function onSubmit() {
     setError(null);
@@ -193,18 +208,3 @@ export default function EventForm({ initialEvent, submitLabel, onSaved }: Props)
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flexGrow: 1, paddingBottom: spacing.xxl, gap: spacing.md },
-  descriptionInput: { minHeight: 60, textAlignVertical: "top" },
-  sectionTitle: {
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: spacing.md,
-  },
-  firstSectionTitle: { marginTop: 0 },
-  error: { color: colors.danger, fontSize: fontSize.base },
-});

@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
-import { colors, spacing } from "../theme";
+import { useTheme } from "../context/ThemeContext";
+import { spacing } from "../theme";
 import TextField from "./TextField";
 
 type Props = {
@@ -13,6 +14,13 @@ type Props = {
   // the two never make sense at once (nothing to clear while empty, and a
   // busy search always has *some* text in it).
   busy?: boolean;
+  // false renders this as a display-only tap target instead of a real
+  // input — the caller wraps it in a Pressable (with pointerEvents="none"
+  // here so the tap reaches that Pressable, not the TextInput) to hand off
+  // to a dedicated search screen instead of typing in place. See Home
+  // (EventDiscoverView's onRequestSearch) and MessagesScreen.
+  editable?: boolean;
+  autoFocus?: boolean;
 };
 
 // TextField plus a right-edge accessory: a spinner while a search is in
@@ -22,7 +30,8 @@ type Props = {
 // this just shares the same absolute-positioned-accessory pattern
 // MessagesScreen and UserMultiPicker each had inline for their loading
 // spinner, now in one place with the clear button added.
-export default function SearchField({ value, onChangeText, placeholder, busy }: Props) {
+export default function SearchField({ value, onChangeText, placeholder, busy, editable = true, autoFocus }: Props) {
+  const { colors } = useTheme();
   return (
     <View style={styles.wrap}>
       <TextField
@@ -31,6 +40,8 @@ export default function SearchField({ value, onChangeText, placeholder, busy }: 
         onChangeText={onChangeText}
         autoCapitalize="none"
         autoCorrect={false}
+        editable={editable}
+        autoFocus={autoFocus}
         style={styles.input}
       />
       {busy ? (
