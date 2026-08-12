@@ -15,10 +15,11 @@ type Props<T extends string> = {
 };
 
 // The picker-modal half of Select.tsx, pulled out so it can be opened from
-// somewhere other than Select's own labeled box — e.g. a menu item
-// (Home's "Filter" chip, see EventDiscoverView) that has no box of its own
-// to show, just a value to pick. Select renders this internally too, so there's one
-// picker-sheet implementation instead of two near-identical ones.
+// somewhere other than Select's own labeled box — e.g. a menu item or
+// filter chip that has no box of its own to show, just a value to pick.
+// Select renders this internally too (e.g. Create Event's Activity Type
+// field, EventForm), so there's one picker-sheet implementation instead of
+// two near-identical ones.
 export default function PickerSheet<T extends string>({ visible, onClose, title, value, options, onChange }: Props<T>) {
   const { styles, colors } = useThemedStyles((colors) => ({
     backdrop: {

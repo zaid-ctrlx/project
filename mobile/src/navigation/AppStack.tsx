@@ -4,14 +4,15 @@ import React from "react";
 import { Event, EventKind } from "../api/events";
 import { useTheme } from "../context/ThemeContext";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
+import BlockedUsersScreen from "../screens/BlockedUsersScreen";
 import BookmarksScreen from "../screens/BookmarksScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
 import CreatePostScreen from "../screens/CreatePostScreen";
+import DeleteAccountScreen from "../screens/DeleteAccountScreen";
 import EditEventScreen from "../screens/EditEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
-import EventSearchScreen from "../screens/EventSearchScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
 import GroupInfoScreen from "../screens/GroupInfoScreen";
 import MessageSearchScreen from "../screens/MessageSearchScreen";
@@ -22,17 +23,21 @@ import MainTabs from "./MainTabs";
 
 // Wraps the bottom tabs in a stack so screens reachable from a tab (e.g.
 // Settings/Bookmarks/MyPosts, pushed from Profile; Chat/CreateGroup/
-// GroupChat/MessageSearch, pushed from Messages; EventDetail/EditEvent/
-// EventSearch, pushed from Home; CreatePost, pushed from Profile's top-left
+// GroupChat/MessageSearch, pushed from Messages; EventDetail/EditEvent,
+// pushed from Home or Discover; CreatePost, pushed from Profile's top-left
 // button) can slide in over the tab bar instead of needing to be a tab
-// themselves — EventSearch and MessageSearch lean on this specifically so
-// starting a search hides the tab bar and can only be left via swipe-back/
-// the hardware back button/the header back arrow, not by switching tabs.
+// themselves — MessageSearch leans on this specifically so starting a
+// search hides the tab bar and can only be left via swipe-back/the
+// hardware back button/the header back arrow, not by switching tabs.
 export type AppStackParamList = {
   Tabs: undefined;
   Settings: undefined;
   // Pushed from Settings ("My bookmarks" row).
   Bookmarks: undefined;
+  // Pushed from Settings ("Blocked profiles" row).
+  BlockedUsers: undefined;
+  // Pushed from Settings ("Delete account" row).
+  DeleteAccount: undefined;
   // Pushed from Settings ("My Posts" row) — everything (events + communities)
   // the current user created. There's no more Events tab for this to live
   // under (see MainTabs).
@@ -40,8 +45,6 @@ export type AppStackParamList = {
   Chat: { userId: string; username: string; avatarUrl: string | null };
   UserProfile: { userId: string };
   EventDetail: { event: Event };
-  // Pushed from Home's search bar (see EventDiscoverView.onRequestSearch).
-  EventSearch: undefined;
   // Pushed from Messages' search bar.
   MessageSearch: undefined;
   // Pushed from Profile's top-left "+" button, which opens a picker
@@ -76,11 +79,12 @@ export default function AppStack() {
       <Stack.Screen name="Tabs" component={MainTabs} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Bookmarks" component={BookmarksScreen} />
+      <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
       <Stack.Screen name="MyPosts" component={MyPostsScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
-      <Stack.Screen name="EventSearch" component={EventSearchScreen} />
       <Stack.Screen name="MessageSearch" component={MessageSearchScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />

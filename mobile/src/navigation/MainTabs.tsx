@@ -4,23 +4,30 @@ import React from "react";
 
 import { useMessaging } from "../context/MessagingContext";
 import { useTheme } from "../context/ThemeContext";
+import DiscoverScreen from "../screens/DiscoverScreen";
 import HomeScreen from "../screens/HomeScreen";
 import MessagesScreen from "../screens/MessagesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 
 // Search used to be its own tab, but it only ever did user-lookup — which
-// MessagesScreen's inline "Search people to message" box already covers
-// (search -> straight into a chat). Having both was two ways to do the same
-// thing, so this tab is gone; SearchScreen.tsx is unused now.
+// Discover's Accounts search (and MessagesScreen's inline "Search people to
+// message" box) already covers. Having both was two ways to do the same
+// thing, so this standalone tab is gone; SearchScreen.tsx is unused now.
 //
-// Home carries the event/community discovery feed (was Events' "Discover"
-// sub-tab). Events itself is gone entirely now — "My Posts" (events +
-// communities you created) moved under Profile > Settings instead (see
-// MyPostsScreen), and creating either kind moved to Profile's top-left "+"
-// button (see ProfileScreen), so there was nothing left for this tab to do.
+// Events itself is gone entirely too — "My Posts" (events + communities
+// you created) moved under Profile > Settings instead (see MyPostsScreen),
+// and creating either kind moved to Profile's top-left "+" button (see
+// ProfileScreen).
+//
+// Home and Discover split what Events' old "Discover" sub-tab used to do:
+// Discover (see DiscoverScreen) is search — events, communities, and
+// accounts, all via one query. Home (see HomeScreen) is reserved for the
+// actual recommendation feed (activity/follows/interests) — no browsing or
+// search of its own, empty until that's built.
 export type MainTabParamList = {
   Home: undefined;
   Messages: undefined;
+  Discover: undefined;
   Profile: undefined;
 };
 
@@ -29,6 +36,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
   Home: "home-outline",
   Messages: "paper-plane-outline",
+  Discover: "compass-outline",
   Profile: "person-circle-outline",
 };
 
@@ -54,6 +62,7 @@ export default function MainTabs() {
         component={MessagesScreen}
         options={{ tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined }}
       />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

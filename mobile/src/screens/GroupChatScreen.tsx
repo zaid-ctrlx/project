@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ApiError } from "../api/client";
+import { ApiError, mediaUrl } from "../api/client";
 import { ChatGroup, clearGroupChat, getGroup, getGroupThread, GroupMessage, sendGroupMessage } from "../api/groups";
 import Button from "../components/Button";
 import ChatOptionsMenu from "../components/ChatOptionsMenu";
@@ -76,6 +77,7 @@ export default function GroupChatScreen() {
       borderBottomColor: colors.borderLight,
     },
     headerIdentity: { flexDirection: "row", alignItems: "center", flex: 1, marginHorizontal: spacing.md },
+    headerAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: spacing.sm },
     headerAvatarPlaceholder: {
       width: 32,
       height: 32,
@@ -261,9 +263,13 @@ export default function GroupChatScreen() {
               onPress={() => navigation.navigate("GroupInfo", { groupId })}
               hitSlop={4}
             >
-              <View style={styles.headerAvatarPlaceholder}>
-                <Ionicons name="people" size={18} color={colors.textMuted} />
-              </View>
+              {group?.avatar_url ? (
+                <Image source={{ uri: mediaUrl(group.avatar_url)! }} style={styles.headerAvatar} />
+              ) : (
+                <View style={styles.headerAvatarPlaceholder}>
+                  <Ionicons name="people" size={18} color={colors.textMuted} />
+                </View>
+              )}
               <View style={styles.headerTextCol}>
                 <Text style={styles.headerTitle} numberOfLines={1}>
                   {groupName}

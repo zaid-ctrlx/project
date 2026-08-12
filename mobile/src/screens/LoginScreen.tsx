@@ -14,7 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(identifier.trim(), password);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {
@@ -44,11 +44,11 @@ export default function LoginScreen({ navigation }: Props) {
 
       <View style={styles.field}>
         <TextField
-          placeholder="Email"
+          placeholder="Email or username"
           autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
+          autoCorrect={false}
+          value={identifier}
+          onChangeText={setIdentifier}
         />
       </View>
       <View style={styles.field}>

@@ -13,7 +13,7 @@ type Props<T extends string> = {
   options: readonly T[];
   onChange: (value: T) => void;
   // Visible but inert — "not built yet", same meaning as OptionsMenuItem's
-  // disabled (see EventDiscoverView's "Sort" box, its first use).
+  // disabled.
   disabled?: boolean;
 };
 

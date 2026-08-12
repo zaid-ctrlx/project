@@ -2,14 +2,23 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.security import verify_password
 from app.db.session import get_db
+from app.models.block import UserBlock
 from app.models.user import Tag, User
-from app.schemas.user import ProfileUpdate, UserOut, UserPublicOut, UserSearchResult
+from app.schemas.user import (
+    AccountDeleteRequest,
+    BlockedUserOut,
+    ProfileUpdate,
+    UserOut,
+    UserPublicOut,
+    UserSearchResult,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -17,9 +26,41 @@ AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5MB
 AVATAR_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 
 
+def _blocked_pairs(db: Session, user_id: uuid.UUID):
+    """IDs of everyone `user_id` has blocked or been blocked by (either
+    direction) — reused by search (exclude entirely) and messaging (deny
+    sending). One small query, same style as event_bookmarks lookups."""
+    rows = db.execute(
+        select(UserBlock.blocker_id, UserBlock.blocked_id).where(
+            or_(UserBlock.blocker_id == user_id, UserBlock.blocked_id == user_id)
+        )
+    ).all()
+    return {other for pair in rows for other in pair if other != user_id}
+
+
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    payload: AccountDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
+
+    # Best-effort: clean up the avatar file on disk. Everything else (events
+    # created, messages sent, group memberships, bookmarks, blocks) cascades
+    # via each table's own ondelete="CASCADE" FK — see the relevant models.
+    avatars_dir = Path(settings.MEDIA_ROOT) / "avatars"
+    for old in avatars_dir.glob(f"{current_user.id}_*"):
+        old.unlink(missing_ok=True)
+
+    db.delete(current_user)
+    db.commit()
 
 
 @router.get("/search", response_model=list[UserSearchResult])
@@ -32,16 +73,60 @@ def search_users(
     # no email, no location. Search is by username or name; browsing
     # strangers' precise location by search isn't something this endpoint
     # should ever expose.
+    excluded_ids = _blocked_pairs(db, current_user.id) | {current_user.id}
     pattern = f"%{q}%"
     return db.scalars(
         select(User)
         .where(
-            User.id != current_user.id,
+            User.id.notin_(excluded_ids),
             or_(User.username.ilike(pattern), User.full_name.ilike(pattern)),
         )
         .order_by(func.lower(User.username))
         .limit(20)
     ).all()
+
+
+@router.get("/me/blocked", response_model=list[BlockedUserOut])
+def list_blocked_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[User]:
+    return db.scalars(
+        select(User)
+        .join(UserBlock, UserBlock.blocked_id == User.id)
+        .where(UserBlock.blocker_id == current_user.id)
+        .order_by(func.lower(User.username))
+    ).all()
+
+
+@router.post("/{user_id}/block", status_code=status.HTTP_204_NO_CONTENT)
+def block_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can't block yourself")
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Idempotent, matching bookmark_event's style in routes/events.py.
+    already = db.execute(
+        select(UserBlock).where(UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == user_id)
+    ).scalar_one_or_none()
+    if already is None:
+        db.add(UserBlock(blocker_id=current_user.id, blocked_id=user_id))
+        db.commit()
+
+
+@router.delete("/{user_id}/block", status_code=status.HTTP_204_NO_CONTENT)
+def unblock_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    db.execute(delete(UserBlock).where(UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == user_id))
+    db.commit()
 
 
 @router.put("/me/profile", response_model=UserOut)
@@ -133,4 +218,7 @@ def read_user_profile(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.is_blocked = db.execute(
+        select(UserBlock).where(UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == user_id)
+    ).scalar_one_or_none() is not None
     return user

@@ -42,6 +42,7 @@ class ConversationOut(BaseModel):
     # group only:
     group_id: uuid.UUID | None = None
     group_name: str | None = None
+    group_avatar_url: str | None = None
     member_count: int | None = None
     # shared:
     last_message: str

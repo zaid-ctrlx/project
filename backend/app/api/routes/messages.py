@@ -8,6 +8,7 @@ from app.api.deps import get_current_user
 from app.core.security import decode_token
 from app.core.ws_manager import manager
 from app.db.session import SessionLocal, get_db
+from app.models.block import UserBlock
 from app.models.group import ChatGroup, GroupMember, GroupMessage
 from app.models.message import DmClear, Message
 from app.models.user import User
@@ -28,6 +29,20 @@ async def send_message(
     recipient = db.get(User, payload.recipient_id)
     if recipient is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found")
+
+    # Either direction blocks messaging — matches search_users' exclusion in
+    # routes/users.py (a block acts mutually everywhere it's checked, even
+    # though only one side "did" it).
+    blocked = db.execute(
+        select(UserBlock).where(
+            or_(
+                and_(UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == payload.recipient_id),
+                and_(UserBlock.blocker_id == payload.recipient_id, UserBlock.blocked_id == current_user.id),
+            )
+        )
+    ).scalar_one_or_none()
+    if blocked is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can't message this user")
 
     message = Message(sender_id=current_user.id, recipient_id=payload.recipient_id, body=payload.text)
     db.add(message)
@@ -197,6 +212,7 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
                 type="group",
                 group_id=group.id,
                 group_name=group.name,
+                group_avatar_url=group.avatar_url,
                 member_count=member_counts.get(group.id, 0),
                 last_message=latest.body if latest else "",
                 # No messages yet: sort by group creation so a brand-new,

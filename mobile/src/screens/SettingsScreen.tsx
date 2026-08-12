@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import ConfirmSheet from "../components/ConfirmSheet";
 import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
@@ -14,6 +15,8 @@ export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -40,11 +43,17 @@ export default function SettingsScreen() {
     logoutText: { fontSize: fontSize.md, fontWeight: "600", color: colors.danger },
   }));
 
-  function confirmLogout() {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log out", style: "destructive", onPress: logout },
-    ]);
+  async function onConfirmLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      // No need to close the sheet or reset loggingOut — logout() sets
+      // AuthContext's user to null, and App.tsx's RootNavigator swaps away
+      // from this screen entirely the moment that happens (same as
+      // DeleteAccountScreen's onDelete).
+    } catch {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -80,9 +89,37 @@ export default function SettingsScreen() {
         <Text style={styles.rowText}>Bookmarks</Text>
       </Pressable>
 
-      <Pressable onPress={confirmLogout} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+      <Pressable
+        onPress={() => navigation.navigate("BlockedUsers")}
+        style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
+      >
+        <Ionicons name="ban-outline" size={20} color={colors.text} />
+        <Text style={styles.rowText}>Blocked profiles</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => setLogoutConfirmOpen(true)}
+        style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
+      >
         <Text style={styles.logoutText}>Log out</Text>
       </Pressable>
+
+      <Pressable
+        onPress={() => navigation.navigate("DeleteAccount")}
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      >
+        <Text style={styles.logoutText}>Delete account</Text>
+      </Pressable>
+
+      <ConfirmSheet
+        visible={logoutConfirmOpen}
+        onClose={() => setLogoutConfirmOpen(false)}
+        title="Log out"
+        body="Are you sure you want to log out?"
+        confirmLabel="Log out"
+        onConfirm={onConfirmLogout}
+        busy={loggingOut}
+      />
     </View>
   );
 }
