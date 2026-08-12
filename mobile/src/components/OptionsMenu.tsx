@@ -9,8 +9,7 @@ export type OptionsMenuItem = {
   onPress: () => void;
   destructive?: boolean;
   // Visible but inert — "not built yet", distinct from not showing the row
-  // at all. Renders greyed out and ignores taps (see Home's "Sort" chip,
-  // EventDiscoverView).
+  // at all. Renders greyed out and ignores taps.
   disabled?: boolean;
 };
 

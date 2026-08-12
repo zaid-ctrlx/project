@@ -17,8 +17,8 @@ type Props = {
   // false renders this as a display-only tap target instead of a real
   // input — the caller wraps it in a Pressable (with pointerEvents="none"
   // here so the tap reaches that Pressable, not the TextInput) to hand off
-  // to a dedicated search screen instead of typing in place. See Home
-  // (EventDiscoverView's onRequestSearch) and MessagesScreen.
+  // to a dedicated search screen instead of typing in place. See
+  // MessagesScreen.
   editable?: boolean;
   autoFocus?: boolean;
 };

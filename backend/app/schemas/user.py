@@ -16,7 +16,10 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    # Either the account's email or its @username — see login() in
+    # routes/auth.py for the lookup. Plain str (not EmailStr): a username
+    # like "zaid_ctrl" would fail EmailStr validation outright.
+    identifier: str = Field(min_length=1, max_length=255)
     password: str
 
 
@@ -78,3 +81,20 @@ class UserPublicOut(BaseModel):
     bio: str | None
     avatar_url: str | None
     tags: list[TagOut]
+    # Whether *I* (the caller) have blocked this user — set outside
+    # from_attributes by the route (not a real column on User), same pattern
+    # as EventOut.is_bookmarked in app/schemas/event.py.
+    is_blocked: bool = False
+
+
+class AccountDeleteRequest(BaseModel):
+    password: str = Field(min_length=1)
+
+
+class BlockedUserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    username: str
+    full_name: str | None
+    avatar_url: str | None

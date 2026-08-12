@@ -5,9 +5,11 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { mediaUrl } from "../api/client";
-import { getUserProfile, PublicProfile } from "../api/profile";
+import { ApiError, mediaUrl } from "../api/client";
+import { blockUser, getUserProfile, PublicProfile, unblockUser } from "../api/profile";
 import Button from "../components/Button";
+import ConfirmSheet from "../components/ConfirmSheet";
+import OptionsMenu from "../components/OptionsMenu";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, radius, spacing } from "../theme";
@@ -20,6 +22,10 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [blockActionBusy, setBlockActionBusy] = useState(false);
+  const [blockActionError, setBlockActionError] = useState<string | null>(null);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -69,6 +75,7 @@ export default function UserProfileScreen() {
       backgroundColor: colors.chipBackground,
     },
     tagChipText: { fontSize: fontSize.sm, color: colors.text },
+    blockedNotice: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: "italic" },
   }));
 
   useEffect(() => {
@@ -90,6 +97,33 @@ export default function UserProfileScreen() {
     };
   }, [userId]);
 
+  async function onConfirmBlock() {
+    if (!profile) return;
+    setBlockActionBusy(true);
+    setBlockActionError(null);
+    try {
+      await blockUser(profile.id);
+      setProfile({ ...profile, is_blocked: true });
+      setBlockConfirmOpen(false);
+    } catch (err) {
+      setBlockActionError(err instanceof ApiError ? err.message : "Couldn't block this user. Try again.");
+    } finally {
+      setBlockActionBusy(false);
+    }
+  }
+
+  async function onUnblock() {
+    if (!profile) return;
+    setMenuOpen(false);
+    setBlockActionError(null);
+    try {
+      await unblockUser(profile.id);
+      setProfile({ ...profile, is_blocked: false });
+    } catch (err) {
+      setBlockActionError(err instanceof ApiError ? err.message : "Couldn't unblock this user. Try again.");
+    }
+  }
+
   return (
     <View style={styles.wrapper}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
@@ -97,7 +131,13 @@ export default function UserProfileScreen() {
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Profile</Text>
-        <View style={styles.headerSpacer} />
+        {profile ? (
+          <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       {loading ? (
@@ -122,16 +162,21 @@ export default function UserProfileScreen() {
 
           {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
 
-          <Button
-            label="Message"
-            onPress={() =>
-              navigation.navigate("Chat", {
-                userId: profile.id,
-                username: profile.username,
-                avatarUrl: profile.avatar_url,
-              })
-            }
-          />
+          {profile.is_blocked ? (
+            <Text style={styles.blockedNotice}>You've blocked this user. Unblock them from the ⋯ menu to message them again.</Text>
+          ) : (
+            <Button
+              label="Message"
+              onPress={() =>
+                navigation.navigate("Chat", {
+                  userId: profile.id,
+                  username: profile.username,
+                  avatarUrl: profile.avatar_url,
+                })
+              }
+            />
+          )}
+          {blockActionError && <Text style={styles.error}>{blockActionError}</Text>}
 
           {profile.tags.length > 0 && (
             <View style={styles.metaBlock}>
@@ -146,6 +191,29 @@ export default function UserProfileScreen() {
             </View>
           )}
         </ScrollView>
+      )}
+
+      {profile && (
+        <>
+          <OptionsMenu
+            visible={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            items={
+              profile.is_blocked
+                ? [{ label: "Unblock", onPress: onUnblock }]
+                : [{ label: "Block", destructive: true, onPress: () => setBlockConfirmOpen(true) }]
+            }
+          />
+          <ConfirmSheet
+            visible={blockConfirmOpen}
+            onClose={() => setBlockConfirmOpen(false)}
+            title={`Block ${profile.username}?`}
+            body="They won't be able to message you, and neither of you will show up in each other's search."
+            confirmLabel="Block"
+            onConfirm={onConfirmBlock}
+            busy={blockActionBusy}
+          />
+        </>
       )}
     </View>
   );

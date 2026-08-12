@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.security import (
@@ -44,10 +45,18 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
 def login(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
     invalid_credentials = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect email or password",
+        detail="Incorrect email/username or password",
     )
 
-    user = db.query(User).filter(User.email == payload.email).first()
+    # Case-insensitive match against either column — email is conventionally
+    # case-insensitive, and username search elsewhere (routes/users.py) is
+    # too. A bare identifier can only ever match one of the two in practice
+    # (usernames can't contain "@"), so this can't cross-match someone's
+    # username against another person's email.
+    identifier = func.lower(payload.identifier)
+    user = db.query(User).filter(
+        or_(func.lower(User.email) == identifier, func.lower(User.username) == identifier)
+    ).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise invalid_credentials
     if not user.is_active:

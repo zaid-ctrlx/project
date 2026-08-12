@@ -34,6 +34,7 @@ export type GroupConversation = {
   type: "group";
   group_id: string;
   group_name: string;
+  group_avatar_url: string | null;
   member_count: number;
   last_message: string;
   last_message_at: string;

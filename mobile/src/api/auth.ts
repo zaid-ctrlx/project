@@ -32,10 +32,12 @@ export function register(email: string, password: string, fullName?: string): Pr
   });
 }
 
-export function login(email: string, password: string): Promise<TokenPair> {
+// identifier is either the account's email or its @username — see
+// UserLogin in the backend's schemas/user.py.
+export function login(identifier: string, password: string): Promise<TokenPair> {
   return api.public("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
 }
 

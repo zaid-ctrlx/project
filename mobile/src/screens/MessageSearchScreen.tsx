@@ -14,10 +14,10 @@ import { fontSize, spacing } from "../theme";
 
 const SEARCH_MIN_LENGTH = 2;
 
-// Pushed from Messages' search bar — was inline there, moved out for the
-// same reason as EventSearchScreen: a real stack push hides the bottom tab
-// bar and gets swipe-back/hardware-back for free, which a same-screen
-// "search mode" toggle on MessagesScreen couldn't do.
+// Pushed from Messages' search bar — was inline there, moved out since a
+// real stack push hides the bottom tab bar and gets swipe-back/hardware-back
+// for free, which a same-screen "search mode" toggle on MessagesScreen
+// couldn't do.
 export default function MessageSearchScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();

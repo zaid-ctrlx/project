@@ -235,8 +235,7 @@ export default function MessagesScreen() {
 
       {/* Tapping search pushes MessageSearch instead of typing in place —
           a real stack screen, so it hides the bottom tab bar and picks up
-          swipe-back/hardware-back for free (same reasoning as Home's
-          EventDiscoverView.onRequestSearch). */}
+          swipe-back/hardware-back for free. */}
       <Pressable style={styles.searchFieldWrap} onPress={() => navigation.navigate("MessageSearch")}>
         <View pointerEvents="none">
           <SearchField placeholder="Search people to message" value="" onChangeText={() => {}} editable={false} />
@@ -286,9 +285,13 @@ export default function MessagesScreen() {
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 onPress={() => goToGroupChat(item.group_id, item.group_name, item.member_count, item.unread_count)}
               >
-                <View style={styles.avatar}>
-                  <Ionicons name="people" size={22} color={colors.textMuted} />
-                </View>
+                {item.group_avatar_url ? (
+                  <Image source={{ uri: mediaUrl(item.group_avatar_url)! }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Ionicons name="people" size={22} color={colors.textMuted} />
+                  </View>
+                )}
                 <View style={styles.rowText}>
                   <Text style={styles.username}>{item.group_name}</Text>
                   <Text style={styles.preview} numberOfLines={1}>

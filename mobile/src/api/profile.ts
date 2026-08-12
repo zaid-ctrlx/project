@@ -44,10 +44,35 @@ export type PublicProfile = {
   bio: string | null;
   avatar_url: string | null;
   tags: Tag[];
+  // Whether *I* have blocked this user — see UserPublicOut.is_blocked.
+  is_blocked: boolean;
 };
 
 export function getUserProfile(userId: string): Promise<PublicProfile> {
   return api.authed(`/users/${userId}`);
+}
+
+export function deleteAccount(password: string): Promise<void> {
+  return api.authed("/users/me", { method: "DELETE", body: JSON.stringify({ password }) });
+}
+
+export type BlockedUser = {
+  id: string;
+  username: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
+export function getBlockedUsers(): Promise<BlockedUser[]> {
+  return api.authed("/users/me/blocked");
+}
+
+export function blockUser(userId: string): Promise<void> {
+  return api.authed(`/users/${userId}/block`, { method: "POST" });
+}
+
+export function unblockUser(userId: string): Promise<void> {
+  return api.authed(`/users/${userId}/block`, { method: "DELETE" });
 }
 
 export type PickedAvatar = {
