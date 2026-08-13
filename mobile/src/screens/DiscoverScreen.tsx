@@ -5,13 +5,14 @@ import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, Sc
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, EventKind, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, EventKind, joinCommunity, leaveCommunity, listEvents, unbookmarkEvent } from "../api/events";
 import { searchUsers, UserSearchResult } from "../api/profile";
 import EventCard from "../components/EventCard";
 import SearchField from "../components/SearchField";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
+import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, spacing } from "../theme";
 
 // Instagram search-style section bar: tap a heading or swipe between pages,
@@ -52,6 +53,7 @@ export default function DiscoverScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [joinBusyIds, setJoinBusyIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -143,6 +145,29 @@ export default function DiscoverScreen() {
     }
   }
 
+  // Join/leave return the full updated event (member_count is authoritative
+  // server-side, not just a flag to flip locally like bookmark) — patch it
+  // into all three lists it might appear in. No optimistic update/rollback
+  // here (unlike toggleBookmark) since there's nothing to guess at until
+  // the response comes back.
+  async function toggleJoin(event: Event) {
+    setJoinBusyIds((prev) => new Set(prev).add(event.id));
+    try {
+      const updated = event.is_joined ? await leaveCommunity(event.id) : await joinCommunity(event.id);
+      setAllEvents((prev) => patchEventList(prev, event.id, updated));
+      setOnlyEvents((prev) => patchEventList(prev, event.id, updated));
+      setOnlyCommunities((prev) => patchEventList(prev, event.id, updated));
+    } catch {
+      // Nothing was optimistically changed — just leave the card as-is.
+    } finally {
+      setJoinBusyIds((prev) => {
+        const s = new Set(prev);
+        s.delete(event.id);
+        return s;
+      });
+    }
+  }
+
   function goToTab(index: number) {
     setActiveIndex(index);
     pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
@@ -169,9 +194,11 @@ export default function DiscoverScreen() {
             renderItem={({ item }) => (
               <EventCard
                 event={item}
-                onPress={(event) => navigation.navigate("EventDetail", { event })}
+                onPress={(event) => openEventDetail(navigation, event)}
                 onToggleBookmark={toggleBookmark}
                 bookmarkBusy={busyIds.has(item.id)}
+                onToggleJoin={toggleJoin}
+                joinBusy={joinBusyIds.has(item.id)}
               />
             )}
             ListEmptyComponent={<Text style={styles.empty}>{error ?? emptyMessage}</Text>}

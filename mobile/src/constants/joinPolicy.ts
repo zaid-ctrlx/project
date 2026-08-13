@@ -2,17 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { JoinPolicy } from "../api/events";
 
-// Shared by CreatePostScreen/EditEventScreen (choosing it, via EventForm)
-// and EventDetailScreen (showing it) — was duplicated across the two forms
-// until EventForm unified them.
+// Communities only — events are flyer/poster-style with no joining (see
+// the JoinPolicy type comment). Shared by CreatePostScreen/EditEventScreen
+// (choosing it, via EventForm) and EventDetailScreen (showing it).
 export const JOIN_POLICY_LABELS: Record<JoinPolicy, string> = {
-  open: "Anyone can join",
-  invite_only: "Invited only",
-  closed: "Closed",
+  anyone: "Anyone can join",
+  admin_approval: "Requires admin approval",
 };
 
 export const JOIN_POLICY_ICONS: Record<JoinPolicy, keyof typeof Ionicons.glyphMap> = {
-  open: "lock-open-outline",
-  invite_only: "mail-outline",
-  closed: "lock-closed-outline",
+  anyone: "lock-open-outline",
+  admin_approval: "shield-checkmark-outline",
 };

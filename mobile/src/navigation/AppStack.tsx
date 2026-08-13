@@ -8,6 +8,7 @@ import BlockedUsersScreen from "../screens/BlockedUsersScreen";
 import BookmarksScreen from "../screens/BookmarksScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
+import CommunityProfileScreen from "../screens/CommunityProfileScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
 import CreatePostScreen from "../screens/CreatePostScreen";
 import DeleteAccountScreen from "../screens/DeleteAccountScreen";
@@ -45,6 +46,11 @@ export type AppStackParamList = {
   Chat: { userId: string; username: string; avatarUrl: string | null };
   UserProfile: { userId: string };
   EventDetail: { event: Event };
+  // Communities only — pushed from a community card's second tap (see
+  // EventCard's expand-then-open behavior on Discover) or directly from
+  // Bookmarks/My Posts. Full event, not just an id — same reasoning as
+  // EventDetail (already fetched, no round trip needed).
+  CommunityProfile: { event: Event };
   // Pushed from Messages' search bar.
   MessageSearch: undefined;
   // Pushed from Profile's top-left "+" button, which opens a picker
@@ -85,6 +91,7 @@ export default function AppStack() {
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
+      <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} />
       <Stack.Screen name="MessageSearch" component={MessageSearchScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
