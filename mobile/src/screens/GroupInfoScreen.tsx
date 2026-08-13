@@ -5,8 +5,9 @@ import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { mediaUrl } from "../api/client";
-import { ChatGroup, getGroup, GroupMember } from "../api/groups";
+import { ApiError, mediaUrl } from "../api/client";
+import { ChatGroup, deleteGroup, getGroup, GroupMember } from "../api/groups";
+import ConfirmDeleteSheet from "../components/ConfirmDeleteSheet";
 import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
@@ -25,6 +26,9 @@ export default function GroupInfoScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -111,6 +115,20 @@ export default function GroupInfoScreen() {
       backgroundColor: colors.chipBackground,
     },
     adminBadgeText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600" },
+    deleteRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      marginTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    deleteRowPressed: { backgroundColor: colors.chipBackground },
+    deleteText: { fontSize: fontSize.md, color: colors.danger, fontWeight: "600" },
+    deleteError: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", padding: spacing.lg },
   }));
 
   // silent skips the full-screen spinner — used by pull-to-refresh, which
@@ -151,6 +169,25 @@ export default function GroupInfoScreen() {
   }
 
   const isAdmin = group?.members.find((m) => m.user.id === currentUser?.id)?.role === "admin";
+
+  async function onConfirmDelete() {
+    if (!group) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteGroup(group.id);
+      // The group no longer exists — GroupChat (one screen back) would be
+      // broken if we just popped to it, so jump all the way out to the
+      // tab bar instead, same as DeleteAccountScreen effectively does by
+      // swapping the whole navigator.
+      navigation.navigate("Tabs");
+    } catch (err) {
+      setDeleteOpen(false);
+      setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete this group. Try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -224,8 +261,32 @@ export default function GroupInfoScreen() {
               )}
             </Pressable>
           )}
+          ListFooterComponent={
+            isAdmin ? (
+              <>
+                <Pressable
+                  style={({ pressed }) => [styles.deleteRow, pressed && styles.deleteRowPressed]}
+                  onPress={() => setDeleteOpen(true)}
+                >
+                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  <Text style={styles.deleteText}>Delete group</Text>
+                </Pressable>
+                {deleteError && <Text style={styles.deleteError}>{deleteError}</Text>}
+              </>
+            ) : null
+          }
         />
       )}
+
+      <ConfirmDeleteSheet
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete this group?"
+        body="Every member loses access to it and its entire message history. This can't be undone."
+        confirmLabel="Delete group"
+        onConfirm={onConfirmDelete}
+        busy={deleting}
+      />
     </View>
   );
 }

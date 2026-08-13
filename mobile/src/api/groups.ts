@@ -63,6 +63,16 @@ export function uploadGroupAvatar(groupId: string, asset: PickedAvatar): Promise
   return api.authed(`/groups/${groupId}/avatar`, { method: "POST", body: form });
 }
 
+// Admin-only server-side (403 otherwise). Deletes the group entirely —
+// every member loses access and message history. If this group backs a
+// community (see Event.group_id in the backend), the community post itself
+// survives but loses its group link; a later join recreates a fresh one
+// (see join_community in routes/events.py). Deleting the community itself
+// is the separate deleteEvent call in api/events.ts.
+export function deleteGroup(groupId: string): Promise<void> {
+  return api.authed(`/groups/${groupId}`, { method: "DELETE" });
+}
+
 export function getGroupThread(groupId: string, limit = 30, offset = 0): Promise<GroupMessage[]> {
   return api.authed(`/groups/${groupId}/messages?limit=${limit}&offset=${offset}`);
 }

@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { bookmarkEvent, deleteEvent, Event, listMyEvents, unbookmarkEvent } from "../api/events";
+import ConfirmDeleteSheet from "../components/ConfirmDeleteSheet";
 import ConfirmSheet from "../components/ConfirmSheet";
 import EventCard from "../components/EventCard";
 import { useThemedStyles } from "../hooks/useThemedStyles";
@@ -176,12 +177,25 @@ export default function MyPostsScreen() {
         />
       )}
 
+      {/* Communities take other members' membership and group chat history
+          down with them, not just this one post — the typed-confirmation
+          sheet (same one GroupInfo/CommunityProfile use) instead of the
+          plain yes/no every other delete here gets. */}
       <ConfirmSheet
-        visible={!!deleteTarget}
+        visible={!!deleteTarget && deleteTarget.kind === "event"}
         onClose={() => setDeleteTarget(null)}
         title={`Delete "${deleteTarget?.title}"?`}
         body="This can't be undone — anyone who bookmarked it will lose that too."
         confirmLabel="Delete"
+        onConfirm={onConfirmDelete}
+        busy={deleting}
+      />
+      <ConfirmDeleteSheet
+        visible={!!deleteTarget && deleteTarget.kind === "community"}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete "${deleteTarget?.title}"?`}
+        body="Every member loses their membership and the group chat's entire message history. This can't be undone."
+        confirmLabel="Delete community"
         onConfirm={onConfirmDelete}
         busy={deleting}
       />
