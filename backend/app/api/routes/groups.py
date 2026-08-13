@@ -138,6 +138,30 @@ def remove_group_member(
     return _load_group(db, group_id)
 
 
+@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_group(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    membership = _get_membership(db, group_id, current_user.id)
+    if membership.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only a group admin can delete the group")
+
+    group = db.get(ChatGroup, group_id)
+    # _get_membership above already 404s if the group doesn't exist, so
+    # `group` is guaranteed non-None here.
+    db.delete(group)  # cascades to GroupMember/GroupMessage rows via their
+    # own FKs (see app/models/group.py). If this group backs a community
+    # (Event.group_id), that FK is ON DELETE SET NULL rather than CASCADE —
+    # the community post survives, just loses its group link, and a later
+    # join lazily recreates a fresh one (see join_community in
+    # routes/events.py). Deleting *the community* itself is a separate
+    # action (DELETE /events/{id}), which deletes the group the other way
+    # around.
+    db.commit()
+
+
 @router.post("/{group_id}/avatar", response_model=ChatGroupOut)
 async def upload_group_avatar(
     group_id: uuid.UUID,

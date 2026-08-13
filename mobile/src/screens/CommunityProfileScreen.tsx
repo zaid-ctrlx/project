@@ -6,10 +6,12 @@ import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError, mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, joinCommunity, leaveCommunity, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, deleteEvent, Event, joinCommunity, leaveCommunity, unbookmarkEvent } from "../api/events";
 import Button from "../components/Button";
+import ConfirmDeleteSheet from "../components/ConfirmDeleteSheet";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
+import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, radius, spacing } from "../theme";
@@ -20,17 +22,24 @@ import { fontSize, radius, spacing } from "../theme";
 // member count) since a community's "cover image" is deliberately a
 // profile-picture crop (1:1, see EventForm) rather than the 16:9 banner
 // events get — the two post kinds read as visually distinct on purpose.
-// What else belongs here (member list, richer detail) is still TBD; this is
-// the minimal version that makes join/leave and the linked group chat real.
+// Member management (viewing/removing people) deliberately isn't
+// duplicated here — "View / manage members" hands off to the existing
+// GroupInfoScreen for the linked group, which already has all of that.
+// What else belongs on this screen (richer detail) is still TBD; this is
+// the minimal version that makes join/leave, member removal, and deleting
+// the community itself real.
 export default function CommunityProfileScreen() {
   const { event: initialEvent } = useRoute<RouteProp<AppStackParamList, "CommunityProfile">>().params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { user: currentUser } = useAuth();
 
   const [event, setEvent] = useState<Event>(initialEvent);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -69,6 +78,7 @@ export default function CommunityProfileScreen() {
     actions: { gap: spacing.sm, marginTop: spacing.sm },
     error: { color: colors.danger, fontSize: fontSize.base },
     creator: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.md, textAlign: "center" },
+    dangerZone: { marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
   }));
 
   async function toggleBookmark() {
@@ -95,6 +105,22 @@ export default function CommunityProfileScreen() {
       setJoinBusy(false);
     }
   }
+
+  async function onConfirmDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteEvent(event.id);
+      navigation.goBack();
+    } catch (err) {
+      setDeleteOpen(false);
+      setError(err instanceof ApiError ? err.message : "Couldn't delete this community. Try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const isCreator = event.creator.id === currentUser?.id;
 
   return (
     <View style={styles.wrapper}>
@@ -172,10 +198,35 @@ export default function CommunityProfileScreen() {
               }
             />
           )}
+          {/* GET /groups/{id} 404s for non-members server-side, so this only
+              makes sense to offer once you've actually joined. */}
+          {event.is_joined && event.group_id && (
+            <Button
+              label="View / manage members"
+              variant="secondary"
+              onPress={() => navigation.navigate("GroupInfo", { groupId: event.group_id! })}
+            />
+          )}
         </View>
 
         <Text style={styles.creator}>Organized by {event.creator.username}</Text>
+
+        {isCreator && (
+          <View style={styles.dangerZone}>
+            <Button label="Delete community" onPress={() => setDeleteOpen(true)} danger />
+          </View>
+        )}
       </ScrollView>
+
+      <ConfirmDeleteSheet
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete this community?"
+        body="Every member loses their membership and the group chat's entire message history. This can't be undone."
+        confirmLabel="Delete community"
+        onConfirm={onConfirmDelete}
+        busy={deleting}
+      />
     </View>
   );
 }
