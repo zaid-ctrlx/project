@@ -11,16 +11,18 @@ EVENT_KIND_OPTIONS = Literal["event", "community"]
 # How often a "community" repeats. No specific day-of-week/time-slot yet —
 # just the label, matching mobile's "only two [create] options for now,
 # we'll add more later" scope.
-FREQUENCY_OPTIONS = Literal["daily", "weekly", "biweekly", "monthly"]
+FREQUENCY_OPTIONS = Literal["daily", "twice_a_week", "once_a_week", "irregular"]
 
-# Who can join the event. "invite_only" and "closed" aren't enforced by any
-# join/attendance endpoint yet — see the comment on Event.join_policy.
-JOIN_POLICY_OPTIONS = Literal["open", "invite_only", "closed"]
+# Who can join a community: "anyone" (open) or "admin_approval" (a member's
+# join request needs an admin to approve it — not enforced by any
+# join/attendance endpoint yet, see the comment on Event.join_policy).
+# Communities only — events are flyer/poster-style with no joining, and
+# EventCreate's validator forces this to "anyone" for kind="event".
+JOIN_POLICY_OPTIONS = Literal["anyone", "admin_approval"]
 
-# Four fixed-vocabulary, single-select category fields (replacing the
-# earlier free-form multi-tag system — see app/models/event.py). Values are
-# slugs; the mobile app owns the emoji/display labels for each
-# (mobile/src/constants/eventTags.ts) so the two must be kept in sync by hand.
+# Events only: single fixed-vocabulary category. Values are slugs; the
+# mobile app owns the emoji/display labels (mobile/src/constants/eventTags.ts)
+# so the two must be kept in sync by hand.
 ACTIVITY_TYPE_OPTIONS = Literal[
     "fitness_running",
     "gym_workout",
@@ -43,41 +45,6 @@ ACTIVITY_TYPE_OPTIONS = Literal[
     "public_speaking",
     "volunteering",
 ]
-COMMUNITY_VIBE_OPTIONS = Literal[
-    "friendly",
-    "beginner_friendly",
-    "competitive",
-    "chill_relaxed",
-    "social",
-    "skill_focused",
-    "goal_oriented",
-    "team_based",
-    "meet_new_people",
-    "small_group",
-    "open_to_everyone",
-]
-SKILL_LEVEL_OPTIONS = Literal[
-    "beginners",
-    "intermediate",
-    "advanced",
-    "all_skill_levels",
-    "learning_together",
-    "skill_sharing",
-]
-EVENT_STYLE_OPTIONS = Literal[
-    "quick_meetup",
-    "regular_meetup",
-    "competition",
-    "workshop",
-    "discussion",
-    "challenge",
-    "adventure",
-    "social_gathering",
-    "networking",
-    "group_activity",
-    "talk_session",
-    "hands_on",
-]
 
 
 class EventCreatorOut(BaseModel):
@@ -97,14 +64,18 @@ class EventCreate(BaseModel):
     # starts_at for "event", frequency for "community".
     starts_at: datetime | None = None
     frequency: FREQUENCY_OPTIONS | None = None
-    location_lat: float = Field(ge=-90, le=90)
-    location_lng: float = Field(ge=-180, le=180)
-    location_label: str = Field(min_length=1, max_length=255)
-    join_policy: JOIN_POLICY_OPTIONS = "open"
+    # Events only — whether this is an online event (no physical location).
+    # Must be False for kind="community" (see _validate_kind_fields).
+    is_online: bool = False
+    # Required unless kind="event" and is_online=True, in which case these
+    # are ignored on input and forced to (None, None, "Online") below.
+    location_lat: float | None = Field(default=None, ge=-90, le=90)
+    location_lng: float | None = Field(default=None, ge=-180, le=180)
+    location_label: str | None = Field(default=None, min_length=1, max_length=255)
+    # Communities only — forced to "anyone" for kind="event".
+    join_policy: JOIN_POLICY_OPTIONS = "anyone"
+    # Events only — forced to None for kind="community".
     activity_type: ACTIVITY_TYPE_OPTIONS | None = None
-    community_vibe: COMMUNITY_VIBE_OPTIONS | None = None
-    skill_level: SKILL_LEVEL_OPTIONS | None = None
-    event_style: EVENT_STYLE_OPTIONS | None = None
 
     @model_validator(mode="after")
     def _validate_kind_fields(self) -> "EventCreate":
@@ -113,11 +84,27 @@ class EventCreate(BaseModel):
                 raise ValueError("starts_at is required for events")
             if self.frequency is not None:
                 raise ValueError("frequency does not apply to events")
+            # Flyer/poster-style — no join/attendance mechanism, so this
+            # field is meaningless here regardless of what was submitted.
+            self.join_policy = "anyone"
+
+            if self.is_online:
+                self.location_lat = None
+                self.location_lng = None
+                self.location_label = "Online"
+            elif self.location_lat is None or self.location_lng is None or not self.location_label:
+                raise ValueError("location is required for in-person events")
         else:  # community
             if self.frequency is None:
                 raise ValueError("frequency is required for communities")
             if self.starts_at is not None:
                 raise ValueError("starts_at does not apply to communities")
+            if self.is_online:
+                raise ValueError("is_online does not apply to communities")
+            if self.activity_type is not None:
+                raise ValueError("activity_type does not apply to communities")
+            if self.location_lat is None or self.location_lng is None or not self.location_label:
+                raise ValueError("location is required for communities")
         return self
 
 
@@ -128,18 +115,23 @@ class EventOut(BaseModel):
     kind: EVENT_KIND_OPTIONS
     title: str
     description: str | None
+    cover_image_url: str | None
     starts_at: datetime | None
     frequency: FREQUENCY_OPTIONS | None
+    is_online: bool
     location_lat: float | None
     location_lng: float | None
     location_label: str | None
     creator: EventCreatorOut
     join_policy: JOIN_POLICY_OPTIONS
     activity_type: ACTIVITY_TYPE_OPTIONS | None
-    community_vibe: COMMUNITY_VIBE_OPTIONS | None
-    skill_level: SKILL_LEVEL_OPTIONS | None
-    event_style: EVENT_STYLE_OPTIONS | None
-    # Computed per-request (not a DB column) — see events.list_events /
+    # Communities only — the linked ChatGroup id (see Event.group_id). Null
+    # for kind="event". Mobile uses this to open GroupChat once is_joined.
+    group_id: uuid.UUID | None
+    # Computed per-request (not DB columns) — see events.list_events /
     # get_current_user usage in app/api/routes/events.py.
     is_bookmarked: bool
+    # Communities only — always False/0 for kind="event" (no group_id).
+    is_joined: bool
+    member_count: int
     created_at: datetime

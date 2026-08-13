@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Table, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Table, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,39 +38,63 @@ class Event(Base):
 
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cover image for events ("flyer/poster" — optional but recommended) or
+    # profile picture for communities. Same upload shape as ChatGroup's
+    # avatar_url (see app/models/group.py) — set via POST
+    # /events/{id}/cover, not part of EventCreate, since the event needs an
+    # id first (see routes/events.py's upload_event_cover).
+    cover_image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Single start datetime, timezone-aware; no end time for this pass.
     # Required for kind="event", null for kind="community" (see
     # EventCreate's validator) — hence nullable here despite the index.
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    # How often a "community" repeats — daily/weekly/biweekly/monthly, no
-    # specific day-of-week or time slot yet (see FREQUENCY_OPTIONS). Null
-    # for kind="event".
+    # How often a "community" repeats — daily/twice_a_week/once_a_week/
+    # irregular, no specific day-of-week or time slot yet (see
+    # FREQUENCY_OPTIONS). Null for kind="event".
     frequency: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    # Mirrors User's location fields (see app/models/user.py).
+    # Events only: physical location (below) or online — an online event
+    # has no coordinates, and location_label is forced to "Online" by
+    # EventCreate's validator so every display spot that already renders
+    # location_label (EventCard, EventDetailScreen, ...) needs no special
+    # case. Always False for kind="community" (communities are area-based,
+    # not physical-vs-online).
+    is_online: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Mirrors User's location fields (see app/models/user.py). Null when
+    # is_online is True.
     location_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    # Who can join: "open" (anyone), "invite_only", or "closed" (temporarily
-    # not accepting joins). Set at creation only for now — there's no
-    # join/attendance mechanism yet for this to gate, and no edit endpoint
-    # yet either; this just captures the setting so both can be built on
-    # top of it later. Plain String (not a Postgres ENUM) to match the
-    # gender-field pattern in app/models/user.py, validated at the Pydantic
-    # layer instead (see JOIN_POLICY_OPTIONS in app/schemas/event.py).
-    join_policy: Mapped[str] = mapped_column(String(30), nullable=False, server_default="open")
+    # Communities only ("who can join"): "anyone" or "admin_approval".
+    # Events are flyer/poster-style announcements with no join/attendance
+    # mechanism, so this is meaningless for kind="event" and EventCreate's
+    # validator forces it to "anyone" there. Plain String (not a Postgres
+    # ENUM) to match the gender-field pattern in app/models/user.py,
+    # validated at the Pydantic layer instead (see JOIN_POLICY_OPTIONS in
+    # app/schemas/event.py).
+    join_policy: Mapped[str] = mapped_column(String(30), nullable=False, server_default="anyone")
 
-    # Four fixed-vocabulary, single-select category fields — replaces the
-    # earlier free-form multi-tag system (the shared `tags` table is still
-    # used for user profile interests, see app/models/user.py, but events no
-    # longer draw from it). Each is optional and independently nullable;
-    # allowed values are validated at the Pydantic layer, not the DB, same
-    # approach as join_policy above (see app/schemas/event.py).
+    # Events only: single fixed-vocabulary category. Used to have three
+    # siblings (community_vibe/skill_level/event_style) for a fuller tag
+    # taxonomy — dropped for now while the tag system gets redesigned (see
+    # [[fyp-recommender-app-build]] memory); this is deliberately the
+    # simplest possible version. Validated at the Pydantic layer, not the
+    # DB (see ACTIVITY_TYPE_OPTIONS in app/schemas/event.py).
     activity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    community_vibe: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    skill_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    event_style: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Communities only: the ChatGroup that backs "joining" this community —
+    # membership *is* GroupMember rows on this group, and the group's
+    # existing messaging (GroupChatScreen etc., see app/models/group.py)
+    # becomes the community's group chat for free. Created alongside the
+    # Event in create_event (creator auto-added as admin); ON DELETE SET
+    # NULL rather than CASCADE because deleting the group shouldn't delete
+    # the community post itself. Always NULL for kind="event". String FK
+    # target (not an import) to avoid a circular import with
+    # app/models/group.py.
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_groups.id", ondelete="SET NULL"), nullable=True
+    )
 
     creator_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False

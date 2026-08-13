@@ -66,7 +66,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Hey {user?.username}</Text>
+        <Text style={styles.title}>Hey, {user?.username}</Text>
         <Pressable onPress={handleToggleTheme} hitSlop={12}>
           <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY }] }}>
             <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={24} color={colors.text} />

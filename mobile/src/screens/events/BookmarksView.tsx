@@ -7,6 +7,7 @@ import { Event, listBookmarkedEvents, unbookmarkEvent } from "../../api/events";
 import EventCard from "../../components/EventCard";
 import { useThemedStyles } from "../../hooks/useThemedStyles";
 import type { AppStackParamList } from "../../navigation/AppStack";
+import { openEventDetail } from "../../navigation/openEventDetail";
 import { fontSize, spacing } from "../../theme";
 
 export default function BookmarksView() {
@@ -79,7 +80,7 @@ export default function BookmarksView() {
           renderItem={({ item }) => (
             <EventCard
               event={item}
-              onPress={(event) => navigation.navigate("EventDetail", { event })}
+              onPress={(event) => openEventDetail(navigation, event)}
               onToggleBookmark={removeBookmark}
               bookmarkBusy={busyIds.has(item.id)}
             />

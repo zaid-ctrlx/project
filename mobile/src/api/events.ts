@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { PickedAvatar } from "./profile";
 
 export type EventCreator = {
   id: string;
@@ -15,17 +16,20 @@ export type EventKind = "event" | "community";
 
 // How often a "community" repeats — no specific day-of-week/time-slot yet,
 // just the label (see backend/app/schemas/event.py's FREQUENCY_OPTIONS).
-export type Frequency = "daily" | "weekly" | "biweekly" | "monthly";
+export type Frequency = "daily" | "twice_a_week" | "once_a_week" | "irregular";
 
-// Who can join. Editable after creation now (see updateEvent) — there's
-// still no join/attendance mechanism yet for this to actually gate, though
-// (see backend app/models/event.py's Event.join_policy).
-export type JoinPolicy = "open" | "invite_only" | "closed";
+// Who can join a community: "anyone" (open) or "admin_approval" (a join
+// request needs an admin to approve it) — not enforced by any
+// join/attendance mechanism yet (see backend app/models/event.py's
+// Event.join_policy). Communities only — events are flyer/poster-style with
+// no joining, and the backend forces this to "anyone" for kind="event".
+export type JoinPolicy = "anyone" | "admin_approval";
 
-// Four fixed-vocabulary, single-select category fields (replaces the
-// earlier free-form multi-tag system). Must match the Literal lists in
-// backend/app/schemas/event.py; display labels live in
-// mobile/src/constants/eventTags.ts.
+// Events only: single fixed-vocabulary category. Must match the Literal
+// list in backend/app/schemas/event.py; display labels live in
+// mobile/src/constants/eventTags.ts. Used to have three siblings
+// (community_vibe/skill_level/event_style) for a fuller tag taxonomy —
+// dropped for now while the tag system gets redesigned.
 export type ActivityType =
   | "fitness_running"
   | "gym_workout"
@@ -48,58 +52,31 @@ export type ActivityType =
   | "public_speaking"
   | "volunteering";
 
-export type CommunityVibe =
-  | "friendly"
-  | "beginner_friendly"
-  | "competitive"
-  | "chill_relaxed"
-  | "social"
-  | "skill_focused"
-  | "goal_oriented"
-  | "team_based"
-  | "meet_new_people"
-  | "small_group"
-  | "open_to_everyone";
-
-export type SkillLevel =
-  | "beginners"
-  | "intermediate"
-  | "advanced"
-  | "all_skill_levels"
-  | "learning_together"
-  | "skill_sharing";
-
-export type EventStyle =
-  | "quick_meetup"
-  | "regular_meetup"
-  | "competition"
-  | "workshop"
-  | "discussion"
-  | "challenge"
-  | "adventure"
-  | "social_gathering"
-  | "networking"
-  | "group_activity"
-  | "talk_session"
-  | "hands_on";
-
 export type Event = {
   id: string;
   kind: EventKind;
   title: string;
   description: string | null;
+  cover_image_url: string | null;
   starts_at: string | null; // ISO 8601 — set for kind="event", null for "community"
   frequency: Frequency | null; // set for kind="community", null for "event"
+  is_online: boolean; // events only — always false for "community"
   location_lat: number | null;
   location_lng: number | null;
-  location_label: string | null;
+  location_label: string | null; // forced to "Online" server-side when is_online
   creator: EventCreator;
-  join_policy: JoinPolicy;
-  activity_type: ActivityType | null;
-  community_vibe: CommunityVibe | null;
-  skill_level: SkillLevel | null;
-  event_style: EventStyle | null;
+  join_policy: JoinPolicy; // communities only — always "anyone" for "event"
+  activity_type: ActivityType | null; // events only — always null for "community"
+  // Communities only — the linked ChatGroup id (see backend
+  // app/models/event.py's Event.group_id). Null for kind="event". Feed
+  // straight into GroupChat's groupId param once is_joined to open the
+  // community's group chat.
+  group_id: string | null;
   is_bookmarked: boolean;
+  // Communities only — "joining" a community *is* becoming a member of its
+  // linked group (see group_id above). Always false/0 for kind="event".
+  is_joined: boolean;
+  member_count: number;
   created_at: string;
 };
 
@@ -109,25 +86,23 @@ export type EventCreatePayload = {
   description: string | null;
   starts_at: string | null; // ISO 8601 — required for kind="event", must be null for "community"
   frequency: Frequency | null; // required for kind="community", must be null for "event"
-  location_lat: number;
-  location_lng: number;
-  location_label: string;
+  is_online: boolean;
+  location_lat: number | null; // null only when kind="event" and is_online
+  location_lng: number | null;
+  location_label: string | null;
   join_policy: JoinPolicy;
   activity_type: ActivityType | null;
-  community_vibe: CommunityVibe | null;
-  skill_level: SkillLevel | null;
-  event_style: EventStyle | null;
 };
 
 export function createEvent(payload: EventCreatePayload): Promise<Event> {
   return api.authed("/events", { method: "POST", body: JSON.stringify(payload) });
 }
 
-// kind omitted = both kinds ("All" on Home). Distance, attendee count, and
-// category tags are meant to join here as more optional fields later, same
-// shape (see the backend list_events comment) — join_policy filtering is
-// still supported server-side but nothing sends it since kind replaced it
-// as Home's Filter chip.
+// kind omitted = both kinds ("All" on Home). Distance and attendee count
+// are meant to join here as more optional fields later, same shape (see the
+// backend list_events comment) — join_policy filtering is still supported
+// server-side but nothing sends it since kind replaced it as Home's Filter
+// chip.
 export type EventListFilters = {
   q?: string;
   kind?: EventKind;
@@ -149,10 +124,22 @@ export function listMyEvents(): Promise<Event[]> {
   return api.authed("/events/mine");
 }
 
-// Creator-only server-side (403 otherwise) — full replace, same payload
-// shape as createEvent, not a partial patch. See EventForm.
+// Creator-only server-side (403 otherwise). full replace, same payload
+// shape as createEvent, not a partial patch. See EventForm. Doesn't touch
+// cover_image_url — that's set only via uploadEventCover.
 export function updateEvent(id: string, payload: EventCreatePayload): Promise<Event> {
   return api.authed(`/events/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+// Creator-only server-side (403 otherwise). Called right after createEvent/
+// updateEvent succeeds (from the same "Create/Save" button press) rather
+// than folded into that request — there's no event id to save the file
+// under until the row exists. Mirrors uploadGroupAvatar. See EventForm.
+export function uploadEventCover(eventId: string, asset: PickedAvatar): Promise<Event> {
+  const ext = asset.mimeType.split("/")[1] ?? "jpg";
+  const form = new FormData();
+  form.append("file", asset.file, `cover.${ext}`);
+  return api.authed(`/events/${eventId}/cover`, { method: "POST", body: form });
 }
 
 // Creator-only server-side (403 otherwise).
@@ -166,4 +153,17 @@ export function bookmarkEvent(id: string): Promise<void> {
 
 export function unbookmarkEvent(id: string): Promise<void> {
   return api.authed(`/events/${id}/bookmark`, { method: "DELETE" });
+}
+
+// Community only (400 otherwise server-side) — immediate, regardless of
+// join_policy. "Anyone"/"admin_approval" is stored but doesn't gate
+// anything yet, same as it never did before this endpoint existed; a real
+// pending-request/approve flow is future work. Returns the updated event
+// (is_joined/member_count refreshed) so the caller can swap it in directly.
+export function joinCommunity(id: string): Promise<Event> {
+  return api.authed(`/events/${id}/join`, { method: "POST" });
+}
+
+export function leaveCommunity(id: string): Promise<Event> {
+  return api.authed(`/events/${id}/join`, { method: "DELETE" });
 }

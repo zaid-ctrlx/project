@@ -1,0 +1,181 @@
+import { Ionicons } from "@expo/vector-icons";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import React, { useState } from "react";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { ApiError, mediaUrl } from "../api/client";
+import { bookmarkEvent, Event, joinCommunity, leaveCommunity, unbookmarkEvent } from "../api/events";
+import Button from "../components/Button";
+import { FREQUENCY_LABELS } from "../constants/frequency";
+import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
+import { useThemedStyles } from "../hooks/useThemedStyles";
+import type { AppStackParamList } from "../navigation/AppStack";
+import { fontSize, radius, spacing } from "../theme";
+
+// The "entire detail / broader info" screen a community card's second tap
+// opens (see EventCard's expand-then-open behavior on Discover). Structured
+// like GroupInfoScreen's identity block (circular photo, centered name,
+// member count) since a community's "cover image" is deliberately a
+// profile-picture crop (1:1, see EventForm) rather than the 16:9 banner
+// events get — the two post kinds read as visually distinct on purpose.
+// What else belongs here (member list, richer detail) is still TBD; this is
+// the minimal version that makes join/leave and the linked group chat real.
+export default function CommunityProfileScreen() {
+  const { event: initialEvent } = useRoute<RouteProp<AppStackParamList, "CommunityProfile">>().params;
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const insets = useSafeAreaInsets();
+
+  const [event, setEvent] = useState<Event>(initialEvent);
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { styles, colors } = useThemedStyles((colors) => ({
+    wrapper: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.md,
+    },
+    headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
+    identity: { alignItems: "center", paddingVertical: spacing.lg },
+    avatarImage: { width: 112, height: 112, borderRadius: 56 },
+    avatarPlaceholder: {
+      width: 112,
+      height: 112,
+      borderRadius: 56,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    name: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginTop: spacing.md, textAlign: "center" },
+    memberCount: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
+    metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    metaText: { fontSize: fontSize.base, color: colors.textMuted },
+    metaBlock: { marginTop: spacing.sm },
+    sectionTitle: {
+      fontSize: fontSize.base,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: spacing.sm,
+    },
+    description: { fontSize: fontSize.base, color: colors.text, lineHeight: 20 },
+    actions: { gap: spacing.sm, marginTop: spacing.sm },
+    error: { color: colors.danger, fontSize: fontSize.base },
+    creator: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.md, textAlign: "center" },
+  }));
+
+  async function toggleBookmark() {
+    const next = !event.is_bookmarked;
+    setBookmarkBusy(true);
+    setEvent((prev) => ({ ...prev, is_bookmarked: next }));
+    try {
+      await (next ? bookmarkEvent(event.id) : unbookmarkEvent(event.id));
+    } catch {
+      setEvent((prev) => ({ ...prev, is_bookmarked: !next }));
+    } finally {
+      setBookmarkBusy(false);
+    }
+  }
+
+  async function toggleJoin() {
+    setError(null);
+    setJoinBusy(true);
+    try {
+      setEvent(event.is_joined ? await leaveCommunity(event.id) : await joinCommunity(event.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
+    } finally {
+      setJoinBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.wrapper}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
+        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Community</Text>
+        <Pressable onPress={toggleBookmark} disabled={bookmarkBusy} hitSlop={12}>
+          <Ionicons
+            name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
+            size={24}
+            color={event.is_bookmarked ? colors.primary : colors.textMuted}
+          />
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.identity}>
+          {event.cover_image_url ? (
+            <Image source={{ uri: mediaUrl(event.cover_image_url)! }} style={styles.avatarImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="people" size={40} color={colors.textMuted} />
+            </View>
+          )}
+          <Text style={styles.name}>{event.title}</Text>
+          <Text style={styles.memberCount}>
+            {event.member_count} {event.member_count === 1 ? "member" : "members"}
+          </Text>
+        </View>
+
+        {event.location_label && (
+          <View style={styles.metaRow}>
+            <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.metaText}>{event.location_label}</Text>
+          </View>
+        )}
+        {event.frequency && (
+          <View style={styles.metaRow}>
+            <Ionicons name="repeat-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.metaText}>Repeats {FREQUENCY_LABELS[event.frequency].toLowerCase()}</Text>
+          </View>
+        )}
+        <View style={styles.metaRow}>
+          <Ionicons name="shield-checkmark-outline" size={18} color={colors.textMuted} />
+          <Text style={styles.metaText}>{JOIN_POLICY_LABELS[event.join_policy]}</Text>
+        </View>
+
+        {event.description && (
+          <View style={styles.metaBlock}>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.description}>{event.description}</Text>
+          </View>
+        )}
+
+        {error && <Text style={styles.error}>{error}</Text>}
+        <View style={styles.actions}>
+          <Button
+            label={event.is_joined ? "Leave community" : "Join community"}
+            onPress={toggleJoin}
+            loading={joinBusy}
+            variant={event.is_joined ? "secondary" : "primary"}
+          />
+          {event.is_joined && event.group_id && (
+            <Button
+              label="Open group chat"
+              variant="secondary"
+              onPress={() =>
+                navigation.navigate("GroupChat", {
+                  groupId: event.group_id!,
+                  groupName: event.title,
+                  memberCount: event.member_count,
+                })
+              }
+            />
+          )}
+        </View>
+
+        <Text style={styles.creator}>Organized by {event.creator.username}</Text>
+      </ScrollView>
+    </View>
+  );
+}

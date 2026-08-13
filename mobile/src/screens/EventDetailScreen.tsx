@@ -2,16 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { mediaUrl } from "../api/client";
 import { bookmarkEvent, Event, unbookmarkEvent } from "../api/events";
-import {
-  ACTIVITY_TYPE_LABELS,
-  COMMUNITY_VIBE_LABELS,
-  EVENT_STYLE_LABELS,
-  SKILL_LEVEL_LABELS,
-} from "../constants/eventTags";
+import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_ICONS, JOIN_POLICY_LABELS } from "../constants/joinPolicy";
@@ -53,6 +49,7 @@ export default function EventDetailScreen() {
     },
     headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
     container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
+    cover: { width: "100%", height: 180, borderRadius: radius.md, backgroundColor: colors.chipBackground },
     title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
     metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     metaText: { fontSize: fontSize.base, color: colors.textMuted },
@@ -109,6 +106,10 @@ export default function EventDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.container}>
+        {event.cover_image_url && (
+          <Image source={{ uri: mediaUrl(event.cover_image_url)! }} style={styles.cover} resizeMode="cover" />
+        )}
+
         <Text style={styles.title}>{event.title}</Text>
 
         {event.kind === "event" && event.starts_at ? (
@@ -127,15 +128,17 @@ export default function EventDetailScreen() {
 
         {event.location_label && (
           <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+            <Ionicons name={event.is_online ? "globe-outline" : "location-outline"} size={18} color={colors.textMuted} />
             <Text style={styles.metaText}>{event.location_label}</Text>
           </View>
         )}
 
-        <View style={styles.metaRow}>
-          <Ionicons name={JOIN_POLICY_ICONS[event.join_policy]} size={18} color={colors.textMuted} />
-          <Text style={styles.metaText}>{JOIN_POLICY_LABELS[event.join_policy]}</Text>
-        </View>
+        {event.kind === "community" && (
+          <View style={styles.metaRow}>
+            <Ionicons name={JOIN_POLICY_ICONS[event.join_policy]} size={18} color={colors.textMuted} />
+            <Text style={styles.metaText}>{JOIN_POLICY_LABELS[event.join_policy]}</Text>
+          </View>
+        )}
 
         {event.description && (
           <View style={styles.metaBlock}>
@@ -144,30 +147,13 @@ export default function EventDetailScreen() {
           </View>
         )}
 
-        {(event.activity_type || event.community_vibe || event.skill_level || event.event_style) && (
+        {event.activity_type && (
           <View style={styles.metaBlock}>
-            <Text style={styles.sectionTitle}>Tags</Text>
+            <Text style={styles.sectionTitle}>Category</Text>
             <View style={styles.tagRow}>
-              {event.activity_type && (
-                <View style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{ACTIVITY_TYPE_LABELS[event.activity_type]}</Text>
-                </View>
-              )}
-              {event.community_vibe && (
-                <View style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{COMMUNITY_VIBE_LABELS[event.community_vibe]}</Text>
-                </View>
-              )}
-              {event.skill_level && (
-                <View style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{SKILL_LEVEL_LABELS[event.skill_level]}</Text>
-                </View>
-              )}
-              {event.event_style && (
-                <View style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{EVENT_STYLE_LABELS[event.event_style]}</Text>
-                </View>
-              )}
+              <View style={styles.tagChip}>
+                <Text style={styles.tagChipText}>{ACTIVITY_TYPE_LABELS[event.activity_type]}</Text>
+              </View>
             </View>
           </View>
         )}

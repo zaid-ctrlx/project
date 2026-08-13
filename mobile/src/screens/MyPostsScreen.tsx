@@ -10,6 +10,7 @@ import ConfirmSheet from "../components/ConfirmSheet";
 import EventCard from "../components/EventCard";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
+import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, spacing } from "../theme";
 
 // Pushed from Profile > Settings ("My Posts" row) — was the Events tab
@@ -147,7 +148,7 @@ export default function MyPostsScreen() {
             <View style={styles.cardWrap}>
               <EventCard
                 event={item}
-                onPress={(event) => navigation.navigate("EventDetail", { event })}
+                onPress={(event) => openEventDetail(navigation, event)}
                 onToggleBookmark={toggleBookmark}
                 bookmarkBusy={bookmarkBusyIds.has(item.id)}
               />
