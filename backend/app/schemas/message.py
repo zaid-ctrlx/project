@@ -44,6 +44,11 @@ class ConversationOut(BaseModel):
     group_name: str | None = None
     group_avatar_url: str | None = None
     member_count: int | None = None
+    # Group only — whether this group backs a community rather than being a
+    # plain user-created group chat, same distinction as
+    # ChatGroupOut.is_community. Lets the mobile client filter Messages by
+    # DMs/Groups/Communities without a second round trip.
+    is_community: bool | None = None
     # shared:
     last_message: str
     last_message_at: datetime

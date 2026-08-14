@@ -39,6 +39,14 @@ class ChatGroupOut(BaseModel):
     creator_id: uuid.UUID
     created_at: datetime
     members: list[GroupMemberOut]
+    # Not a mapped column — set explicitly by _load_group in
+    # routes/groups.py (same non-mapped-attribute pattern as
+    # EventOut.is_bookmarked). Whether this group backs a community
+    # (Event.kind="community", Event.group_id == this group's id) rather
+    # than being a plain user-created group chat — lets the mobile client
+    # label it "Community Info" vs "Group Info" regardless of which screen
+    # navigated here.
+    is_community: bool = False
 
 
 class AddGroupMemberPayload(BaseModel):

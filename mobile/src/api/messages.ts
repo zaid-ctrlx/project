@@ -35,6 +35,11 @@ export type GroupConversation = {
   group_id: string;
   group_name: string;
   group_avatar_url: string | null;
+  // Whether this group backs a community rather than being a plain
+  // user-created group chat — same distinction as api/groups.ts's
+  // ChatGroup.is_community. Lets MessagesScreen filter by
+  // DMs/Groups/Communities.
+  is_community: boolean;
   member_count: number;
   last_message: string;
   last_message_at: string;
