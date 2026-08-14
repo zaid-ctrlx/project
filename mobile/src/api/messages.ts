@@ -40,6 +40,9 @@ export type GroupConversation = {
   last_message_at: string;
   // Null only for a just-created, still-empty group.
   last_sender_id: string | null;
+  // Lets the row prefix its preview with "Sender: message" — null exactly
+  // when last_sender_id is (empty group), never otherwise.
+  last_sender_username: string | null;
   unread_count: number;
 };
 

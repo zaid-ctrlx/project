@@ -8,6 +8,7 @@ export type GroupMember = {
   user: MessageParticipant;
   role: GroupRole;
   joined_at: string;
+  muted: boolean;
 };
 
 export type ChatGroup = {
@@ -25,6 +26,11 @@ export type GroupMessage = {
   sender_id: string;
   body: string;
   created_at: string;
+  // Set on freshly-sent messages (POST response + WebSocket push) so the
+  // Messages list can render "Sender: message" without a lookup — null on
+  // history fetched via getGroupThread, which resolves names off the
+  // group's already-loaded member list instead (see GroupChatScreen).
+  sender_username: string | null;
 };
 
 export function createGroup(name: string, memberIds: string[]): Promise<ChatGroup> {
@@ -83,6 +89,17 @@ export function sendGroupMessage(groupId: string, text: string): Promise<GroupMe
 
 export function markGroupRead(groupId: string): Promise<void> {
   return api.authed(`/groups/${groupId}/read`, { method: "POST" });
+}
+
+// Per-member, not group-wide — gates only the notification system (in-app
+// bell + OS push) for new messages in this group/community; muted members
+// still get messages live if they have the chat open. See backend
+// GroupMember.muted's docstring.
+export function setGroupMuted(groupId: string, muted: boolean): Promise<ChatGroup> {
+  return api.authed(`/groups/${groupId}/mute`, {
+    method: "PATCH",
+    body: JSON.stringify({ muted }),
+  });
 }
 
 // One-sided — hides everything up to now from *this* member only; other

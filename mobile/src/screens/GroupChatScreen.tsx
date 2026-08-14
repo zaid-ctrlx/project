@@ -184,6 +184,7 @@ export default function GroupChatScreen() {
       sender_id: user.id,
       body: text,
       created_at: new Date().toISOString(),
+      sender_username: user.username,
     };
     setMessages((prev) => [optimistic, ...prev]);
     setDraft("");

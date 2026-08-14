@@ -1,6 +1,6 @@
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,9 +16,11 @@ import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, spacing } from "../theme";
 
 // Instagram search-style section bar: tap a heading or swipe between pages,
-// same idea as its For you/Accounts/Audio/Tags row. "All" is every event +
-// community together (same as Home's default), "Accounts" is user search,
-// and Event/Community are each kind on its own — see TABS below.
+// same idea as its For you/Accounts/Audio/Tags row. "All" is truly
+// everything — events, communities, *and* accounts, merged into one list
+// under section headers (see AllListItem/allItems below) — "Accounts" is
+// user search on its own, and Event/Community are each kind on its own —
+// see TABS below.
 type TabKey = "all" | "accounts" | "event" | "community";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
@@ -30,6 +32,17 @@ const TABS: { key: TabKey; label: string }[] = [
 function patchEventList(list: Event[], id: string, patch: Partial<Event>): Event[] {
   return list.map((e) => (e.id === id ? { ...e, ...patch } : e));
 }
+
+// The "All" tab's list is heterogeneous (accounts + events/communities), so
+// it's one FlatList over a discriminated union instead of EventCard's plain
+// Event[] — synthetic "section" items give it the same grouped-with-headers
+// look Instagram's own "All" search results have, without pulling in
+// SectionList (whose two-generic typing doesn't fit both item shapes any
+// more cleanly than this does).
+type AllListItem =
+  | { kind: "section"; key: string; label: string }
+  | { kind: "user"; key: string; user: UserSearchResult }
+  | { kind: "event"; key: string; event: Event };
 
 // Reserved for the actual recommendation feed later (matching a user's
 // interests/behavior, see project notes) — for now this is the one place
@@ -73,6 +86,15 @@ export default function DiscoverScreen() {
     spinner: { marginTop: spacing.xl },
     list: { paddingBottom: spacing.xl },
     empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
+    sectionHeader: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+    },
     row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, gap: spacing.md },
     avatarSm: {
       width: 44,
@@ -123,6 +145,18 @@ export default function DiscoverScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  // Also refetch on every focus, not just when the query changes — without
+  // this, deleting a community/event from CommunityProfileScreen/MyPostsScreen
+  // (or joining/leaving one elsewhere) and swiping back to Discover kept
+  // showing the pre-change list until the next keystroke happened to
+  // retrigger the debounced effect above. Same "refetch on focus" pattern
+  // MyPostsScreen/GroupInfoScreen already use for the same reason.
+  useFocusEffect(
+    useCallback(() => {
+      load(query);
+    }, [load, query])
+  );
 
   async function toggleBookmark(event: Event) {
     const next = !event.is_bookmarked;
@@ -181,6 +215,79 @@ export default function DiscoverScreen() {
   const underlineWidth = pageWidth / TABS.length;
   const underlineX = scrollX.interpolate({ inputRange: [0, pageWidth], outputRange: [0, underlineWidth] });
 
+  // Shared by the Accounts tab and the "All" tab's user rows (see allItems)
+  // so the row markup exists in one place.
+  function renderPersonRow(item: UserSearchResult) {
+    return (
+      <Pressable style={styles.row} onPress={() => navigation.navigate("UserProfile", { userId: item.id })}>
+        {item.avatar_url ? (
+          <Image source={{ uri: mediaUrl(item.avatar_url)! }} style={styles.avatarImageSm} />
+        ) : (
+          <View style={styles.avatarSm}>
+            <Text style={styles.avatarSmText}>{item.username.charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
+        <View style={styles.rowText}>
+          <Text style={styles.username}>{item.username}</Text>
+          {item.full_name && (
+            <Text style={styles.fullName} numberOfLines={1}>
+              {item.full_name}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+    );
+  }
+
+  // Accounts first (section header only if there are any), then events +
+  // communities — matches the order the tab bar itself lists Accounts
+  // before Event/Community.
+  const allItems = useMemo<AllListItem[]>(() => {
+    const items: AllListItem[] = [];
+    if (people.length > 0) {
+      items.push({ kind: "section", key: "section-accounts", label: "Accounts" });
+      people.forEach((user) => items.push({ kind: "user", key: `user-${user.id}`, user }));
+    }
+    if (allEvents.length > 0) {
+      items.push({ kind: "section", key: "section-events", label: "Events & Communities" });
+      allEvents.forEach((event) => items.push({ kind: "event", key: `event-${event.id}`, event }));
+    }
+    return items;
+  }, [people, allEvents]);
+
+  function allResultsPage() {
+    return (
+      <View style={[styles.page, { width: pageWidth }]}>
+        {loading && allItems.length === 0 ? (
+          <ActivityIndicator style={styles.spinner} />
+        ) : (
+          <FlatList
+            data={allItems}
+            keyExtractor={(item) => item.key}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => {
+              if (item.kind === "section") return <Text style={styles.sectionHeader}>{item.label}</Text>;
+              if (item.kind === "user") return renderPersonRow(item.user);
+              return (
+                <EventCard
+                  event={item.event}
+                  onPress={(event) => openEventDetail(navigation, event)}
+                  onToggleBookmark={toggleBookmark}
+                  bookmarkBusy={busyIds.has(item.event.id)}
+                  onToggleJoin={toggleJoin}
+                  joinBusy={joinBusyIds.has(item.event.id)}
+                />
+              );
+            }}
+            ListEmptyComponent={
+              <Text style={styles.empty}>{error ?? (query.trim() ? "No matches found." : "No events found.")}</Text>
+            }
+          />
+        )}
+      </View>
+    );
+  }
+
   function eventPage(list: Event[], emptyMessage: string) {
     return (
       <View style={[styles.page, { width: pageWidth }]}>
@@ -236,7 +343,7 @@ export default function DiscoverScreen() {
         scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => onScrollEnd(e.nativeEvent.contentOffset.x)}
       >
-        {eventPage(allEvents, "No events found.")}
+        {allResultsPage()}
 
         <View style={[styles.page, { width: pageWidth }]}>
           {loading && people.length === 0 && query.trim() ? (
@@ -246,25 +353,7 @@ export default function DiscoverScreen() {
               data={people}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <Pressable style={styles.row} onPress={() => navigation.navigate("UserProfile", { userId: item.id })}>
-                  {item.avatar_url ? (
-                    <Image source={{ uri: mediaUrl(item.avatar_url)! }} style={styles.avatarImageSm} />
-                  ) : (
-                    <View style={styles.avatarSm}>
-                      <Text style={styles.avatarSmText}>{item.username.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={styles.rowText}>
-                    <Text style={styles.username}>{item.username}</Text>
-                    {item.full_name && (
-                      <Text style={styles.fullName} numberOfLines={1}>
-                        {item.full_name}
-                      </Text>
-                    )}
-                  </View>
-                </Pressable>
-              )}
+              renderItem={({ item }) => renderPersonRow(item)}
               ListEmptyComponent={
                 <Text style={styles.empty}>
                   {error ?? (query.trim() ? "No users found." : "Type a name or username to search.")}

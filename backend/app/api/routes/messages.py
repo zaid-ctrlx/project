@@ -5,16 +5,27 @@ from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.api.deps import get_current_user
+from app.core.notify import notify_user
 from app.core.security import decode_token
 from app.core.ws_manager import manager
 from app.db.session import SessionLocal, get_db
 from app.models.block import UserBlock
 from app.models.group import ChatGroup, GroupMember, GroupMessage
-from app.models.message import DmClear, Message
+from app.models.message import DmClear, DmMute, Message
 from app.models.user import User
 from app.schemas.message import ConversationOut, MessageCreate, MessageOut, MessageParticipantOut
 
 router = APIRouter(prefix="/messages", tags=["messages"])
+
+# Notification body cap — messages can run up to 2000 chars (see
+# MessageCreate), far more than a push banner/notification-list row should
+# show. Shared with groups.py's send_group_message.
+NOTIFICATION_PREVIEW_LEN = 120
+
+
+def _preview(text: str) -> str:
+    text = text.strip()
+    return text if len(text) <= NOTIFICATION_PREVIEW_LEN else text[:NOTIFICATION_PREVIEW_LEN].rstrip() + "…"
 
 
 @router.post("", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
@@ -59,6 +70,23 @@ async def send_message(
         payload.recipient_id,
         {"type": "message", "message": MessageOut.model_validate(message).model_dump(mode="json")},
     )
+
+    # Skipped if the recipient has muted *me* specifically (DmMute is
+    # one-directional — see its docstring), same gating shape as
+    # send_group_message's mute check on the group side. Doesn't affect the
+    # live WS push above — muting only gates the notification system.
+    muted = db.execute(
+        select(DmMute).where(DmMute.user_id == payload.recipient_id, DmMute.other_user_id == current_user.id)
+    ).scalar_one_or_none()
+    if muted is None:
+        await notify_user(
+            db,
+            user_id=payload.recipient_id,
+            type="dm_message",
+            title=current_user.username,
+            body=_preview(payload.text),
+            data={"sender_id": str(current_user.id)},
+        )
     return message
 
 
@@ -178,6 +206,16 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
     )
     latest_by_group = {row.group_id: row for row in db.execute(select(ranked).where(ranked.c.rn == 1)).all()}
 
+    # Usernames for each group's latest sender, one small batched query
+    # rather than joining User into the window-function query above — same
+    # "two small readable queries beat one contorted one" reasoning as
+    # unread_counts below. Lets the mobile client prefix a group's preview
+    # with "Sender: message" (see ConversationOut.last_sender_username).
+    sender_ids = {row.sender_id for row in latest_by_group.values()}
+    sender_usernames = (
+        dict(db.execute(select(User.id, User.username).where(User.id.in_(sender_ids))).all()) if sender_ids else {}
+    )
+
     member_counts = dict(
         db.execute(
             select(GroupMember.group_id, func.count()).where(GroupMember.group_id.in_(group_ids)).group_by(GroupMember.group_id)
@@ -219,6 +257,7 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
                 # still-empty group still shows up (at the top, typically).
                 last_message_at=latest.created_at if latest else group.created_at,
                 last_sender_id=latest.sender_id if latest else None,
+                last_sender_username=sender_usernames.get(latest.sender_id) if latest else None,
                 unread_count=unread_counts.get(group.id, 0),
             )
         )

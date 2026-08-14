@@ -1,12 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 
 import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";
-import Button from "./Button";
-import TextField from "./TextField";
 
 export type LocationValue = { label: string; lat: number; lng: number };
 
@@ -19,11 +18,14 @@ type Props = {
   onChange: (value: LocationValue) => void;
 };
 
-// Extracted from ProfileForm's original location section (search-with-
-// debounced-dropdown + "use my current location" GPS button) so it can be
-// reused as-is by Create Event. Owns its own search/debounce/dropdown state
-// since that's transient UI state, not something the parent form needs —
-// it only hears about a confirmed selection via onChange.
+// One bar, not a button-then-field stack: a plain text input taking up most
+// of the width (type to search, live autocomplete below) with a smaller
+// location-pin segment on the right, visually part of the same
+// bordered/rounded box, that fills the bar in with the device's current
+// location via GPS + reverse geocoding. Replaces the earlier
+// "📍 Use my current location" button + "or search for it" + separate field
+// stack — same underlying search/GPS logic (see useCurrentLocation and the
+// debounced-search effect below), just one control instead of three.
 export default function LocationPicker({ initialLabel, onChange }: Props) {
   const [locationLabel, setLocationLabel] = useState<string | null>(initialLabel ?? null);
   const [searchText, setSearchText] = useState(initialLabel ?? "");
@@ -32,11 +34,33 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
   const [searchBusy, setSearchBusy] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { styles } = useThemedStyles((colors) => ({
-    orText: { textAlign: "center", color: colors.textFaint, fontSize: fontSize.sm },
-    searchRow: { flexDirection: "row", alignItems: "center" },
-    searchInputContainer: { flex: 1 },
+  const { styles, colors } = useThemedStyles((colors) => ({
+    bar: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      backgroundColor: colors.background,
+      overflow: "hidden",
+    },
+    inputWrap: { flex: 1, justifyContent: "center" },
+    input: {
+      paddingVertical: spacing.md,
+      paddingLeft: spacing.lg,
+      paddingRight: spacing.xl + spacing.md,
+      fontSize: fontSize.md,
+      color: colors.text,
+    },
     searchSpinner: { position: "absolute", right: spacing.md },
+    divider: { width: 1, backgroundColor: colors.border },
+    gpsButton: {
+      width: 48,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.chipBackground,
+    },
+    gpsButtonPressed: { opacity: 0.7 },
     dropdown: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -49,8 +73,8 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
     dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     dropdownItemPressed: { backgroundColor: colors.chipBackground },
     dropdownItemText: { fontSize: fontSize.base, color: colors.text },
-    error: { color: colors.danger, fontSize: fontSize.base },
-    locationConfirm: { color: colors.success, fontSize: fontSize.base },
+    error: { color: colors.danger, fontSize: fontSize.base, marginTop: spacing.xs },
+    locationConfirm: { color: colors.success, fontSize: fontSize.base, marginTop: spacing.xs },
   }));
 
   function commit(label: string, lat: number, lng: number) {
@@ -129,44 +153,51 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
 
   return (
     <View>
-      <Button
-        label={gpsBusy ? "Locating..." : "📍 Use my current location"}
-        onPress={useCurrentLocation}
-        loading={gpsBusy}
-        variant="secondary"
-      />
-
-      <Text style={styles.orText}>or search for it</Text>
-
-      <View>
-        <View style={styles.searchRow}>
-          <TextField
-            containerStyle={styles.searchInputContainer}
-            placeholder="e.g. Gulshan, Karachi"
+      <View style={styles.bar}>
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={styles.input}
+            placeholder="Search for a location"
+            placeholderTextColor={colors.textFaint}
             value={searchText}
             onChangeText={setSearchText}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-          {searchBusy && <ActivityIndicator style={styles.searchSpinner} />}
+          {searchBusy && <ActivityIndicator style={styles.searchSpinner} size="small" color={colors.textFaint} />}
         </View>
-
-        {searchResults.length > 0 && (
-          <View style={styles.dropdown}>
-            {searchResults.map((result, i) => (
-              <Pressable
-                key={`${result.lat},${result.lng}`}
-                onPress={() => selectSearchResult(result)}
-                style={({ pressed }) => [
-                  styles.dropdownItem,
-                  i < searchResults.length - 1 && styles.dropdownItemBorder,
-                  pressed && styles.dropdownItemPressed,
-                ]}
-              >
-                <Text style={styles.dropdownItemText}>{result.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <View style={styles.divider} />
+        <Pressable
+          onPress={useCurrentLocation}
+          disabled={gpsBusy}
+          hitSlop={4}
+          style={({ pressed }) => [styles.gpsButton, pressed && styles.gpsButtonPressed]}
+        >
+          {gpsBusy ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="locate" size={20} color={colors.primary} />
+          )}
+        </Pressable>
       </View>
+
+      {searchResults.length > 0 && (
+        <View style={styles.dropdown}>
+          {searchResults.map((result, i) => (
+            <Pressable
+              key={`${result.lat},${result.lng}`}
+              onPress={() => selectSearchResult(result)}
+              style={({ pressed }) => [
+                styles.dropdownItem,
+                i < searchResults.length - 1 && styles.dropdownItemBorder,
+                pressed && styles.dropdownItemPressed,
+              ]}
+            >
+              <Text style={styles.dropdownItemText}>{result.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {locationError && <Text style={styles.error}>{locationError}</Text>}
       {locationLabel && searchResults.length === 0 && (

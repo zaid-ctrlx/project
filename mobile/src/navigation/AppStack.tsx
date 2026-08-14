@@ -12,12 +12,14 @@ import CommunityProfileScreen from "../screens/CommunityProfileScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
 import CreatePostScreen from "../screens/CreatePostScreen";
 import DeleteAccountScreen from "../screens/DeleteAccountScreen";
+import DmInfoScreen from "../screens/DmInfoScreen";
 import EditEventScreen from "../screens/EditEventScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
 import GroupInfoScreen from "../screens/GroupInfoScreen";
 import MessageSearchScreen from "../screens/MessageSearchScreen";
 import MyPostsScreen from "../screens/MyPostsScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
 import MainTabs from "./MainTabs";
@@ -33,6 +35,8 @@ import MainTabs from "./MainTabs";
 export type AppStackParamList = {
   Tabs: undefined;
   Settings: undefined;
+  // Pushed from Home's bell icon (see HomeScreen).
+  Notifications: undefined;
   // Pushed from Settings ("My bookmarks" row).
   Bookmarks: undefined;
   // Pushed from Settings ("Blocked profiles" row).
@@ -44,6 +48,15 @@ export type AppStackParamList = {
   // under (see MainTabs).
   MyPosts: undefined;
   Chat: { userId: string; username: string; avatarUrl: string | null };
+  // Pushed by tapping the other person's name/avatar in ChatScreen's
+  // header — WhatsApp-style "Contact info" for a DM (View profile/Mute/
+  // Search/Clear chat/Block), replacing what used to be a direct jump to
+  // UserProfile plus a separate ⋯ menu on Chat itself (both gone now — see
+  // DmInfoScreen). onSearch/onClearChat are callbacks into ChatScreen's own
+  // state (search-mode toggle, clear-chat confirm sheet) rather than this
+  // screen duplicating that logic or mutating a thread it doesn't own —
+  // see DmInfoScreen's top comment.
+  DmInfo: { userId: string; username: string; avatarUrl: string | null; onSearch: () => void; onClearChat: () => void };
   UserProfile: { userId: string };
   EventDetail: { event: Event };
   // Communities only — pushed from a community card's second tap (see
@@ -84,11 +97,13 @@ export default function AppStack() {
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="Tabs" component={MainTabs} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Bookmarks" component={BookmarksScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
       <Stack.Screen name="MyPosts" component={MyPostsScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="DmInfo" component={DmInfoScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} />

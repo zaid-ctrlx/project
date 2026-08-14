@@ -17,7 +17,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, mediaUrl } from "../api/client";
 import { clearDmChat, getThread, Message, sendMessage } from "../api/messages";
 import Button from "../components/Button";
-import ChatOptionsMenu from "../components/ChatOptionsMenu";
 import ConfirmSheet from "../components/ConfirmSheet";
 import SearchField from "../components/SearchField";
 import TextField from "../components/TextField";
@@ -51,9 +50,11 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  // ⋯ menu -> Search (filters currently-loaded messages, see chatSearch.ts)
-  // and Clear chat (confirm-then-wipe, one-sided — see clearDmChat).
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Search (filters currently-loaded messages, see chatSearch.ts) and Clear
+  // chat (confirm-then-wipe, one-sided — see clearDmChat) are triggered from
+  // DmInfoScreen now (via the onSearch/onClearChat callbacks handed to it
+  // below), not a ⋯ menu on this screen anymore — but the state/logic for
+  // both still lives here, since this screen owns the thread.
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -239,7 +240,15 @@ export default function ChatScreen() {
             </Pressable>
             <Pressable
               style={styles.headerIdentity}
-              onPress={() => navigation.navigate("UserProfile", { userId })}
+              onPress={() =>
+                navigation.navigate("DmInfo", {
+                  userId,
+                  username,
+                  avatarUrl,
+                  onSearch: () => setSearchOpen(true),
+                  onClearChat: () => setClearConfirmOpen(true),
+                })
+              }
               hitSlop={4}
             >
               {avatarUrl ? (
@@ -252,9 +261,6 @@ export default function ChatScreen() {
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {username}
               </Text>
-            </Pressable>
-            <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
-              <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
             </Pressable>
           </>
         )}
@@ -308,12 +314,6 @@ export default function ChatScreen() {
       </View>
       {sendError && <Text style={styles.sendError}>{sendError}</Text>}
 
-      <ChatOptionsMenu
-        visible={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onSearch={() => setSearchOpen(true)}
-        onClearChat={() => setClearConfirmOpen(true)}
-      />
       <ConfirmSheet
         visible={clearConfirmOpen}
         onClose={() => setClearConfirmOpen(false)}

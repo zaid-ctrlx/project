@@ -46,6 +46,10 @@ export type PublicProfile = {
   tags: Tag[];
   // Whether *I* have blocked this user — see UserPublicOut.is_blocked.
   is_blocked: boolean;
+  // Whether *I* have muted this user's DMs — see UserPublicOut.is_muted.
+  // One-directional, unlike is_blocked: says nothing about whether they've
+  // muted me.
+  is_muted: boolean;
 };
 
 export function getUserProfile(userId: string): Promise<PublicProfile> {
@@ -73,6 +77,17 @@ export function blockUser(userId: string): Promise<void> {
 
 export function unblockUser(userId: string): Promise<void> {
   return api.authed(`/users/${userId}/block`, { method: "DELETE" });
+}
+
+// Gates only the notification system for this DM thread (in-app + push) —
+// messages themselves still arrive live, same as a muted group. See backend
+// DmMute's docstring.
+export function muteUser(userId: string): Promise<void> {
+  return api.authed(`/users/${userId}/mute`, { method: "POST" });
+}
+
+export function unmuteUser(userId: string): Promise<void> {
+  return api.authed(`/users/${userId}/mute`, { method: "DELETE" });
 }
 
 export type PickedAvatar = {

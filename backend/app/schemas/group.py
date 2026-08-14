@@ -15,6 +15,11 @@ class GroupMemberOut(BaseModel):
     user: MessageParticipantOut
     role: GROUP_ROLES
     joined_at: datetime
+    # Only meaningful for "is *my* membership row muted" — the mobile client
+    # finds its own row in ChatGroupOut.members by user.id == current user
+    # rather than this getting a dedicated endpoint. See PATCH
+    # /groups/{id}/mute in routes/groups.py.
+    muted: bool
 
 
 class ChatGroupCreate(BaseModel):
@@ -40,6 +45,10 @@ class AddGroupMemberPayload(BaseModel):
     user_id: uuid.UUID
 
 
+class MuteGroupPayload(BaseModel):
+    muted: bool
+
+
 class GroupMessageCreate(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
@@ -52,3 +61,13 @@ class GroupMessageOut(BaseModel):
     sender_id: uuid.UUID
     body: str
     created_at: datetime
+    # Not a mapped column (same non-mapped-attribute approach as EventOut's
+    # is_bookmarked/is_joined/member_count, see _set_event_flags in
+    # routes/events.py) — set explicitly on the ORM object by
+    # send_group_message right before it's serialized, for both the
+    # WebSocket push and the POST response, so the mobile client can render
+    # "Sender: message" without a second lookup. None everywhere else
+    # (e.g. GET /groups/{id}/messages's history list) — the group-chat
+    # screen that renders those already resolves sender names off the
+    # group's member list it has loaded anyway.
+    sender_username: str | None = None

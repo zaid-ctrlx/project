@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.notify import notify_user
 from app.core.ws_manager import manager
 from app.db.session import get_db
 from app.models.group import ChatGroup, GroupMember, GroupMessage
@@ -17,6 +18,7 @@ from app.schemas.group import (
     ChatGroupOut,
     GroupMessageCreate,
     GroupMessageOut,
+    MuteGroupPayload,
 )
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -24,6 +26,14 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 # Same allowlist/size cap as the user-avatar upload (see routes/users.py).
 AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5MB
 AVATAR_EXTENSIONS = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+
+# Same notification-preview cap as messages.py's send_message.
+NOTIFICATION_PREVIEW_LEN = 120
+
+
+def _preview(text: str) -> str:
+    text = text.strip()
+    return text if len(text) <= NOTIFICATION_PREVIEW_LEN else text[:NOTIFICATION_PREVIEW_LEN].rstrip() + "…"
 
 
 def _load_group(db: Session, group_id: uuid.UUID) -> ChatGroup:
@@ -87,7 +97,7 @@ def get_group(
 
 
 @router.post("/{group_id}/members", response_model=ChatGroupOut)
-def add_group_member(
+async def add_group_member(
     group_id: uuid.UUID,
     payload: AddGroupMemberPayload,
     current_user: User = Depends(get_current_user),
@@ -102,13 +112,24 @@ def add_group_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Idempotent, mirroring bookmark_event's style in routes/events.py —
-    # adding someone already in the group is a no-op, not an error.
+    # adding someone already in the group is a no-op, not an error (and not
+    # worth a duplicate "added to group" notification either).
     already = db.execute(
         select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == payload.user_id)
     ).scalar_one_or_none()
     if already is None:
         db.add(GroupMember(group_id=group_id, user_id=payload.user_id, role="member"))
         db.commit()
+
+        group = db.get(ChatGroup, group_id)
+        await notify_user(
+            db,
+            user_id=payload.user_id,
+            type="added_to_group",
+            title="Added to a group",
+            body=f"{current_user.username} added you to {group.name}",
+            data={"group_id": str(group_id)},
+        )
 
     return _load_group(db, group_id)
 
@@ -245,19 +266,65 @@ async def send_group_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    # Non-mapped attribute — see GroupMessageOut.sender_username's
+    # docstring. Set once here so it flows into both the WS payload below
+    # and this endpoint's own response (response_model=GroupMessageOut
+    # serializes `message` the same way at the end of this function).
+    message.sender_username = current_user.username
 
     # Best-effort live push to every other member currently connected — same
     # fire-and-forget approach as send_message in routes/messages.py (no
     # offline push notification). The sender doesn't get pushed to itself,
     # matching that route too: it already has the row via this response.
-    other_member_ids = db.scalars(
-        select(GroupMember.user_id).where(GroupMember.group_id == group_id, GroupMember.user_id != current_user.id)
+    # Unlike the notification loop below, this fires for muted members too —
+    # mute only gates the notification system, not live chat delivery to a
+    # thread someone already has open (see GroupMember.muted's docstring).
+    other_members = db.execute(
+        select(GroupMember.user_id, GroupMember.muted).where(
+            GroupMember.group_id == group_id, GroupMember.user_id != current_user.id
+        )
     ).all()
     ws_payload = {"type": "group_message", "message": GroupMessageOut.model_validate(message).model_dump(mode="json")}
-    for member_id in other_member_ids:
+    for member_id, _muted in other_members:
         await manager.send_to_user(member_id, ws_payload)
 
+    group = db.get(ChatGroup, group_id)
+    for member_id, muted in other_members:
+        if muted:
+            continue
+        await notify_user(
+            db,
+            user_id=member_id,
+            type="group_message",
+            title=f"{current_user.username} in {group.name}",
+            body=_preview(payload.text),
+            data={"group_id": str(group_id), "sender_id": str(current_user.id)},
+        )
+
     return message
+
+
+@router.patch("/{group_id}/mute", response_model=ChatGroupOut)
+def set_group_muted(
+    group_id: uuid.UUID,
+    payload: MuteGroupPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ChatGroup:
+    # Per-member, not group-wide — covers both plain group chats
+    # (GroupInfoScreen) and communities (CommunityProfileScreen, same
+    # underlying ChatGroup via Event.group_id). Muting only affects the
+    # notification system (see notify_user's callers); the mobile client
+    # reads the result back off ChatGroupOut.members[me].muted rather than
+    # this needing its own response shape.
+    _get_membership(db, group_id, current_user.id)
+    db.execute(
+        update(GroupMember)
+        .where(GroupMember.group_id == group_id, GroupMember.user_id == current_user.id)
+        .values(muted=payload.muted)
+    )
+    db.commit()
+    return _load_group(db, group_id)
 
 
 @router.post("/{group_id}/read", status_code=status.HTTP_204_NO_CONTENT)

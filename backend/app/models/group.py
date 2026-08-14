@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +56,13 @@ class GroupMember(Base):
     # groups get a column here instead of their own separate table (a
     # per-membership row already exists to hang it off).
     cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Per-member notification mute for this group (or, for a community,
+    # its linked group — same table, see Event.group_id). Gates both the
+    # in-app Notification row and the Expo push for new group_message
+    # notifications (app/core/notify.py); it does NOT hide the message
+    # itself — a muted member who has the chat open still gets it live over
+    # the WebSocket, same as anyone else (see send_group_message).
+    muted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     group: Mapped[ChatGroup] = relationship(back_populates="members")
     user: Mapped[User] = relationship()

@@ -9,10 +9,21 @@ import { mediaUrl } from "../api/client";
 import { GroupMessage } from "../api/groups";
 import { ConversationSummary, listConversations, Message } from "../api/messages";
 import SearchField from "../components/SearchField";
+import { useAuth } from "../context/AuthContext";
 import { useMessaging } from "../context/MessagingContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, radius, spacing } from "../theme";
+
+// "Sender: message" (WhatsApp-style) for a group row's preview — "You" for
+// your own last message, otherwise the sender's username, falling back to
+// "Someone" on the off chance it's missing (shouldn't happen — see
+// last_sender_username's docstring, but a label beats an empty prefix).
+function groupPreview(item: Extract<ConversationSummary, { type: "group" }>, currentUserId: string | undefined): string {
+  if (!item.last_sender_id) return "No messages yet";
+  const sender = item.last_sender_id === currentUserId ? "You" : item.last_sender_username ?? "Someone";
+  return `${sender}: ${item.last_message}`;
+}
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -26,6 +37,7 @@ function formatTimestamp(iso: string): string {
 export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { user } = useAuth();
   const { subscribe, subscribeGroup, isThreadActive, isGroupActive, markRead, markGroupRead } = useMessaging();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +204,10 @@ export default function MessagesScreen() {
           last_message: message.body,
           last_message_at: message.created_at,
           last_sender_id: message.sender_id,
+          // Always present on a freshly-sent/pushed message (both the
+          // sender's own optimistic bubble and the WS payload set it) —
+          // see GroupMessage.sender_username's docstring.
+          last_sender_username: message.sender_username,
           unread_count: isGroupActive(message.group_id) ? conv.unread_count : conv.unread_count + 1,
         });
         return next;
@@ -295,7 +311,7 @@ export default function MessagesScreen() {
                 <View style={styles.rowText}>
                   <Text style={styles.username}>{item.group_name}</Text>
                   <Text style={styles.preview} numberOfLines={1}>
-                    {item.last_message || "No messages yet"}
+                    {groupPreview(item, user?.id)}
                   </Text>
                 </View>
                 <View style={styles.rowMeta}>

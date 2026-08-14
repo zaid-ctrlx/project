@@ -91,6 +91,11 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
               setUnreadTotal((prev) => prev + 1);
             }
           }
+          // The server also pushes a "notification" frame type (new DM/group
+          // message, added to a group — see backend app/core/notify.py) that
+          // isn't handled here: there's no live badge/UI consuming it right
+          // now (see NotificationsScreen, which just fetches on focus
+          // instead). Falls through harmlessly if/when that comes back.
         } catch {
           // ignore malformed frames
         }
