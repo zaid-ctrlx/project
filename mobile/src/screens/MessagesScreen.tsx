@@ -1,8 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
@@ -26,10 +38,10 @@ function groupPreview(item: Extract<ConversationSummary, { type: "group" }>, cur
 }
 
 // Small pill row under the search field, WhatsApp-style (see its own "All /
-// Unread / Favourites / Groups" chips) — persistently visible rather than
-// hidden-until-you-scroll-up, which is simpler and matches how those chips
-// actually rest by default (scrolling them off/back on is just normal
-// ScrollView behavior over there, not a distinct reveal mechanic).
+// Unread / Favourites / Groups" chips). Collapses away as the list scrolls
+// down and reveals again scrolling up — or instantly at the very top — same
+// idea as that app's own chip row; see the scroll-tracking height Animation
+// wired up in the component below.
 type FilterKey = "all" | "dm" | "group" | "community";
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
@@ -75,6 +87,46 @@ export default function MessagesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
+
+  // Collapsible filter-chip row: `chipRowHeight` is the row's own natural
+  // height, measured once via onLayout (so this never has to guess/hardcode
+  // a pixel value that'd drift if fonts/spacing change) — `chipAnim` is the
+  // live animated height driven by scroll, clamped to [0, chipRowHeight].
+  // `chipHeightRef` mirrors chipAnim's current numeric value (Animated.Value
+  // has no public synchronous getter) so onListScroll can do clamped delta
+  // math without waiting on a listener round trip.
+  const [chipRowHeight, setChipRowHeight] = useState(0);
+  const chipAnim = useRef(new Animated.Value(0)).current;
+  const chipHeightRef = useRef(0);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    if (chipRowHeight > 0) {
+      chipHeightRef.current = chipRowHeight;
+      chipAnim.setValue(chipRowHeight);
+    }
+  }, [chipRowHeight, chipAnim]);
+
+  // Shrinks the row by however far you scrolled (scrolling down hides it,
+  // scrolling up brings it back), live rather than snapping at a threshold —
+  // and forces it fully open at/above the top (y <= 0, which also covers
+  // iOS's overscroll bounce), matching "even already at the top, it's
+  // there" from WhatsApp's own chip row.
+  function onListScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const y = e.nativeEvent.contentOffset.y;
+    const delta = y - lastScrollYRef.current;
+    lastScrollYRef.current = y;
+    if (!chipRowHeight) return;
+
+    if (y <= 0) {
+      chipHeightRef.current = chipRowHeight;
+      chipAnim.setValue(chipRowHeight);
+      return;
+    }
+    const next = Math.max(0, Math.min(chipRowHeight, chipHeightRef.current - delta));
+    chipHeightRef.current = next;
+    chipAnim.setValue(next);
+  }
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: {
@@ -85,7 +137,11 @@ export default function MessagesScreen() {
     },
     title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
     searchFieldWrap: { marginBottom: spacing.md },
-    filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+    // No marginBottom here — it's paddingBottom instead, deliberately, so
+    // it collapses away along with the row's height when hidden (a sibling
+    // margin wouldn't shrink with it, leaving a gap). See the
+    // scroll-tracking Animated.View wrapping this in the render below.
+    filterRow: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.md },
     chip: {
       paddingVertical: spacing.xs,
       paddingHorizontal: spacing.md,
@@ -306,17 +362,27 @@ export default function MessagesScreen() {
         </View>
       </Pressable>
 
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setFilter(f.key)}
-            style={({ pressed }) => [styles.chip, filter === f.key && styles.chipActive, pressed && styles.chipPressed]}
-          >
-            <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Animated.View style={{ height: chipRowHeight > 0 ? chipAnim : undefined, overflow: "hidden" }}>
+        <View
+          style={styles.filterRow}
+          onLayout={(e) => {
+            // Measured once — natural height doesn't change after the
+            // first render, so no reason to keep re-measuring on every
+            // layout pass.
+            if (chipRowHeight === 0) setChipRowHeight(e.nativeEvent.layout.height);
+          }}
+        >
+          {FILTERS.map((f) => (
+            <Pressable
+              key={f.key}
+              onPress={() => setFilter(f.key)}
+              style={({ pressed }) => [styles.chip, filter === f.key && styles.chipActive, pressed && styles.chipPressed]}
+            >
+              <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Animated.View>
 
       {loading ? (
         <ActivityIndicator style={styles.spinner} />
@@ -325,6 +391,8 @@ export default function MessagesScreen() {
           data={filteredConversations}
           keyExtractor={(item) => (item.type === "dm" ? `dm-${item.other_user.id}` : `group-${item.group_id}`)}
           contentContainerStyle={styles.list}
+          onScroll={onListScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
