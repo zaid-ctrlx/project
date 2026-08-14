@@ -85,6 +85,9 @@ class UserPublicOut(BaseModel):
     # from_attributes by the route (not a real column on User), same pattern
     # as EventOut.is_bookmarked in app/schemas/event.py.
     is_blocked: bool = False
+    # Whether *I* have muted this user's DMs — same non-mapped-attribute
+    # pattern as is_blocked above. See DmMute's docstring.
+    is_muted: bool = False
 
 
 class AccountDeleteRequest(BaseModel):

@@ -20,6 +20,10 @@ const ICON_FLIP_MS = 300;
 // Deliberately no search/filter/sort here — Discover (see DiscoverScreen)
 // is the one place for those now. Empty "No media" state until the
 // recommender exists to fill this in.
+//
+// The notification bell used to live in this header (see NotificationsScreen,
+// still fully built and reachable — just not linked from here) — pulled back
+// out for now at the user's request, to be re-added (here or elsewhere) later.
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();

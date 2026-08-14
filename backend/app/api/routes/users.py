@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.security import verify_password
 from app.db.session import get_db
 from app.models.block import UserBlock
+from app.models.message import DmMute
 from app.models.user import Tag, User
 from app.schemas.user import (
     AccountDeleteRequest,
@@ -129,6 +130,39 @@ def unblock_user(
     db.commit()
 
 
+@router.post("/{user_id}/mute", status_code=status.HTTP_204_NO_CONTENT)
+def mute_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    # Same shape as block_user above — idempotent, 400 on muting yourself,
+    # 404 on a nonexistent target. One-directional only (see DmMute's
+    # docstring) — no "both sides" check like _blocked_pairs does for
+    # blocking.
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can't mute yourself")
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    already = db.execute(
+        select(DmMute).where(DmMute.user_id == current_user.id, DmMute.other_user_id == user_id)
+    ).scalar_one_or_none()
+    if already is None:
+        db.add(DmMute(user_id=current_user.id, other_user_id=user_id))
+        db.commit()
+
+
+@router.delete("/{user_id}/mute", status_code=status.HTTP_204_NO_CONTENT)
+def unmute_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    db.execute(delete(DmMute).where(DmMute.user_id == current_user.id, DmMute.other_user_id == user_id))
+    db.commit()
+
+
 @router.put("/me/profile", response_model=UserOut)
 def update_profile(
     payload: ProfileUpdate,
@@ -220,5 +254,8 @@ def read_user_profile(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     user.is_blocked = db.execute(
         select(UserBlock).where(UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == user_id)
+    ).scalar_one_or_none() is not None
+    user.is_muted = db.execute(
+        select(DmMute).where(DmMute.user_id == current_user.id, DmMute.other_user_id == user_id)
     ).scalar_one_or_none() is not None
     return user

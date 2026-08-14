@@ -49,4 +49,10 @@ class ConversationOut(BaseModel):
     last_message_at: datetime
     # None only for a just-created, still-empty group (no messages sent yet).
     last_sender_id: uuid.UUID | None = None
+    # Group only — lets the mobile client prefix a group's preview with
+    # "Sender: message" (WhatsApp-style), which a DM preview doesn't need
+    # (there's only ever one possible "them"). None alongside
+    # last_sender_id being None (empty group), never otherwise — see
+    # _group_conversations in routes/messages.py.
+    last_sender_username: str | None = None
     unread_count: int

@@ -2,11 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError, mediaUrl } from "../api/client";
-import { ChatGroup, deleteGroup, getGroup, GroupMember } from "../api/groups";
+import { ChatGroup, deleteGroup, getGroup, GroupMember, setGroupMuted } from "../api/groups";
 import ConfirmDeleteSheet from "../components/ConfirmDeleteSheet";
 import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
@@ -29,6 +29,7 @@ export default function GroupInfoScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [muteBusy, setMuteBusy] = useState(false);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -77,6 +78,26 @@ export default function GroupInfoScreen() {
       justifyContent: "center",
     },
     addText: { fontSize: fontSize.md, color: colors.primary, fontWeight: "600" },
+    muteRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      alignSelf: "stretch",
+      paddingVertical: spacing.md,
+      marginTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    muteLabelWrap: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    muteIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.chipBackground,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    muteText: { fontSize: fontSize.md, color: colors.text, fontWeight: "600" },
     sectionTitle: {
       alignSelf: "stretch",
       fontSize: fontSize.sm,
@@ -168,7 +189,33 @@ export default function GroupInfoScreen() {
     setRefreshing(false);
   }
 
-  const isAdmin = group?.members.find((m) => m.user.id === currentUser?.id)?.role === "admin";
+  const myMembership = group?.members.find((m) => m.user.id === currentUser?.id);
+  const isAdmin = myMembership?.role === "admin";
+
+  async function onToggleMute() {
+    if (!group || !myMembership) return;
+    const next = !myMembership.muted;
+    setMuteBusy(true);
+    setGroup((prev) =>
+      prev
+        ? { ...prev, members: prev.members.map((m) => (m.user.id === currentUser?.id ? { ...m, muted: next } : m)) }
+        : prev
+    );
+    try {
+      await setGroupMuted(group.id, next);
+    } catch {
+      setGroup((prev) =>
+        prev
+          ? {
+              ...prev,
+              members: prev.members.map((m) => (m.user.id === currentUser?.id ? { ...m, muted: !next } : m)),
+            }
+          : prev
+      );
+    } finally {
+      setMuteBusy(false);
+    }
+  }
 
   async function onConfirmDelete() {
     if (!group) return;
@@ -234,6 +281,25 @@ export default function GroupInfoScreen() {
                   <Text style={styles.addText}>Add participant</Text>
                 </Pressable>
               )}
+
+              <View style={styles.muteRow}>
+                <View style={styles.muteLabelWrap}>
+                  <View style={styles.muteIconWrap}>
+                    <Ionicons
+                      name={myMembership?.muted ? "notifications-off-outline" : "notifications-outline"}
+                      size={18}
+                      color={colors.text}
+                    />
+                  </View>
+                  <Text style={styles.muteText}>Mute notifications</Text>
+                </View>
+                <Switch
+                  value={myMembership?.muted ?? false}
+                  onValueChange={onToggleMute}
+                  disabled={muteBusy}
+                  trackColor={{ true: colors.primary }}
+                />
+              </View>
 
               <Text style={styles.sectionTitle}>{group.members.length} Members</Text>
             </View>
