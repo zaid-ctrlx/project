@@ -25,6 +25,36 @@ function groupPreview(item: Extract<ConversationSummary, { type: "group" }>, cur
   return `${sender}: ${item.last_message}`;
 }
 
+// Small pill row under the search field, WhatsApp-style (see its own "All /
+// Unread / Favourites / Groups" chips) — persistently visible rather than
+// hidden-until-you-scroll-up, which is simpler and matches how those chips
+// actually rest by default (scrolling them off/back on is just normal
+// ScrollView behavior over there, not a distinct reveal mechanic).
+type FilterKey = "all" | "dm" | "group" | "community";
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "dm", label: "DMs" },
+  { key: "group", label: "Groups" },
+  { key: "community", label: "Communities" },
+];
+
+function matchesFilter(item: ConversationSummary, filter: FilterKey): boolean {
+  if (filter === "all") return true;
+  if (filter === "dm") return item.type === "dm";
+  if (filter === "group") return item.type === "group" && !item.is_community;
+  return item.type === "group" && item.is_community;
+}
+
+// Distinguishes "you have no conversations at all" from "none matching this
+// filter" — the latter shouldn't tell someone with plenty of DMs to go
+// "start a conversation" just because they tapped Groups.
+const FILTER_EMPTY_TITLES: Record<FilterKey, string> = {
+  all: "No messages yet",
+  dm: "No direct messages",
+  group: "No group chats",
+  community: "No communities",
+};
+
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
@@ -44,6 +74,7 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: {
@@ -54,6 +85,19 @@ export default function MessagesScreen() {
     },
     title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
     searchFieldWrap: { marginBottom: spacing.md },
+    filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+    chip: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipPressed: { opacity: 0.7 },
+    chipText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+    chipTextActive: { color: colors.primaryText },
     spinner: { marginTop: spacing.xl },
     list: { paddingBottom: spacing.xl },
     row: {
@@ -224,6 +268,10 @@ export default function MessagesScreen() {
   }
 
   const hasUnread = conversations.some((c) => c.unread_count > 0);
+  const filteredConversations = conversations.filter((c) => matchesFilter(c, filter));
+  const emptyTitle = conversations.length === 0 ? "No messages yet" : FILTER_EMPTY_TITLES[filter];
+  const emptyBody =
+    conversations.length === 0 ? (error ?? "Search above to start a conversation.") : (error ?? "Nothing matches this filter yet.");
 
   // Reuses MessagingContext's per-thread markRead/markGroupRead (each
   // handles its backend call and the shared tab-badge decrement together)
@@ -258,11 +306,23 @@ export default function MessagesScreen() {
         </View>
       </Pressable>
 
+      <View style={styles.filterRow}>
+        {FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            onPress={() => setFilter(f.key)}
+            style={({ pressed }) => [styles.chip, filter === f.key && styles.chipActive, pressed && styles.chipPressed]}
+          >
+            <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       {loading ? (
         <ActivityIndicator style={styles.spinner} />
       ) : (
         <FlatList
-          data={conversations}
+          data={filteredConversations}
           keyExtractor={(item) => (item.type === "dm" ? `dm-${item.other_user.id}` : `group-${item.group_id}`)}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -327,8 +387,8 @@ export default function MessagesScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No messages yet</Text>
-              <Text style={styles.emptyBody}>{error ?? "Search above to start a conversation."}</Text>
+              <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+              <Text style={styles.emptyBody}>{emptyBody}</Text>
             </View>
           }
         />

@@ -242,7 +242,7 @@ export default function GroupInfoScreen() {
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Group Info</Text>
+        <Text style={styles.headerTitle}>{group?.is_community ? "Community Info" : "Group Info"}</Text>
         <View style={styles.headerSpacer} />
       </View>
 

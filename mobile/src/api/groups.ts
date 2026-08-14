@@ -18,6 +18,10 @@ export type ChatGroup = {
   creator_id: string;
   created_at: string;
   members: GroupMember[];
+  // Whether this group backs a community rather than being a plain
+  // user-created group chat — lets GroupInfoScreen label itself
+  // "Community Info" vs "Group Info".
+  is_community: boolean;
 };
 
 export type GroupMessage = {

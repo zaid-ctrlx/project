@@ -10,6 +10,7 @@ from app.core.security import decode_token
 from app.core.ws_manager import manager
 from app.db.session import SessionLocal, get_db
 from app.models.block import UserBlock
+from app.models.event import Event
 from app.models.group import ChatGroup, GroupMember, GroupMessage
 from app.models.message import DmClear, DmMute, Message
 from app.models.user import User
@@ -175,6 +176,17 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
         return []
     group_ids = [row.GroupMember.group_id for row in memberships]
 
+    # Which of my groups back a community rather than being a plain
+    # user-created group chat — one small batched query, same "two small
+    # readable queries" reasoning as sender_usernames/member_counts below.
+    # Lets the mobile client filter Messages by DMs/Groups/Communities (see
+    # ConversationOut.is_community).
+    community_group_ids = set(
+        db.scalars(
+            select(Event.group_id).where(Event.group_id.in_(group_ids), Event.kind == "community")
+        ).all()
+    )
+
     # Reused in both queries below — each needs *my* membership row
     # (cleared_at / last_read_at) joined back in per group message. Safe to
     # reuse the same aliased() construct across two separate select()s;
@@ -251,6 +263,7 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
                 group_id=group.id,
                 group_name=group.name,
                 group_avatar_url=group.avatar_url,
+                is_community=group.id in community_group_ids,
                 member_count=member_counts.get(group.id, 0),
                 last_message=latest.body if latest else "",
                 # No messages yet: sort by group creation so a brand-new,

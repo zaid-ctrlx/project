@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.notify import notify_user
 from app.core.ws_manager import manager
 from app.db.session import get_db
+from app.models.event import Event
 from app.models.group import ChatGroup, GroupMember, GroupMessage
 from app.models.user import User
 from app.schemas.group import (
@@ -44,6 +45,10 @@ def _load_group(db: Session, group_id: uuid.UUID) -> ChatGroup:
     ).scalar_one_or_none()
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    # Non-mapped attribute — see ChatGroupOut.is_community's docstring.
+    group.is_community = db.execute(
+        select(exists().where(Event.group_id == group.id, Event.kind == "community"))
+    ).scalar_one()
     return group
 
 
