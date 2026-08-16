@@ -134,4 +134,9 @@ class EventOut(BaseModel):
     # Communities only — always False/0 for kind="event" (no group_id).
     is_joined: bool
     member_count: int
+    # Events only — RSVP ("I'm going"), the events analogue of is_joined/
+    # member_count above. Always False/0 for kind="community" (see
+    # app/models/event.py's event_rsvps comment).
+    is_rsvped: bool
+    attendee_count: int
     created_at: datetime

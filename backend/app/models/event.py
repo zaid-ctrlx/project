@@ -20,6 +20,23 @@ event_bookmarks = Table(
     Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
 )
 
+# M2M: which users have RSVP'd ("I'm going") to which events — kind="event"
+# only (communities use group membership as their attendance-equivalent
+# signal, see Event.group_id). Same shape/access pattern as event_bookmarks
+# above: queried/mutated directly via this Table in app/api/routes/events.py,
+# is_rsvped/attendee_count computed per-request rather than an ORM
+# relationship. created_at doubles as the RSVP timestamp for later use as the
+# recommender's "past attendance" signal (an RSVP row where the linked
+# event's starts_at has passed) — there's no separate check-in mechanism in
+# this app, so RSVP'd is the closest available proxy for attended.
+event_rsvps = Table(
+    "event_rsvps",
+    Base.metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("event_id", UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
+)
+
 
 class Event(Base):
     __tablename__ = "events"

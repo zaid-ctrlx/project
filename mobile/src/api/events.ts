@@ -77,6 +77,11 @@ export type Event = {
   // linked group (see group_id above). Always false/0 for kind="event".
   is_joined: boolean;
   member_count: number;
+  // Events only — RSVP ("I'm going"), the events analogue of is_joined/
+  // member_count above. Always false/0 for kind="community" (see backend
+  // app/models/event.py's event_rsvps comment).
+  is_rsvped: boolean;
+  attendee_count: number;
   created_at: string;
 };
 
@@ -166,4 +171,24 @@ export function joinCommunity(id: string): Promise<Event> {
 
 export function leaveCommunity(id: string): Promise<Event> {
   return api.authed(`/events/${id}/join`, { method: "DELETE" });
+}
+
+// Event only (400 otherwise server-side) — "I'm going". Idempotent, same
+// shape as bookmarkEvent/unbookmarkEvent. Returns the updated event
+// (is_rsvped/attendee_count refreshed) so the caller can swap it in
+// directly, same pattern as joinCommunity/leaveCommunity.
+export function rsvpEvent(id: string): Promise<Event> {
+  return api.authed(`/events/${id}/rsvp`, { method: "POST" });
+}
+
+export function cancelRsvp(id: string): Promise<Event> {
+  return api.authed(`/events/${id}/rsvp`, { method: "DELETE" });
+}
+
+// Creator-only server-side (403 otherwise), event-only (400 for a
+// community — communities use GroupInfo's member list instead). The
+// attendee list itself, not just the count — organizer-facing, unlike
+// attendee_count on Event which is public. Ordered most-recent-RSVP-first.
+export function listEventAttendees(id: string): Promise<EventCreator[]> {
+  return api.authed(`/events/${id}/attendees`);
 }
