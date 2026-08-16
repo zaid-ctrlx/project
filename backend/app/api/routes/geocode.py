@@ -45,7 +45,12 @@ async def reverse_geocode(
 
 @router.get("/search", response_model=list[GeocodeResult])
 async def search_location(q: str = Query(..., min_length=1, max_length=200)) -> list[GeocodeResult]:
-    params = {"format": "jsonv2", "q": q, "limit": 5, "addressdetails": 1, "accept-language": "en"}
+    # India-only app — countrycodes restricts Nominatim's results to India
+    # so searching "Springfield" or "Paris" doesn't surface international
+    # matches. Doesn't touch /reverse below: that's driven by GPS
+    # coordinates the device already reports, which in practice are always
+    # within India for this app's real users.
+    params = {"format": "jsonv2", "q": q, "limit": 5, "addressdetails": 1, "accept-language": "en", "countrycodes": "in"}
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(f"{NOMINATIM_BASE}/search", params=params, headers=HEADERS)
