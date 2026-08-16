@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.event import Event, event_bookmarks
+from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import ChatGroup, GroupMember
 from app.models.user import User
-from app.schemas.event import EVENT_KIND_OPTIONS, JOIN_POLICY_OPTIONS, EventCreate, EventOut
+from app.schemas.event import EVENT_KIND_OPTIONS, JOIN_POLICY_OPTIONS, EventCreate, EventCreatorOut, EventOut
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -46,11 +46,24 @@ def _with_join_flags(stmt, current_user_id: uuid.UUID):
     )
 
 
+def _with_rsvp_flags(stmt, current_user_id: uuid.UUID):
+    """Adds is_rsvped/attendee_count columns, same "compute in the query"
+    approach as _with_bookmark_flag/_with_join_flags. event_rsvps rows only
+    ever exist for kind="event" rows (rsvp_event/cancel_rsvp guard on that),
+    so these naturally evaluate to False/0 for kind="community" without a
+    kind check here."""
+    return stmt.add_columns(
+        exists().where(event_rsvps.c.event_id == Event.id, event_rsvps.c.user_id == current_user_id),
+        select(func.count()).select_from(event_rsvps).where(event_rsvps.c.event_id == Event.id).scalar_subquery(),
+    )
+
+
 def _set_event_flags(db: Session, event: Event, current_user_id: uuid.UUID) -> None:
-    """Sets is_bookmarked/is_joined/member_count on an already-persisted
-    event for the single-row endpoints (these aren't mapped columns — see
-    the comment on EventOut). List endpoints compute the same three via
-    _with_bookmark_flag/_with_join_flags instead, in the query itself."""
+    """Sets is_bookmarked/is_joined/member_count/is_rsvped/attendee_count on
+    an already-persisted event for the single-row endpoints (these aren't
+    mapped columns — see the comment on EventOut). List endpoints compute
+    the same via _with_bookmark_flag/_with_join_flags/_with_rsvp_flags
+    instead, in the query itself."""
     event.is_bookmarked = db.execute(
         select(exists().where(event_bookmarks.c.event_id == event.id, event_bookmarks.c.user_id == current_user_id))
     ).scalar_one()
@@ -64,6 +77,12 @@ def _set_event_flags(db: Session, event: Event, current_user_id: uuid.UUID) -> N
         event.member_count = db.execute(
             select(func.count()).select_from(GroupMember).where(GroupMember.group_id == event.group_id)
         ).scalar_one()
+    event.is_rsvped = db.execute(
+        select(exists().where(event_rsvps.c.event_id == event.id, event_rsvps.c.user_id == current_user_id))
+    ).scalar_one()
+    event.attendee_count = db.execute(
+        select(func.count()).select_from(event_rsvps).where(event_rsvps.c.event_id == event.id)
+    ).scalar_one()
 
 
 def _create_community_group(db: Session, title: str, creator_id: uuid.UUID) -> uuid.UUID:
@@ -144,13 +163,16 @@ def list_events(
     if join_policy:
         stmt = stmt.where(Event.join_policy == join_policy)
     stmt = _with_bookmark_flag(stmt, current_user.id)
-    stmt = _with_join_flags(stmt, current_user.id).order_by(Event.created_at.desc()).limit(limit).offset(offset)
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id).order_by(Event.created_at.desc()).limit(limit).offset(offset)
 
     events: list[Event] = []
-    for event, bookmarked, joined, member_count in db.execute(stmt).all():
+    for event, bookmarked, joined, member_count, rsvped, attendee_count in db.execute(stmt).all():
         event.is_bookmarked = bookmarked
         event.is_joined = joined
         event.member_count = member_count
+        event.is_rsvped = rsvped
+        event.attendee_count = attendee_count
         events.append(event)
     return events
 
@@ -169,13 +191,16 @@ def list_bookmarked_events(
         .join(event_bookmarks, event_bookmarks.c.event_id == Event.id)
         .where(event_bookmarks.c.user_id == current_user.id)
     )
-    stmt = _with_join_flags(stmt, current_user.id).order_by(Event.created_at.desc())
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id).order_by(Event.created_at.desc())
 
     events: list[Event] = []
-    for event, joined, member_count in db.execute(stmt).all():
+    for event, joined, member_count, rsvped, attendee_count in db.execute(stmt).all():
         event.is_bookmarked = True  # guaranteed by the join above
         event.is_joined = joined
         event.member_count = member_count
+        event.is_rsvped = rsvped
+        event.attendee_count = attendee_count
         events.append(event)
     return events
 
@@ -187,13 +212,16 @@ def list_my_events(
 ) -> list[Event]:
     stmt = select(Event).options(selectinload(Event.creator)).where(Event.creator_id == current_user.id)
     stmt = _with_bookmark_flag(stmt, current_user.id)
-    stmt = _with_join_flags(stmt, current_user.id).order_by(Event.created_at.desc())
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id).order_by(Event.created_at.desc())
 
     events: list[Event] = []
-    for event, bookmarked, joined, member_count in db.execute(stmt).all():
+    for event, bookmarked, joined, member_count, rsvped, attendee_count in db.execute(stmt).all():
         event.is_bookmarked = bookmarked
         event.is_joined = joined
         event.member_count = member_count
+        event.is_rsvped = rsvped
+        event.attendee_count = attendee_count
         events.append(event)
     return events
 
@@ -213,6 +241,17 @@ def _get_community(db: Session, event_id: uuid.UUID) -> Event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     if event.kind != "community":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only communities can be joined")
+    return event
+
+
+def _get_rsvpable_event(db: Session, event_id: uuid.UUID) -> Event:
+    """Mirrors _get_community's guard, inverted — RSVP is the events
+    equivalent of community join, so it's rejected the other way round."""
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    if event.kind != "event":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only events can be RSVP'd to")
     return event
 
 
@@ -398,6 +437,69 @@ def leave_community(
             delete(GroupMember).where(GroupMember.group_id == event.group_id, GroupMember.user_id == current_user.id)
         )
         db.commit()
+
+    _set_event_flags(db, event, current_user.id)
+    return event
+
+
+@router.get("/{event_id}/attendees", response_model=list[EventCreatorOut])
+def list_event_attendees(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[User]:
+    """Creator-only, mirrors GET /groups/{id} being members-only for a plain
+    group — the attendee list is organizer-facing info, not public (unlike
+    attendee_count on EventOut, which is). Reuses _get_own_event's 403 (not
+    404, matches every other creator-only event endpoint) rather than
+    _get_rsvpable_event's kind check, then layers the kind check on top since
+    "not an event" and "not yours" are different failures here."""
+    event = _get_own_event(db, event_id, current_user)
+    if event.kind != "event":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only events have attendees")
+
+    stmt = (
+        select(User)
+        .join(event_rsvps, event_rsvps.c.user_id == User.id)
+        .where(event_rsvps.c.event_id == event_id)
+        .order_by(event_rsvps.c.created_at.desc())
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+@router.post("/{event_id}/rsvp", response_model=EventOut)
+def rsvp_event(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Event:
+    """"I'm going" — the events analogue of join_community. Idempotent same
+    as bookmark_event; no capacity limit or past-event guard for this pass
+    (RSVP'ing to something already started is harmless, just meaningless)."""
+    event = _get_rsvpable_event(db, event_id)
+
+    already = db.execute(
+        select(event_rsvps).where(event_rsvps.c.event_id == event_id, event_rsvps.c.user_id == current_user.id)
+    ).first()
+    if already is None:
+        db.execute(event_rsvps.insert().values(event_id=event_id, user_id=current_user.id))
+        db.commit()
+
+    _set_event_flags(db, event, current_user.id)
+    return event
+
+
+@router.delete("/{event_id}/rsvp", response_model=EventOut)
+def cancel_rsvp(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Event:
+    event = _get_rsvpable_event(db, event_id)
+    db.execute(
+        event_rsvps.delete().where(event_rsvps.c.event_id == event_id, event_rsvps.c.user_id == current_user.id)
+    )
+    db.commit()
 
     _set_event_flags(db, event, current_user.id)
     return event

@@ -14,6 +14,7 @@ import CreatePostScreen from "../screens/CreatePostScreen";
 import DeleteAccountScreen from "../screens/DeleteAccountScreen";
 import DmInfoScreen from "../screens/DmInfoScreen";
 import EditEventScreen from "../screens/EditEventScreen";
+import EventAttendeesScreen from "../screens/EventAttendeesScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
 import GroupInfoScreen from "../screens/GroupInfoScreen";
@@ -72,6 +73,12 @@ export type AppStackParamList = {
   // Pushed from My Posts' Edit action — full event, not just an id, same
   // reasoning as EventDetail (already fetched, no round trip needed).
   EditEvent: { event: Event };
+  // Creator-only "Manage event" on EventDetailScreen — the events analogue
+  // of GroupInfo's member list. eventTitle (not the full Event) is enough
+  // for the header; the attendee list itself is fetched fresh here rather
+  // than passed through, unlike EventDetail/EditEvent, since it can go
+  // stale the moment someone RSVPs/cancels after this screen was opened.
+  EventAttendees: { eventId: string; eventTitle: string };
   CreateGroup: undefined;
   // unreadCount is optional — passed by MessagesScreen (which already knows
   // it from the conversation list) so the tab badge can be decremented by
@@ -110,6 +117,7 @@ export default function AppStack() {
       <Stack.Screen name="MessageSearch" component={MessageSearchScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
+      <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="GroupChat" component={GroupChatScreen} />
       <Stack.Screen name="AddGroupMember" component={AddGroupMemberScreen} />
