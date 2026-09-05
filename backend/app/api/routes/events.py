@@ -3,16 +3,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete, exists, func, or_, select
+from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.geo import ENABLED_REGIONS
 from app.db.session import get_db
 from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import ChatGroup, GroupMember
 from app.models.user import User
 from app.schemas.event import EVENT_KIND_OPTIONS, JOIN_POLICY_OPTIONS, EventCreate, EventCreatorOut, EventOut
+from app.schemas.map import MapItemOut
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -224,6 +226,97 @@ def list_my_events(
         event.attendee_count = attendee_count
         events.append(event)
     return events
+
+
+# Declared before GET /{event_id} below so "map" is never captured as an
+# event_id path parameter — same reasoning as /bookmarks and /mine above.
+@router.get("/map", response_model=list[MapItemOut])
+def list_map_items(
+    kind: EVENT_KIND_OPTIONS | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[MapItemOut]:
+    """Map-ready data for Discover's optional map view. Only ever returns
+    events/communities with a real physical location (never online events,
+    never bare user locations — there's no such thing exposed here at all)
+    and only those inside a currently-enabled geographic region (Karnataka
+    for now — see app/core/geo.py's ENABLED_REGIONS). The region filter is
+    applied in SQL as an OR of per-region bounding boxes so adding another
+    enabled region later is purely a config change, no query rewrite.
+    Visibility otherwise matches plain GET /events — there's no separate
+    private/restricted concept for events or communities in this app today.
+    """
+    region_filters = [
+        and_(
+            Event.location_lat >= region["min_lat"],
+            Event.location_lat <= region["max_lat"],
+            Event.location_lng >= region["min_lng"],
+            Event.location_lng <= region["max_lng"],
+        )
+        for region in ENABLED_REGIONS.values()
+    ]
+    stmt = select(Event).where(
+        Event.is_online.is_(False),
+        Event.location_lat.is_not(None),
+        Event.location_lng.is_not(None),
+        or_(*region_filters),
+    )
+    if kind:
+        stmt = stmt.where(Event.kind == kind)
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id)
+
+    items: list[MapItemOut] = []
+    for event, _joined, member_count, _rsvped, attendee_count in db.execute(stmt).all():
+        items.append(
+            MapItemOut(
+                id=event.id,
+                type=event.kind,
+                name=event.title,
+                latitude=event.location_lat,
+                longitude=event.location_lng,
+                location_name=event.location_label,
+                # Short preview only — the full description is available via
+                # the event/community detail screen after "View Event"/
+                # "View Community".
+                description=(event.description[:160] if event.description else None),
+                start_date=event.starts_at,
+                category=event.activity_type,
+                attendee_count=attendee_count if event.kind == "event" else None,
+                member_count=member_count if event.kind == "community" else None,
+            )
+        )
+    return items
+
+
+# Declared after /map, /bookmarks, /mine (all literal paths) so none of them
+# is ever captured as an event_id path parameter here.
+@router.get("/{event_id}", response_model=EventOut)
+def get_event(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Event:
+    """Single-event fetch by id — added for the Discover map's marker preview
+    (which only holds MapItemOut's slim shape, see GET /events/map) to load
+    the full Event before navigating to EventDetail/CommunityProfile.
+    Otherwise unused: every other screen that needs a full Event already has
+    one from the list it was opened from and passes it through nav params.
+    """
+    stmt = select(Event).options(selectinload(Event.creator)).where(Event.id == event_id)
+    stmt = _with_bookmark_flag(stmt, current_user.id)
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id)
+    row = db.execute(stmt).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    event, bookmarked, joined, member_count, rsvped, attendee_count = row
+    event.is_bookmarked = bookmarked
+    event.is_joined = joined
+    event.member_count = member_count
+    event.is_rsvped = rsvped
+    event.attendee_count = attendee_count
+    return event
 
 
 def _get_own_event(db: Session, event_id: uuid.UUID, current_user: User) -> Event:
