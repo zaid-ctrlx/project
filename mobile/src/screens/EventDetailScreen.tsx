@@ -31,9 +31,12 @@ function formatDateTime(iso: string): string {
 
 // Receives the event object straight from the list it was opened from
 // (Discover/Bookmarks already fetched it fresh) rather than refetching by
-// id — there's no GET /events/{id} endpoint, and this data is seconds old.
-// Bookmark toggles here are local to this screen; the originating list
-// picks up the change next time it remounts, same as everywhere else.
+// id — this data is seconds old. A GET /events/{id} endpoint does exist
+// (added for the Discover map's marker preview, see api/events.ts's
+// getEvent), but there's no reason for this screen to use it when it
+// already has a fresh Event in hand. Bookmark toggles here are local to this
+// screen; the originating list picks up the change next time it remounts,
+// same as everywhere else.
 export default function EventDetailScreen() {
   const { event: initialEvent } = useRoute<RouteProp<AppStackParamList, "EventDetail">>().params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();

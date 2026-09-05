@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.geo import enabled_region_labels, is_within_enabled_region
+
 # "event" (one-time, needs starts_at) or "community" (repeating, needs
 # frequency instead) — see the comment on app/models/event.py's Event.kind.
 EVENT_KIND_OPTIONS = Literal["event", "community"]
@@ -105,6 +107,16 @@ class EventCreate(BaseModel):
                 raise ValueError("activity_type does not apply to communities")
             if self.location_lat is None or self.location_lng is None or not self.location_label:
                 raise ValueError("location is required for communities")
+
+        # Geographic scope check — applies to any physical (non-online)
+        # location on either kind. Initial rollout is Karnataka-only (see
+        # app/core/geo.py); enabling more states later needs no change here,
+        # only to ENABLED_REGIONS itself. Skipped when location_lat/lng are
+        # None (online events), already validated above.
+        if self.location_lat is not None and self.location_lng is not None:
+            if not is_within_enabled_region(self.location_lat, self.location_lng):
+                allowed = ", ".join(enabled_region_labels())
+                raise ValueError(f"Location must be within a supported region ({allowed}). Please choose a closer match.")
         return self
 
 

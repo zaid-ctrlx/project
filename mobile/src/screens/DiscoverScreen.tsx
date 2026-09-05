@@ -5,9 +5,11 @@ import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, Sc
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, EventKind, joinCommunity, leaveCommunity, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, EventKind, getEvent, joinCommunity, leaveCommunity, listEvents, unbookmarkEvent } from "../api/events";
+import { listMapItems, MapItem } from "../api/map";
 import { searchUsers, UserSearchResult } from "../api/profile";
 import EventCard from "../components/EventCard";
+import DiscoverMapView from "../components/DiscoverMapView";
 import SearchField from "../components/SearchField";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
@@ -67,6 +69,12 @@ export default function DiscoverScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [joinBusyIds, setJoinBusyIds] = useState<Set<string>>(new Set());
+  const [mapMode, setMapMode] = useState(false);
+  const [mapItems, setMapItems] = useState<MapItem[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [selectedMapItem, setSelectedMapItem] = useState<MapItem | null>(null);
+  const [mapViewBusy, setMapViewBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -76,6 +84,8 @@ export default function DiscoverScreen() {
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: { marginBottom: spacing.lg },
     title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
+    mapToggle: { alignSelf: "flex-end", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginTop: spacing.sm },
+    mapToggleText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: "600" },
     tabBar: { flexDirection: "row", marginTop: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     tab: { flex: 1, alignItems: "center", paddingBottom: spacing.md },
     tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textFaint },
@@ -157,6 +167,34 @@ export default function DiscoverScreen() {
       load(query);
     }, [load, query])
   );
+
+  const loadMap = useCallback(() => {
+    if (!mapMode) return Promise.resolve();
+    let active = true;
+    setMapLoading(true);
+    setMapError(null);
+    return listMapItems()
+      .then((items) => { if (active) setMapItems(items); })
+      .catch(() => { if (active) setMapError("Couldn’t load map posts. Check your connection and try again."); })
+      .finally(() => { if (active) setMapLoading(false); });
+  }, [mapMode]);
+
+  useEffect(() => {
+    loadMap();
+  }, [loadMap]);
+
+  async function openMapItem(item: MapItem) {
+    setMapViewBusy(true);
+    try {
+      const event = await getEvent(item.id);
+      openEventDetail(navigation, event);
+      setSelectedMapItem(null);
+    } catch {
+      setMapError("Couldn’t open that post. It may have been removed.");
+    } finally {
+      setMapViewBusy(false);
+    }
+  }
 
   async function toggleBookmark(event: Event) {
     const next = !event.is_bookmarked;
@@ -323,6 +361,10 @@ export default function DiscoverScreen() {
 
       <SearchField placeholder="Search events, communities, accounts" value={query} onChangeText={setQuery} busy={loading} />
 
+      <Pressable onPress={() => setMapMode((value) => !value)} style={styles.mapToggle}>
+        <Text style={styles.mapToggleText}>{mapMode ? "List view" : "Map view"}</Text>
+      </Pressable>
+
       <View style={styles.tabBar}>
         {TABS.map((tab, index) => (
           <Pressable key={tab.key} style={styles.tab} onPress={() => goToTab(index)}>
@@ -332,7 +374,9 @@ export default function DiscoverScreen() {
         <Animated.View style={[styles.underline, { width: underlineWidth, transform: [{ translateX: underlineX }] }]} />
       </View>
 
-      <Animated.ScrollView
+      {mapMode ? (
+        <DiscoverMapView items={mapItems} loading={mapLoading} error={mapError} selected={selectedMapItem} onSelect={setSelectedMapItem} onClose={() => setSelectedMapItem(null)} onView={openMapItem} busy={mapViewBusy} />
+      ) : <Animated.ScrollView
         ref={pagerRef}
         horizontal
         pagingEnabled
@@ -365,7 +409,7 @@ export default function DiscoverScreen() {
 
         {eventPage(onlyEvents, "No events found.")}
         {eventPage(onlyCommunities, "No communities found.")}
-      </Animated.ScrollView>
+      </Animated.ScrollView>}
     </View>
   );
 }
