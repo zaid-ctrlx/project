@@ -120,6 +120,15 @@ export function listEvents(filters?: EventListFilters): Promise<Event[]> {
   return api.authed(`/events${params.length ? `?${params.join("&")}` : ""}`);
 }
 
+// Full-fidelity single-event fetch by id — added for the Discover map's
+// marker preview (which only has MapItem's slim shape, see api/map.ts) so
+// "View Event"/"View Community" can load the real Event before navigating
+// via openEventDetail. Every other screen already has a full Event from the
+// list it was opened from, so this isn't used elsewhere.
+export function getEvent(id: string): Promise<Event> {
+  return api.authed(`/events/${id}`);
+}
+
 export function listBookmarkedEvents(): Promise<Event[]> {
   return api.authed("/events/bookmarks");
 }
