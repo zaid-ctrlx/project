@@ -10,7 +10,9 @@ import { mediaUrl } from "../api/client";
 import { ActivityType, bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
 import EventCard from "../components/EventCard";
+import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
+import { FREQUENCY_LABELS } from "../constants/frequency";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
@@ -230,11 +232,19 @@ export default function HomeScreen() {
 
   const firstName = user?.full_name?.split(" ")[0] ?? user?.username;
 
-  function whenLabel(iso: string | null): string {
-    if (!iso) return "Open community";
-    const d = new Date(iso);
+  // Events show their date; communities (no date) show how often they meet.
+  function whenLabel(e: Event): string {
+    if (!e.starts_at) return e.frequency ? `Repeats ${FREQUENCY_LABELS[e.frequency].toLowerCase()}` : "Open community";
+    const d = new Date(e.starts_at);
     return `${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
   }
+
+  // Same kind cues as EventCard: orange + squared for events, teal + round
+  // for communities.
+  const fIsEvent = featured?.kind === "event";
+  const fAccent = fIsEvent ? colors.primary : colors.community;
+  const fSoft = fIsEvent ? colors.primarySoft : colors.communitySoft;
+  const fRadius = fIsEvent ? radius.sm : radius.pill;
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.sm }]}>
@@ -327,12 +337,13 @@ export default function HomeScreen() {
             </View>
 
             <Pressable style={styles.feature} onPress={() => openEventDetail(navigation, featured)}>
-              <View style={styles.featureMedia}>
+              <View style={[styles.featureMedia, { backgroundColor: fSoft }]}>
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, zIndex: 3, backgroundColor: fAccent }} />
                 {featured.cover_image_url ? (
                   <Image source={{ uri: mediaUrl(featured.cover_image_url)! }} style={styles.featureImage} resizeMode="cover" />
                 ) : (
                   <View style={[styles.featureImage, { alignItems: "center", justifyContent: "center", paddingBottom: spacing.xl }]}>
-                    <Ionicons name={featured.kind === "event" ? "calendar" : "people"} size={56} color={colors.primary} />
+                    <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={56} color={fAccent} />
                   </View>
                 )}
                 <LinearGradient
@@ -341,24 +352,45 @@ export default function HomeScreen() {
                   style={styles.featureImage}
                   pointerEvents="none"
                 />
+                <View
+                  style={{
+                    position: "absolute",
+                    top: spacing.md,
+                    left: spacing.md,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                    borderWidth: 1,
+                    borderColor: fAccent,
+                    borderRadius: fRadius,
+                    backgroundColor: colors.scrim,
+                    paddingVertical: 4,
+                    paddingHorizontal: spacing.md,
+                  }}
+                >
+                  <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={13} color={fAccent} />
+                  <Text style={{ color: fAccent, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" }}>
+                    {EVENT_KIND_LABELS[featured.kind]}
+                  </Text>
+                </View>
               </View>
               <View style={styles.featureBody}>
-                <View style={styles.featureWhen}>
-                  <Text style={styles.featureWhenText}>{whenLabel(featured.starts_at)}</Text>
+                <View style={[styles.featureWhen, { borderColor: fAccent, backgroundColor: fSoft, borderRadius: fRadius }]}>
+                  <Text style={[styles.featureWhenText, { color: fAccent }]}>{whenLabel(featured)}</Text>
                 </View>
                 <Text style={styles.featureTitle} numberOfLines={2}>
                   {featured.title}
                 </Text>
                 {featured.location_label ? (
                   <View style={styles.metaRow}>
-                    <Ionicons name="location" size={14} color={colors.primary} />
+                    <Ionicons name="location" size={14} color={fAccent} />
                     <Text style={styles.meta} numberOfLines={1}>
                       {featured.location_label}
                     </Text>
                   </View>
                 ) : null}
                 <View style={styles.goingBar}>
-                  <Text style={styles.going}>
+                  <Text style={[styles.going, { color: fIsEvent ? colors.success : colors.community }]}>
                     {featured.kind === "event"
                       ? `${featured.attendee_count} going`
                       : `${featured.member_count} member${featured.member_count === 1 ? "" : "s"}`}
