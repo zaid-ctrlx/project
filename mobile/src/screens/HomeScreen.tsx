@@ -5,20 +5,30 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { mediaUrl } from "../api/client";
 import { bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
 import CollapsibleHeader from "../components/CollapsibleHeader";
 import EventCard from "../components/EventCard";
-import LocationSheet from "../components/LocationSheet";
+import FiltersSheet from "../components/FiltersSheet";
 import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import {
+  activeFilterCount,
+  DEFAULT_FILTERS,
+  dayEnd,
+  dayStart,
+  FeedFilters,
+  formatDay,
+  loadFilters,
+  saveFilters,
+  SORT_LABELS,
+} from "../lib/feedFilters";
 import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
@@ -28,10 +38,9 @@ import { fontSize, radius, spacing } from "../theme";
 // FADE_IN_MS (150ms) so the icon is edge-on exactly when `mode` flips.
 const ICON_FLIP_MS = 300;
 
-// Home from the Huddle design: location pill (opens the change-location
-// sheet) + bell, a one-line time-of-day greeting, a featured card and the
-// rest of the feed, limited to the chosen search radius around the location
-// saved on the profile. Data is the real events list; a personalised
+// Home from the Huddle design: a Filters button (location + radius, sort,
+// date range — all combinable, see FiltersSheet) + bell, a one-line
+// time-of-day greeting, a featured card and the rest of the feed. Data is the real events list; a personalised
 // recommendation ranking is still to come (see project notes) — until then
 // this surfaces upcoming events soonest-first.
 export default function HomeScreen() {
@@ -46,7 +55,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  const [filters, setFilters] = useState<FeedFilters>(DEFAULT_FILTERS);
   // Greeting hides on scroll-down and returns on any upward scroll.
   const headerScroll = useScrollAwareHeader();
   const [unread, setUnread] = useState(0);
@@ -62,7 +71,7 @@ export default function HomeScreen() {
     },
     brand: { fontSize: fontSize.xl, fontWeight: "800", color: colors.primary, letterSpacing: -0.5 },
     headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    locationPill: {
+    filterButton: {
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.xs,
@@ -70,11 +79,38 @@ export default function HomeScreen() {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: radius.pill,
-      paddingVertical: 6,
+      paddingVertical: 7,
       paddingHorizontal: spacing.md,
-      maxWidth: 190,
+      marginRight: spacing.xs,
     },
-    locationText: { color: colors.text, fontSize: fontSize.sm, fontWeight: "600", flexShrink: 1 },
+    filterText: { color: colors.text, fontSize: fontSize.sm, fontWeight: "700" },
+    filterBadge: {
+      position: "absolute",
+      top: -6,
+      right: -4,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    filterBadgeText: { color: colors.primaryText, fontSize: 10, fontWeight: "800" },
+    activeChips: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+    activeChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      paddingVertical: 5,
+      paddingLeft: spacing.md,
+      paddingRight: spacing.sm,
+    },
+    activeChipText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: "700", maxWidth: 200 },
     iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
     badgeDot: {
       position: "absolute",
@@ -143,21 +179,12 @@ export default function HomeScreen() {
   }));
 
   useEffect(() => {
-    AsyncStorage.getItem("feed_radius_km")
-      .then((v) => {
-        if (v === null) return;
-        setRadiusKm(v === "any" ? null : Number(v));
-      })
-      .catch(() => {
-        // default (anywhere) is fine if storage is unavailable
-      });
+    loadFilters().then(setFilters);
   }, []);
 
-  function changeRadius(km: number | null) {
-    setRadiusKm(km);
-    AsyncStorage.setItem("feed_radius_km", km === null ? "any" : String(km)).catch(() => {
-      // preference just will not persist
-    });
+  function applyFilters(next: FeedFilters) {
+    setFilters(next);
+    saveFilters(next);
   }
 
   const load = useCallback(async () => {
@@ -202,34 +229,74 @@ export default function HomeScreen() {
   }
   const rotateY = flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
 
-  // Distance (km) from the chosen location per event; online / no-coordinate
-  // events have none and are never excluded by the radius.
+  // Where distances are measured from: the filter's location if set,
+  // otherwise the profile location.
+  const originLat = filters.location?.lat ?? user?.location_lat ?? null;
+  const originLng = filters.location?.lng ?? user?.location_lng ?? null;
+  const originLabel = filters.location?.label ?? user?.location_label ?? null;
+
+  // Distance (km) from the origin per event; online / no-coordinate events
+  // have none and are never excluded by the radius.
   const distances = useMemo(() => {
     const map = new Map<string, number>();
-    if (user?.location_lat == null || user?.location_lng == null) return map;
+    if (originLat == null || originLng == null) return map;
     events.forEach((e) => {
       if (!e.is_online && e.location_lat != null && e.location_lng != null) {
-        map.set(e.id, kmBetween(user.location_lat!, user.location_lng!, e.location_lat, e.location_lng));
+        map.set(e.id, kmBetween(originLat, originLng, e.location_lat, e.location_lng));
       }
     });
     return map;
-  }, [events, user?.location_lat, user?.location_lng]);
+  }, [events, originLat, originLng]);
 
-  const filtered = useMemo(
-    () => (radiusKm === null ? events : events.filter((e) => !distances.has(e.id) || distances.get(e.id)! <= radiusKm)),
-    [events, distances, radiusKm]
-  );
-  // Soonest upcoming event first (communities have no date, so they trail).
+  // All filters combine (AND). The date range applies to events only —
+  // communities have no date, so they are never excluded by it.
+  const filtered = useMemo(() => {
+    const fromT = filters.from ? dayStart(filters.from).getTime() : null;
+    const toT = filters.to ? dayEnd(filters.to).getTime() : null;
+    return events.filter((e) => {
+      if (filters.radiusKm !== null) {
+        const d = distances.get(e.id);
+        if (d !== undefined && d > filters.radiusKm) return false;
+      }
+      if ((fromT !== null || toT !== null) && e.kind === "event") {
+        if (!e.starts_at) return false;
+        const t = new Date(e.starts_at).getTime();
+        if (fromT !== null && t < fromT) return false;
+        if (toT !== null && t > toT) return false;
+      }
+      return true;
+    });
+  }, [events, distances, filters.radiusKm, filters.from, filters.to]);
+
   const ordered = useMemo(() => {
     const now = Date.now();
-    return [...filtered].sort((a, b) => {
-      const ta = a.starts_at ? new Date(a.starts_at).getTime() : Infinity;
-      const tb = b.starts_at ? new Date(b.starts_at).getTime() : Infinity;
-      const fa = ta < now ? Infinity : ta;
-      const fb = tb < now ? Infinity : tb;
-      return fa - fb;
-    });
-  }, [filtered]);
+    // Upcoming events soonest-first, then past ones (most recent first),
+    // then undated communities.
+    const soonest = (a: Event, b: Event) => {
+      const ta = a.starts_at ? new Date(a.starts_at).getTime() : null;
+      const tb = b.starts_at ? new Date(b.starts_at).getTime() : null;
+      const rank = (t: number | null) => (t === null ? 2 : t >= now ? 0 : 1);
+      const ra = rank(ta);
+      const rb = rank(tb);
+      if (ra !== rb) return ra - rb;
+      if (ra === 0) return ta! - tb!;
+      if (ra === 1) return tb! - ta!;
+      return 0;
+    };
+    const arr = [...filtered];
+    if (filters.sort === "nearest") {
+      arr.sort((a, b) => {
+        const da = distances.get(a.id) ?? Infinity;
+        const db = distances.get(b.id) ?? Infinity;
+        return da !== db ? da - db : soonest(a, b);
+      });
+    } else if (filters.sort === "recent") {
+      arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else {
+      arr.sort(soonest);
+    }
+    return arr;
+  }, [filtered, distances, filters.sort]);
   const featured = ordered.find((e) => e.kind === "event") ?? ordered[0];
   const rest = ordered.filter((e) => e.id !== featured?.id);
 
@@ -242,7 +309,52 @@ export default function HomeScreen() {
     if (hour < 17) return { lead: "Good afternoon, ", name };
     return { lead: "Good evening, ", name };
   })();
-  const cityLabel = user?.location_label ? user.location_label.split(",")[0] : "Set location";
+  const filterCount = activeFilterCount(filters);
+  const shortOrigin = originLabel ? originLabel.split(",")[0] : null;
+  const featuredHeading = filters.sort === "nearest" ? "Closest to you" : filters.sort === "recent" ? "Just added" : "Happening soon";
+
+  // Removable chips summarising the active filters (shown under the greeting).
+  const activeChips: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; clear: () => void }[] = [];
+  if (filters.location) {
+    activeChips.push({
+      key: "location",
+      label: filters.location.label.split(",")[0],
+      icon: "location",
+      clear: () => applyFilters({ ...filters, location: null }),
+    });
+  }
+  if (filters.radiusKm !== null) {
+    activeChips.push({
+      key: "radius",
+      label: `Within ${filters.radiusKm} km`,
+      icon: "radio-button-on",
+      clear: () => applyFilters({ ...filters, radiusKm: null }),
+    });
+  }
+  if (filters.from || filters.to) {
+    const range =
+      filters.from && filters.to
+        ? filters.from === filters.to
+          ? formatDay(filters.from)
+          : `${formatDay(filters.from)} – ${formatDay(filters.to)}`
+        : filters.from
+          ? `From ${formatDay(filters.from)}`
+          : `Until ${formatDay(filters.to!)}`;
+    activeChips.push({
+      key: "dates",
+      label: range,
+      icon: "calendar-outline",
+      clear: () => applyFilters({ ...filters, from: null, to: null }),
+    });
+  }
+  if (filters.sort !== "soonest") {
+    activeChips.push({
+      key: "sort",
+      label: SORT_LABELS[filters.sort],
+      icon: "swap-vertical",
+      clear: () => applyFilters({ ...filters, sort: "soonest" }),
+    });
+  }
 
   // Events show their date; communities (no date) show how often they meet.
   function whenLabel(e: Event): string {
@@ -266,15 +378,16 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => setSheetOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Change location"
-            style={({ pressed }) => [styles.locationPill, pressed && { opacity: 0.8 }]}
+            accessibilityLabel="Filters"
+            style={({ pressed }) => [styles.filterButton, pressed && { opacity: 0.8 }]}
           >
-            <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {cityLabel}
-              {radiusKm !== null ? ` · ${radiusKm} km` : ""}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+            <Ionicons name="options-outline" size={16} color={colors.text} />
+            <Text style={styles.filterText}>Filters</Text>
+            {filterCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{filterCount}</Text>
+              </View>
+            )}
           </Pressable>
           <Pressable onPress={handleToggleTheme} hitSlop={8} style={styles.iconButton}>
             <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY }] }}>
@@ -295,6 +408,19 @@ export default function HomeScreen() {
             <Text style={styles.greetingName}>{greeting.name}</Text>
           </Text>
         </View>
+        {activeChips.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeChips}>
+            {activeChips.map((chip) => (
+              <Pressable key={chip.key} onPress={chip.clear} style={styles.activeChip} accessibilityLabel={`Remove ${chip.label} filter`}>
+                <Ionicons name={chip.icon} size={13} color={colors.primary} />
+                <Text style={styles.activeChipText} numberOfLines={1}>
+                  {chip.label}
+                </Text>
+                <Ionicons name="close" size={14} color={colors.primary} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
       </CollapsibleHeader>
 
       <ScrollView
@@ -323,16 +449,21 @@ export default function HomeScreen() {
         ) : !featured ? (
           <View style={styles.empty}>
             <Ionicons name="sparkles-outline" size={40} color={colors.textFaint} />
-            <Text style={styles.emptyTitle}>{events.length > 0 ? "Nothing nearby" : "Nothing here yet"}</Text>
+            <Text style={styles.emptyTitle}>{events.length > 0 ? "No matches" : "Nothing here yet"}</Text>
             <Text style={styles.emptyBody}>
-              {events.length > 0 && radiusKm !== null
-                ? `No events or communities within ${radiusKm} km of ${cityLabel}. Try a wider radius or another location.`
+              {events.length > 0 && filterCount > 0
+                ? `Nothing fits your filters${filters.radiusKm !== null && shortOrigin ? ` within ${filters.radiusKm} km of ${shortOrigin}` : ""}. Try widening them.`
                 : "Be the first — tap Create to host an event or start a community."}
             </Text>
-            {events.length > 0 && radiusKm !== null && (
-              <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
-                <Text style={styles.sectionLink}>Change location or radius</Text>
-              </Pressable>
+            {events.length > 0 && filterCount > 0 && (
+              <View style={{ flexDirection: "row", gap: spacing.lg }}>
+                <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
+                  <Text style={styles.sectionLink}>Edit filters</Text>
+                </Pressable>
+                <Pressable onPress={() => applyFilters(DEFAULT_FILTERS)} hitSlop={8}>
+                  <Text style={styles.sectionLink}>Clear all</Text>
+                </Pressable>
+              </View>
             )}
           </View>
         ) : (
@@ -340,7 +471,7 @@ export default function HomeScreen() {
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="flame" size={20} color={colors.primary} />
-                <Text style={styles.sectionTitle}>Happening soon</Text>
+                <Text style={styles.sectionTitle}>{featuredHeading}</Text>
               </View>
               <Pressable onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })} hitSlop={8}>
                 <Text style={styles.sectionLink}>Explore ›</Text>
@@ -433,11 +564,11 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
-      <LocationSheet
+      <FiltersSheet
         visible={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        radiusKm={radiusKm}
-        onRadiusChange={changeRadius}
+        filters={filters}
+        onApply={applyFilters}
       />
     </View>
   );
