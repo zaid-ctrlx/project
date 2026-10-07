@@ -5,6 +5,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // here is a *feed-only* override — it never touches the profile location.
 export type FilterLocation = { label: string; lat: number; lng: number };
 export type SortKey = "soonest" | "nearest" | "recent";
+// Which kinds of posts to show: both, only events, or only communities.
+export type KindFilter = "all" | "event" | "community";
 
 export type FeedFilters = {
   // null = use the profile location as the origin.
@@ -15,9 +17,23 @@ export type FeedFilters = {
   from: string | null;
   to: string | null;
   sort: SortKey;
+  kind: KindFilter;
 };
 
-export const DEFAULT_FILTERS: FeedFilters = { location: null, radiusKm: null, from: null, to: null, sort: "soonest" };
+export const DEFAULT_FILTERS: FeedFilters = {
+  location: null,
+  radiusKm: null,
+  from: null,
+  to: null,
+  sort: "soonest",
+  kind: "all",
+};
+
+export const KIND_FILTER_LABELS: Record<KindFilter, string> = {
+  all: "Events & communities",
+  event: "Events only",
+  community: "Communities only",
+};
 
 export const SORT_LABELS: Record<SortKey, string> = {
   soonest: "Soonest",
@@ -54,6 +70,7 @@ export function activeFilterCount(f: FeedFilters): number {
   if (f.radiusKm !== null) n += 1;
   if (f.from || f.to) n += 1;
   if (f.sort !== "soonest") n += 1;
+  if (f.kind !== "all") n += 1;
   return n;
 }
 
@@ -90,6 +107,7 @@ export async function loadFilters(): Promise<FeedFilters> {
       from: typeof parsed.from === "string" ? parsed.from : null,
       to: typeof parsed.to === "string" ? parsed.to : null,
       sort: parsed.sort === "nearest" || parsed.sort === "recent" ? parsed.sort : "soonest",
+      kind: parsed.kind === "event" || parsed.kind === "community" ? parsed.kind : "all",
     };
   } catch {
     return DEFAULT_FILTERS;

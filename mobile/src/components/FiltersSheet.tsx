@@ -13,6 +13,8 @@ import {
   DEFAULT_FILTERS,
   FeedFilters,
   FilterLocation,
+  KIND_FILTER_LABELS,
+  KindFilter,
   formatDay,
   RADIUS_CHOICES,
   radiusLabel,
@@ -34,7 +36,7 @@ type Props = {
 };
 
 type SheetView = "main" | "search" | "map";
-type SectionKey = "location" | "radius" | "sort" | "date";
+type SectionKey = "type" | "location" | "radius" | "sort" | "date";
 
 function withinIndia(lat: number, lng: number): boolean {
   return (
@@ -229,6 +231,8 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
   const originLabel = draft.location?.label ?? profileLabel;
   const titles: Record<SheetView, string> = { main: "Filters", search: "Search for a place", map: "Pick on the map" };
   const sorts = Object.keys(SORT_LABELS) as SortKey[];
+  const kinds = Object.keys(KIND_FILTER_LABELS) as KindFilter[];
+  const kindChipLabels: Record<KindFilter, string> = { all: "All", event: "Events only", community: "Communities only" };
 
   const locationSummary = draft.location
     ? shortPlace(draft.location.label)
@@ -305,6 +309,25 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
           {view === "main" && (
             <>
               <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {renderSection(
+                  "type",
+                  "layers-outline",
+                  "Show",
+                  KIND_FILTER_LABELS[draft.kind],
+                  draft.kind !== "all",
+                  <View style={styles.chipRow}>
+                    {kinds.map((k) => (
+                      <Pressable
+                        key={k}
+                        onPress={() => setDraft((d) => ({ ...d, kind: k }))}
+                        style={[styles.chip, draft.kind === k && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, draft.kind === k && styles.chipTextActive]}>{kindChipLabels[k]}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
                 {renderSection(
                   "location",
                   "location",
@@ -414,7 +437,7 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
                         );
                       })}
                     </View>
-                    <Text style={styles.sectionNote}>Applies to events. Communities have no date, so they stay in the list.</Text>
+                    <Text style={styles.sectionNote}>Events match by their start date. Communities have no single date, so they match if they already existed by the end of the range.</Text>
                   </>
                 )}
               </ScrollView>

@@ -25,6 +25,7 @@ import {
   dayStart,
   FeedFilters,
   formatDay,
+  KIND_FILTER_LABELS,
   loadFilters,
   radiusChipLabel,
   saveFilters,
@@ -255,6 +256,7 @@ export default function HomeScreen() {
     const fromT = filters.from ? dayStart(filters.from).getTime() : null;
     const toT = filters.to ? dayEnd(filters.to).getTime() : null;
     return events.filter((e) => {
+      if (filters.kind !== "all" && e.kind !== filters.kind) return false;
       if (filters.radiusKm !== null) {
         const d = distances.get(e.id);
         if (d !== undefined && d > filters.radiusKm) return false;
@@ -264,10 +266,14 @@ export default function HomeScreen() {
         const t = new Date(e.starts_at).getTime();
         if (fromT !== null && t < fromT) return false;
         if (toT !== null && t > toT) return false;
+      } else if (toT !== null && e.kind === "community") {
+        // Communities have no single date: they match the range if they
+        // already existed by its end (they recur, so they are "active").
+        if (new Date(e.created_at).getTime() > toT) return false;
       }
       return true;
     });
-  }, [events, distances, filters.radiusKm, filters.from, filters.to]);
+  }, [events, distances, filters.kind, filters.radiusKm, filters.from, filters.to]);
 
   const ordered = useMemo(() => {
     const now = Date.now();
@@ -312,10 +318,25 @@ export default function HomeScreen() {
   })();
   const filterCount = activeFilterCount(filters);
   const shortOrigin = originLabel ? originLabel.split(",")[0] : null;
-  const featuredHeading = filters.sort === "nearest" ? "Closest to you" : filters.sort === "recent" ? "Just added" : "Happening soon";
+  const featuredHeading =
+    filters.sort === "nearest"
+      ? "Closest to you"
+      : filters.sort === "recent"
+        ? "Just added"
+        : filters.kind === "community"
+          ? "Communities"
+          : "Happening soon";
 
   // Removable chips summarising the active filters (shown under the greeting).
   const activeChips: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; clear: () => void }[] = [];
+  if (filters.kind !== "all") {
+    activeChips.push({
+      key: "kind",
+      label: KIND_FILTER_LABELS[filters.kind],
+      icon: filters.kind === "event" ? "calendar-outline" : "people-outline",
+      clear: () => applyFilters({ ...filters, kind: "all" }),
+    });
+  }
   if (filters.location) {
     activeChips.push({
       key: "location",

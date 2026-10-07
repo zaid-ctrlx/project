@@ -73,6 +73,14 @@ Scan the QR code with Expo Go.
   Native uses `react-native-maps` with clustering; web uses Leaflet/OSM.
   Event/community creation rejects locations outside the enabled regions.
 
+## Demo data
+
+`python -m scripts.seed_demo` (from `backend/`, venv active) adds four demo
+posts owned by a `@huddle_demo` host account — an event and a community in
+Mangaluru and in Bengaluru — handy for showing the Home filters (type,
+location, distance, sort, date range). Event dates are relative to the day it
+is run; re-run `--remove` then the seed to refresh them.
+
 ## Map notes
 
 - The map is empty until events/communities with a physical Karnataka
