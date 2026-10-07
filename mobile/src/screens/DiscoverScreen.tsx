@@ -27,9 +27,9 @@ import { fontSize, radius, spacing } from "../theme";
 type TabKey = "all" | "accounts" | "event" | "community";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "accounts", label: "Accounts" },
-  { key: "event", label: EVENT_KIND_LABELS.event },
-  { key: "community", label: EVENT_KIND_LABELS.community },
+  { key: "accounts", label: "People" },
+  { key: "event", label: "Events" },
+  { key: "community", label: "Communities" },
 ];
 
 function patchEventList(list: Event[], id: string, patch: Partial<Event>): Event[] {
@@ -82,21 +82,37 @@ export default function DiscoverScreen() {
   const pagerRef = useRef<ScrollView>(null);
 
   const { styles, colors } = useThemedStyles((colors) => ({
-    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-    header: { marginBottom: spacing.lg },
-    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-    segment: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, marginTop: spacing.md, borderWidth: 1, borderColor: colors.border },
-    segmentItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.sm, borderRadius: radius.sm },
-    segmentItemActive: { backgroundColor: colors.surfaceElevated },
-    segmentText: { color: colors.textMuted, fontSize: fontSize.base, fontWeight: "600" },
-    segmentTextActive: { color: colors.primary },
-    tabBar: { flexDirection: "row", marginTop: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    tab: { flex: 1, alignItems: "center", paddingBottom: spacing.md },
-    tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textFaint },
-    tabTextActive: { color: colors.text },
-    underline: { position: "absolute", bottom: -1, height: 2, backgroundColor: colors.text },
+    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
+    title: { fontSize: 30, fontWeight: "800", color: colors.text, letterSpacing: -0.8 },
+    subtitle: { fontSize: fontSize.base, color: colors.textMuted, marginTop: 2 },
+    mapButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    mapButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipsWrap: { marginTop: spacing.md, marginHorizontal: -spacing.lg },
+    chips: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+    chip: {
+      paddingVertical: 8,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: { backgroundColor: colors.text, borderColor: colors.text },
+    chipText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
+    chipTextActive: { color: colors.background },
+    mapWrap: { flex: 1, marginTop: spacing.md, marginBottom: spacing.md },
     pager: { flex: 1 },
-    page: { flex: 1, paddingTop: spacing.lg },
+    page: { flex: 1, paddingTop: spacing.md },
     spinner: { marginTop: spacing.xl },
     list: { paddingBottom: spacing.xl },
     empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
@@ -258,9 +274,6 @@ export default function DiscoverScreen() {
     if (index !== activeIndex) setActiveIndex(index);
   }
 
-  const underlineWidth = pageWidth / TABS.length;
-  const underlineX = scrollX.interpolate({ inputRange: [0, pageWidth], outputRange: [0, underlineWidth] });
-
   // Shared by the Accounts tab and the "All" tab's user rows (see allItems)
   // so the row markup exists in one place.
   function renderPersonRow(item: UserSearchResult) {
@@ -316,6 +329,7 @@ export default function DiscoverScreen() {
               if (item.kind === "user") return renderPersonRow(item.user);
               return (
                 <EventCard
+                  compact
                   event={item.event}
                   onPress={(event) => openEventDetail(navigation, event)}
                   onToggleBookmark={toggleBookmark}
@@ -346,6 +360,7 @@ export default function DiscoverScreen() {
             contentContainerStyle={styles.list}
             renderItem={({ item }) => (
               <EventCard
+                compact
                 event={item}
                 onPress={(event) => openEventDetail(navigation, event)}
                 onToggleBookmark={toggleBookmark}
@@ -364,43 +379,42 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
+        <View>
+          <Text style={styles.title}>Discover</Text>
+          <Text style={styles.subtitle}>Events & communities near you</Text>
+        </View>
+        <Pressable
+          onPress={() => setMapMode((value) => !value)}
+          accessibilityRole="button"
+          accessibilityLabel={mapMode ? "List view" : "View map"}
+          style={({ pressed }) => [styles.mapButton, mapMode && styles.mapButtonActive, pressed && { opacity: 0.8 }]}
+        >
+          <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
+        </Pressable>
       </View>
 
       <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
 
-      <View style={styles.segment}>
-        <Pressable
-          onPress={() => setMapMode(false)}
-          accessibilityRole="button"
-          accessibilityLabel="List view"
-          style={[styles.segmentItem, !mapMode && styles.segmentItemActive]}
-        >
-          <Ionicons name="list" size={18} color={!mapMode ? colors.primary : colors.textMuted} />
-          <Text style={[styles.segmentText, !mapMode && styles.segmentTextActive]}>List View</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMapMode(true)}
-          accessibilityRole="button"
-          accessibilityLabel="View map"
-          style={[styles.segmentItem, mapMode && styles.segmentItemActive]}
-        >
-          <Ionicons name="map" size={18} color={mapMode ? colors.primary : colors.textMuted} />
-          <Text style={[styles.segmentText, mapMode && styles.segmentTextActive]}>Map</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.tabBar}>
-        {TABS.map((tab, index) => (
-          <Pressable key={tab.key} style={styles.tab} onPress={() => goToTab(index)}>
-            <Text style={[styles.tabText, activeIndex === index && styles.tabTextActive]}>{tab.label}</Text>
-          </Pressable>
-        ))}
-        <Animated.View style={[styles.underline, { width: underlineWidth, transform: [{ translateX: underlineX }] }]} />
-      </View>
+      {!mapMode && (
+        <View style={styles.chipsWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {TABS.map((tab, index) => (
+              <Pressable
+                key={tab.key}
+                onPress={() => goToTab(index)}
+                style={[styles.chip, activeIndex === index && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, activeIndex === index && styles.chipTextActive]}>{tab.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {mapMode ? (
+        <View style={styles.mapWrap}>
         <DiscoverMapView items={mapItems} loading={mapLoading} error={mapError} selected={selectedMapItem} onSelect={setSelectedMapItem} onClose={() => setSelectedMapItem(null)} onView={openMapItem} busy={mapViewBusy} />
+        </View>
       ) : <Animated.ScrollView
         ref={pagerRef}
         horizontal
