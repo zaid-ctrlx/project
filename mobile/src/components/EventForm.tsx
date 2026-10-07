@@ -415,7 +415,7 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
             </Pressable>
           </View>
           {locationMode === "physical" && (
-            <LocationPicker initialLabel={initialEvent?.location_label} onChange={setLocation} />
+            <LocationPicker initialLabel={initialEvent?.location_label} onChange={setLocation} restrictToRegion />
           )}
 
           <Text style={styles.sectionTitle}>Category</Text>
@@ -430,7 +430,7 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
       ) : (
         <>
           <Text style={styles.sectionTitle}>Location / Area</Text>
-          <LocationPicker initialLabel={initialEvent?.location_label} onChange={setLocation} />
+          <LocationPicker initialLabel={initialEvent?.location_label} onChange={setLocation} restrictToRegion />
 
           <Select
             label="Recurring schedule"

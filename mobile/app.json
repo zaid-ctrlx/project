@@ -5,7 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#08090D",
     "ios": {
       "supportsTablet": true
     },
@@ -41,7 +42,8 @@
         {
           "googleMapsApiKey": ""
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

@@ -1,5 +1,6 @@
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +16,7 @@ import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
-import { fontSize, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 // Instagram search-style section bar: tap a heading or swipe between pages,
 // same idea as its For you/Accounts/Audio/Tags row. "All" is truly
@@ -84,8 +85,11 @@ export default function DiscoverScreen() {
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: { marginBottom: spacing.lg },
     title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-    mapToggle: { alignSelf: "flex-end", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginTop: spacing.sm },
-    mapToggleText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: "600" },
+    segment: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, marginTop: spacing.md, borderWidth: 1, borderColor: colors.border },
+    segmentItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.sm, borderRadius: radius.sm },
+    segmentItemActive: { backgroundColor: colors.surfaceElevated },
+    segmentText: { color: colors.textMuted, fontSize: fontSize.base, fontWeight: "600" },
+    segmentTextActive: { color: colors.primary },
     tabBar: { flexDirection: "row", marginTop: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     tab: { flex: 1, alignItems: "center", paddingBottom: spacing.md },
     tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textFaint },
@@ -168,12 +172,12 @@ export default function DiscoverScreen() {
     }, [load, query])
   );
 
-  const loadMap = useCallback(() => {
+  const loadMap = useCallback((force = false) => {
     if (!mapMode) return Promise.resolve();
     let active = true;
     setMapLoading(true);
     setMapError(null);
-    return listMapItems()
+    return listMapItems(undefined, force)
       .then((items) => { if (active) setMapItems(items); })
       .catch(() => { if (active) setMapError("Couldn’t load map posts. Check your connection and try again."); })
       .finally(() => { if (active) setMapLoading(false); });
@@ -182,6 +186,10 @@ export default function DiscoverScreen() {
   useEffect(() => {
     loadMap();
   }, [loadMap]);
+
+  // Event creation/edit invalidates nothing here by itself; refocusing the
+  // screen revalidates past the 60s cache window only, so unchanged data
+  // isn't refetched on every open.
 
   async function openMapItem(item: MapItem) {
     setMapViewBusy(true);
@@ -359,11 +367,28 @@ export default function DiscoverScreen() {
         <Text style={styles.title}>Discover</Text>
       </View>
 
-      <SearchField placeholder="Search events, communities, accounts" value={query} onChangeText={setQuery} busy={loading} />
+      <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
 
-      <Pressable onPress={() => setMapMode((value) => !value)} style={styles.mapToggle}>
-        <Text style={styles.mapToggleText}>{mapMode ? "List view" : "Map view"}</Text>
-      </Pressable>
+      <View style={styles.segment}>
+        <Pressable
+          onPress={() => setMapMode(false)}
+          accessibilityRole="button"
+          accessibilityLabel="List view"
+          style={[styles.segmentItem, !mapMode && styles.segmentItemActive]}
+        >
+          <Ionicons name="list" size={18} color={!mapMode ? colors.primary : colors.textMuted} />
+          <Text style={[styles.segmentText, !mapMode && styles.segmentTextActive]}>List View</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setMapMode(true)}
+          accessibilityRole="button"
+          accessibilityLabel="View map"
+          style={[styles.segmentItem, mapMode && styles.segmentItemActive]}
+        >
+          <Ionicons name="map" size={18} color={mapMode ? colors.primary : colors.textMuted} />
+          <Text style={[styles.segmentText, mapMode && styles.segmentTextActive]}>Map</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.tabBar}>
         {TABS.map((tab, index) => (

@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { ApiError } from "../api/client";
+import AuthShell from "../components/AuthShell";
 import Button from "../components/Button";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
@@ -20,11 +21,10 @@ export default function RegisterScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { styles } = useThemedStyles((colors) => ({
-    container: { flex: 1, justifyContent: "center", padding: spacing.xl, backgroundColor: colors.background },
-    title: { fontSize: fontSize.xxl, fontWeight: "700", marginBottom: spacing.xl, color: colors.text },
     field: { marginBottom: spacing.md },
     error: { color: colors.danger, marginBottom: spacing.md, fontSize: fontSize.base },
-    link: { color: colors.text, marginTop: spacing.lg, textAlign: "center", textDecorationLine: "underline" },
+    link: { color: colors.textMuted, marginTop: spacing.lg, textAlign: "center" },
+    linkAccent: { color: colors.primary, fontWeight: "700" },
   }));
 
   async function onSubmit() {
@@ -40,8 +40,7 @@ export default function RegisterScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create account</Text>
+    <AuthShell title="Create your account" subtitle="Join communities and events in your city.">
 
       <View style={styles.field}>
         <TextField placeholder="Full name (optional)" value={fullName} onChangeText={setFullName} />
@@ -71,8 +70,10 @@ export default function RegisterScreen({ navigation }: Props) {
       </View>
 
       <Pressable onPress={() => navigation.navigate("Login")} hitSlop={8}>
-        <Text style={styles.link}>Already have an account? Log in</Text>
+        <Text style={styles.link}>
+          Already have an account? <Text style={styles.linkAccent}>Log in</Text>
+        </Text>
       </Pressable>
-    </View>
+    </AuthShell>
   );
 }
