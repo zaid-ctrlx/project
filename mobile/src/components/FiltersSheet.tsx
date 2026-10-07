@@ -13,7 +13,9 @@ import {
   DEFAULT_FILTERS,
   FeedFilters,
   FilterLocation,
+  formatDay,
   RADIUS_CHOICES,
+  radiusLabel,
   SORT_LABELS,
   SortKey,
   toDayString,
@@ -32,6 +34,7 @@ type Props = {
 };
 
 type SheetView = "main" | "search" | "map";
+type SectionKey = "location" | "radius" | "sort" | "date";
 
 function withinIndia(lat: number, lng: number): boolean {
   return (
@@ -61,6 +64,8 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<FeedFilters>(filters);
   const [view, setView] = useState<SheetView>("main");
+  // Accordion: one filter's options visible at a time; all collapsed by default.
+  const [openSection, setOpenSection] = useState<SectionKey | null>(null);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<LocationValue | null>(null);
@@ -77,14 +82,23 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
       borderColor: colors.border,
       paddingTop: spacing.md,
       paddingHorizontal: spacing.lg,
-      height: "90%",
+      maxHeight: "90%",
     },
+    sheetTall: { height: "90%" },
     grabber: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.md },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
     headerLeft: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexShrink: 1 },
     title: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
     iconButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
-    scroll: { paddingBottom: spacing.lg },
+    scroll: { paddingBottom: spacing.md },
+    accCard: { borderRadius: radius.md, backgroundColor: colors.surfaceElevated, marginBottom: spacing.sm, overflow: "hidden" },
+    accHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md },
+    accIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+    accText: { flex: 1 },
+    accTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+    accSummary: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 1 },
+    accSummaryActive: { color: colors.primary, fontWeight: "600" },
+    accBody: { paddingHorizontal: spacing.md, paddingBottom: spacing.md },
     section: { marginBottom: spacing.xl },
     sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
     sectionTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
@@ -131,6 +145,7 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
     if (visible) {
       setDraft(filters);
       setView("main");
+      setOpenSection(null);
       setError(null);
       setPending(null);
       setPicked(null);
@@ -209,15 +224,69 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
   }
 
   const draftCount = activeFilterCount(draft);
+  const shortPlace = (label: string) => label.split(",")[0];
   const profileLabel = user?.location_label ?? null;
   const originLabel = draft.location?.label ?? profileLabel;
   const titles: Record<SheetView, string> = { main: "Filters", search: "Search for a place", map: "Pick on the map" };
   const sorts = Object.keys(SORT_LABELS) as SortKey[];
 
+  const locationSummary = draft.location
+    ? shortPlace(draft.location.label)
+    : originLabel
+      ? `${shortPlace(originLabel)} · my location`
+      : "Not set";
+  const dateSummary =
+    draft.from && draft.to
+      ? draft.from === draft.to
+        ? formatDay(draft.from)
+        : `${formatDay(draft.from)} – ${formatDay(draft.to)}`
+      : draft.from
+        ? `From ${formatDay(draft.from)}`
+        : draft.to
+          ? `Until ${formatDay(draft.to)}`
+          : "Any date";
+
+  // Collapsible filter row: icon + title + current value, options only when
+  // expanded. (A plain function returning JSX, not a component, so toggling
+  // never remounts the content inside.)
+  function renderSection(
+    key: SectionKey,
+    icon: keyof typeof Ionicons.glyphMap,
+    title: string,
+    summary: string,
+    modified: boolean,
+    body: React.ReactNode
+  ) {
+    const isOpen = openSection === key;
+    return (
+      <View style={styles.accCard}>
+        <Pressable
+          onPress={() => setOpenSection(isOpen ? null : key)}
+          style={styles.accHeader}
+          accessibilityRole="button"
+          accessibilityLabel={`${title}: ${summary}`}
+          accessibilityState={{ expanded: isOpen }}
+        >
+          <View style={styles.accIcon}>
+            <Ionicons name={icon} size={18} color={colors.primary} />
+          </View>
+          <View style={styles.accText}>
+            <Text style={styles.accTitle}>{title}</Text>
+            <Text style={[styles.accSummary, modified && styles.accSummaryActive]} numberOfLines={1}>
+              {summary}
+            </Text>
+          </View>
+          <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.textMuted} />
+        </Pressable>
+        {isOpen && <View style={styles.accBody}>{body}</View>}
+      </View>
+    );
+  }
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: spacing.md + insets.bottom }]} onPress={() => {}}>
+        <Pressable style={[styles.sheet, view === "map" && styles.sheetTall, { paddingBottom: spacing.md + insets.bottom }]} onPress={() => {}}>
           <View style={styles.grabber} />
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -235,76 +304,78 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
 
           {view === "main" && (
             <>
-              <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                {/* Location */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <Ionicons name="location" size={18} color={colors.primary} />
-                    <Text style={styles.sectionTitle}>Location</Text>
-                  </View>
-                  <View style={styles.locationCard}>
-                    <Text style={styles.locationText} numberOfLines={2}>
-                      {originLabel ?? "No location set"}
-                      {!draft.location && profileLabel ? <Text style={styles.locationSub}>{"  ·  my location"}</Text> : null}
-                    </Text>
-                  </View>
-                  <View style={styles.chipRow}>
-                    <Pressable style={styles.chip} onPress={useCurrentLocation} disabled={gpsBusy}>
-                      {gpsBusy ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        <Ionicons name="locate" size={16} color={colors.primary} />
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {renderSection(
+                  "location",
+                  "location",
+                  "Location",
+                  locationSummary,
+                  !!draft.location,
+                  <>
+                    <View style={styles.locationCard}>
+                      <Text style={styles.locationText} numberOfLines={2}>
+                        {originLabel ?? "No location set"}
+                        {!draft.location && profileLabel ? <Text style={styles.locationSub}>{"  ·  my location"}</Text> : null}
+                      </Text>
+                    </View>
+                    <View style={styles.chipRow}>
+                      <Pressable style={styles.chip} onPress={useCurrentLocation} disabled={gpsBusy}>
+                        {gpsBusy ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                          <Ionicons name="locate" size={16} color={colors.primary} />
+                        )}
+                        <Text style={styles.chipText}>Current</Text>
+                      </Pressable>
+                      <Pressable style={styles.chip} onPress={() => { setError(null); setPending(null); setView("search"); }}>
+                        <Ionicons name="search" size={16} color={colors.primary} />
+                        <Text style={styles.chipText}>Search</Text>
+                      </Pressable>
+                      <Pressable style={styles.chip} onPress={() => { setError(null); setPicked(null); setView("map"); }}>
+                        <Ionicons name="map" size={16} color={colors.primary} />
+                        <Text style={styles.chipText}>Map</Text>
+                      </Pressable>
+                      {draft.location && (
+                        <Pressable style={styles.chip} onPress={() => setLocation(null)}>
+                          <Ionicons name="refresh" size={16} color={colors.textMuted} />
+                          <Text style={styles.chipText}>My location</Text>
+                        </Pressable>
                       )}
-                      <Text style={styles.chipText}>Current</Text>
-                    </Pressable>
-                    <Pressable style={styles.chip} onPress={() => { setError(null); setPending(null); setView("search"); }}>
-                      <Ionicons name="search" size={16} color={colors.primary} />
-                      <Text style={styles.chipText}>Search</Text>
-                    </Pressable>
-                    <Pressable style={styles.chip} onPress={() => { setError(null); setPicked(null); setView("map"); }}>
-                      <Ionicons name="map" size={16} color={colors.primary} />
-                      <Text style={styles.chipText}>Map</Text>
-                    </Pressable>
-                    {draft.location && (
-                      <Pressable style={styles.chip} onPress={() => setLocation(null)}>
-                        <Ionicons name="refresh" size={16} color={colors.textMuted} />
-                        <Text style={styles.chipText}>My location</Text>
-                      </Pressable>
+                    </View>
+                    {error && <Text style={styles.error}>{error}</Text>}
+                  </>
+                )}
+
+                {renderSection(
+                  "radius",
+                  "radio-button-on",
+                  "Show activities within",
+                  radiusLabel(draft.radiusKm),
+                  draft.radiusKm !== null,
+                  <>
+                    <View style={styles.chipRow}>
+                      {RADIUS_CHOICES.map((km) => (
+                        <Pressable
+                          key={km ?? "any"}
+                          onPress={() => setDraft((d) => ({ ...d, radiusKm: km }))}
+                          style={[styles.chip, draft.radiusKm === km && styles.chipActive]}
+                        >
+                          <Text style={[styles.chipText, draft.radiusKm === km && styles.chipTextActive]}>{radiusLabel(km)}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    {draft.radiusKm !== null && !originLabel && (
+                      <Text style={styles.sectionNote}>Set a location so the distance can be measured.</Text>
                     )}
-                  </View>
-                  {error && <Text style={styles.error}>{error}</Text>}
-                </View>
+                  </>
+                )}
 
-                {/* Radius */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <Ionicons name="radio-button-on" size={18} color={colors.primary} />
-                    <Text style={styles.sectionTitle}>Show activities within</Text>
-                  </View>
-                  <View style={styles.chipRow}>
-                    {RADIUS_CHOICES.map((km) => (
-                      <Pressable
-                        key={km ?? "any"}
-                        onPress={() => setDraft((d) => ({ ...d, radiusKm: km }))}
-                        style={[styles.chip, draft.radiusKm === km && styles.chipActive]}
-                      >
-                        <Text style={[styles.chipText, draft.radiusKm === km && styles.chipTextActive]}>
-                          {km === null ? "Anywhere" : `${km} km`}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                  {draft.radiusKm !== null && !originLabel && (
-                    <Text style={styles.sectionNote}>Set a location above so the distance can be measured.</Text>
-                  )}
-                </View>
-
-                {/* Sort */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <Ionicons name="time-outline" size={18} color={colors.primary} />
-                    <Text style={styles.sectionTitle}>Sort by</Text>
-                  </View>
+                {renderSection(
+                  "sort",
+                  "swap-vertical",
+                  "Sort by",
+                  SORT_LABELS[draft.sort],
+                  draft.sort !== "soonest",
                   <View style={styles.chipRow}>
                     {sorts.map((key) => (
                       <Pressable
@@ -316,34 +387,36 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
                       </Pressable>
                     ))}
                   </View>
-                </View>
+                )}
 
-                {/* Dates */}
-                <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                    <Text style={styles.sectionTitle}>Date range</Text>
-                  </View>
-                  <View style={styles.dateRow}>
-                    <DateField label="From" value={draft.from} onChange={setFrom} />
-                    <DateField label="To" value={draft.to} onChange={(day) => setDraft((d) => ({ ...d, to: day }))} minDay={draft.from} />
-                  </View>
-                  <View style={[styles.chipRow, { marginTop: spacing.sm }]}>
-                    {presets.map((p) => {
-                      const active = draft.from === p.from && draft.to === p.to;
-                      return (
-                        <Pressable
-                          key={p.label}
-                          onPress={() => setDraft((d) => ({ ...d, from: p.from, to: p.to }))}
-                          style={[styles.chip, active && styles.chipActive]}
-                        >
-                          <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.sectionNote}>Applies to events. Communities have no date, so they stay in the list.</Text>
-                </View>
+                {renderSection(
+                  "date",
+                  "calendar-outline",
+                  "Date range",
+                  dateSummary,
+                  !!(draft.from || draft.to),
+                  <>
+                    <View style={styles.dateRow}>
+                      <DateField label="From" value={draft.from} onChange={setFrom} />
+                      <DateField label="To" value={draft.to} onChange={(day) => setDraft((d) => ({ ...d, to: day }))} minDay={draft.from} />
+                    </View>
+                    <View style={[styles.chipRow, { marginTop: spacing.sm }]}>
+                      {presets.map((p) => {
+                        const active = draft.from === p.from && draft.to === p.to;
+                        return (
+                          <Pressable
+                            key={p.label}
+                            onPress={() => setDraft((d) => ({ ...d, from: p.from, to: p.to }))}
+                            style={[styles.chip, active && styles.chipActive]}
+                          >
+                            <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.sectionNote}>Applies to events. Communities have no date, so they stay in the list.</Text>
+                  </>
+                )}
               </ScrollView>
 
               <View style={styles.footer}>
