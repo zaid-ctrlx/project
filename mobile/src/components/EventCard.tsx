@@ -10,6 +10,7 @@ import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { formatDistance } from "../lib/geo";
 import { fontSize, radius, spacing } from "../theme";
 import Button from "./Button";
 
@@ -30,6 +31,8 @@ type Props = {
   // Dense list-row layout (thumbnail left, details right) used by Discover;
   // the default tall cover card is for Home-style feeds.
   compact?: boolean;
+  // Straight-line distance from the user's chosen location, when known.
+  distanceKm?: number | null;
 };
 
 function formatWhen(iso: string): string {
@@ -59,6 +62,7 @@ export default function EventCard({
   onToggleJoin,
   joinBusy,
   compact,
+  distanceKm,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isExpandable = event.kind === "community" && !!onToggleJoin;
@@ -214,6 +218,11 @@ export default function EventCard({
   const countColor = isEvent ? colors.success : colors.community;
   const countSoft = isEvent ? colors.successSoft : colors.communitySoft;
   const countIcon = isEvent ? "checkmark-circle" : "people";
+  const locationText = event.location_label
+    ? distanceKm != null && !event.is_online
+      ? `${event.location_label} · ${formatDistance(distanceKm)}`
+      : event.location_label
+    : null;
 
   if (compact) {
     return (
@@ -264,7 +273,7 @@ export default function EventCard({
                 <View style={styles.rowMeta}>
                   <Ionicons name={event.is_online ? "globe-outline" : "location-outline"} size={14} color={colors.textFaint} />
                   <Text style={styles.rowMetaText} numberOfLines={1}>
-                    {event.location_label}
+                    {locationText}
                   </Text>
                 </View>
               )}
@@ -347,7 +356,7 @@ export default function EventCard({
           <View style={styles.metaRow}>
             <Ionicons name={event.is_online ? "globe-outline" : "location"} size={14} color={accent} />
             <Text style={styles.meta} numberOfLines={1}>
-              {event.location_label}
+              {locationText}
             </Text>
           </View>
         )}

@@ -2,20 +2,24 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { mediaUrl } from "../api/client";
-import { ActivityType, bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
+import CollapsibleHeader from "../components/CollapsibleHeader";
 import EventCard from "../components/EventCard";
+import LocationSheet from "../components/LocationSheet";
 import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
-import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
@@ -24,9 +28,10 @@ import { fontSize, radius, spacing } from "../theme";
 // FADE_IN_MS (150ms) so the icon is edge-on exactly when `mode` flips.
 const ICON_FLIP_MS = 300;
 
-// Home from the Huddle design: location pill + bell, "What are you up for
-// today?" greeting, category chips, a featured "Happening near you" card and
-// the rest of the feed. Data is the real events list; a personalised
+// Home from the Huddle design: location pill (opens the change-location
+// sheet) + bell, a one-line time-of-day greeting, a featured card and the
+// rest of the feed, limited to the chosen search radius around the location
+// saved on the profile. Data is the real events list; a personalised
 // recommendation ranking is still to come (see project notes) — until then
 // this surfaces upcoming events soonest-first.
 export default function HomeScreen() {
@@ -40,7 +45,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState<ActivityType | "all">("all");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  // Greeting hides on scroll-down and returns on any upward scroll.
+  const headerScroll = useScrollAwareHeader();
   const [unread, setUnread] = useState(0);
 
   const { styles } = useThemedStyles((colors) => ({
@@ -79,38 +87,9 @@ export default function HomeScreen() {
       borderWidth: 2,
       borderColor: colors.background,
     },
-    intro: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md },
-    livePill: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: colors.successSoft,
-      borderRadius: radius.pill,
-      paddingVertical: 3,
-      paddingHorizontal: spacing.md,
-      marginBottom: spacing.sm,
-    },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
-    liveText: { color: colors.success, fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
-    headline: { fontSize: 28, lineHeight: 36, fontWeight: "800", color: colors.text, letterSpacing: -0.6 },
-    tagline: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
-    taglineAccent: { color: colors.primary, fontWeight: "700" },
-    chips: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.pill,
-      paddingVertical: 8,
-      paddingHorizontal: spacing.lg,
-    },
-    chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    chipText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: "600" },
-    chipTextActive: { color: colors.primaryText },
+    greetingWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
+    greeting: { fontSize: fontSize.lg, fontWeight: "600", color: colors.textMuted, letterSpacing: -0.2 },
+    greetingName: { color: colors.text, fontWeight: "800" },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -163,6 +142,24 @@ export default function HomeScreen() {
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
   }));
 
+  useEffect(() => {
+    AsyncStorage.getItem("feed_radius_km")
+      .then((v) => {
+        if (v === null) return;
+        setRadiusKm(v === "any" ? null : Number(v));
+      })
+      .catch(() => {
+        // default (anywhere) is fine if storage is unavailable
+      });
+  }, []);
+
+  function changeRadius(km: number | null) {
+    setRadiusKm(km);
+    AsyncStorage.setItem("feed_radius_km", km === null ? "any" : String(km)).catch(() => {
+      // preference just will not persist
+    });
+  }
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -205,16 +202,22 @@ export default function HomeScreen() {
   }
   const rotateY = flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
 
-  // Categories actually present in the data, so every chip leads somewhere.
-  const categories = useMemo(() => {
-    const counts = new Map<ActivityType, number>();
-    events.forEach((e) => e.activity_type && counts.set(e.activity_type, (counts.get(e.activity_type) ?? 0) + 1));
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [events]);
+  // Distance (km) from the chosen location per event; online / no-coordinate
+  // events have none and are never excluded by the radius.
+  const distances = useMemo(() => {
+    const map = new Map<string, number>();
+    if (user?.location_lat == null || user?.location_lng == null) return map;
+    events.forEach((e) => {
+      if (!e.is_online && e.location_lat != null && e.location_lng != null) {
+        map.set(e.id, kmBetween(user.location_lat!, user.location_lng!, e.location_lat, e.location_lng));
+      }
+    });
+    return map;
+  }, [events, user?.location_lat, user?.location_lng]);
 
   const filtered = useMemo(
-    () => (category === "all" ? events : events.filter((e) => e.activity_type === category)),
-    [events, category]
+    () => (radiusKm === null ? events : events.filter((e) => !distances.has(e.id) || distances.get(e.id)! <= radiusKm)),
+    [events, distances, radiusKm]
   );
   // Soonest upcoming event first (communities have no date, so they trail).
   const ordered = useMemo(() => {
@@ -230,7 +233,16 @@ export default function HomeScreen() {
   const featured = ordered.find((e) => e.kind === "event") ?? ordered[0];
   const rest = ordered.filter((e) => e.id !== featured?.id);
 
-  const firstName = user?.full_name?.split(" ")[0] ?? user?.username;
+  // Minimal time-of-day greeting (night owls get their own line).
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    const name = user?.username ?? "";
+    if (hour >= 22 || hour < 5) return { lead: "Hello, ", name: "night owl" };
+    if (hour < 12) return { lead: "Good morning, ", name };
+    if (hour < 17) return { lead: "Good afternoon, ", name };
+    return { lead: "Good evening, ", name };
+  })();
+  const cityLabel = user?.location_label ? user.location_label.split(",")[0] : "Set location";
 
   // Events show their date; communities (no date) show how often they meet.
   function whenLabel(e: Event): string {
@@ -251,14 +263,19 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.brand}>Huddle</Text>
         <View style={styles.headerRight}>
-          {user?.location_label ? (
-            <View style={styles.locationPill}>
-              <Ionicons name="location" size={14} color={colors.primary} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {user.location_label.split(",")[0]}
-              </Text>
-            </View>
-          ) : null}
+          <Pressable
+            onPress={() => setSheetOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Change location"
+            style={({ pressed }) => [styles.locationPill, pressed && { opacity: 0.8 }]}
+          >
+            <Ionicons name="location" size={14} color={colors.primary} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {cityLabel}
+              {radiusKm !== null ? ` · ${radiusKm} km` : ""}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </Pressable>
           <Pressable onPress={handleToggleTheme} hitSlop={8} style={styles.iconButton}>
             <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY }] }}>
               <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.textMuted} />
@@ -271,8 +288,19 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.greetingWrap}>
+          <Text style={styles.greeting} numberOfLines={1}>
+            {greeting.lead}
+            <Text style={styles.greetingName}>{greeting.name}</Text>
+          </Text>
+        </View>
+      </CollapsibleHeader>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
+        onScroll={headerScroll.onScroll("home")}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
         refreshControl={
           <RefreshControl
@@ -285,32 +313,6 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={styles.intro}>
-          <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>{events.length} happening nearby</Text>
-          </View>
-          <Text style={styles.headline}>
-            {firstName ? `${firstName}, what are you up for today?` : "What are you up for today?"}
-          </Text>
-          <Text style={styles.tagline}>
-            Find your people. Find your activity. <Text style={styles.taglineAccent}>Go do it.</Text>
-          </Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Pressable onPress={() => setCategory("all")} style={[styles.chip, category === "all" && styles.chipActive]}>
-            <Text style={[styles.chipText, category === "all" && styles.chipTextActive]}>All {events.length}</Text>
-          </Pressable>
-          {categories.map(([key, count]) => (
-            <Pressable key={key} onPress={() => setCategory(key)} style={[styles.chip, category === key && styles.chipActive]}>
-              <Text style={[styles.chipText, category === key && styles.chipTextActive]}>
-                {ACTIVITY_TYPE_LABELS[key]} {count}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
         ) : error ? (
@@ -321,8 +323,17 @@ export default function HomeScreen() {
         ) : !featured ? (
           <View style={styles.empty}>
             <Ionicons name="sparkles-outline" size={40} color={colors.textFaint} />
-            <Text style={styles.emptyTitle}>Nothing here yet</Text>
-            <Text style={styles.emptyBody}>Be the first — tap Create to host an event or start a community.</Text>
+            <Text style={styles.emptyTitle}>{events.length > 0 ? "Nothing nearby" : "Nothing here yet"}</Text>
+            <Text style={styles.emptyBody}>
+              {events.length > 0 && radiusKm !== null
+                ? `No events or communities within ${radiusKm} km of ${cityLabel}. Try a wider radius or another location.`
+                : "Be the first — tap Create to host an event or start a community."}
+            </Text>
+            {events.length > 0 && radiusKm !== null && (
+              <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
+                <Text style={styles.sectionLink}>Change location or radius</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
           <>
@@ -386,6 +397,7 @@ export default function HomeScreen() {
                     <Ionicons name="location" size={14} color={fAccent} />
                     <Text style={styles.meta} numberOfLines={1}>
                       {featured.location_label}
+                      {distances.has(featured.id) ? ` · ${formatDistance(distances.get(featured.id)!)}` : ""}
                     </Text>
                   </View>
                 ) : null}
@@ -412,6 +424,7 @@ export default function HomeScreen() {
                       event={event}
                       onPress={(e) => openEventDetail(navigation, e)}
                       onToggleBookmark={toggleBookmark}
+                      distanceKm={distances.get(event.id) ?? null}
                     />
                   ))}
                 </View>
@@ -420,6 +433,12 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
+      <LocationSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        radiusKm={radiusKm}
+        onRadiusChange={changeRadius}
+      />
     </View>
   );
 }
