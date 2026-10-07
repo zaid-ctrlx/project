@@ -13,25 +13,25 @@
 // amber as the secondary accent and emerald kept for success/"going".
 // Dark is the primary look; the light palette is a matching, warm variant.
 export const lightColors = {
-  background: "#fbf7f3",
-  text: "#1a1411",
-  textMuted: "#6a5f58",
-  textFaint: "#9a8f87",
-  border: "#e6dcd3",
-  borderLight: "#f0e8e0",
-  primary: "#e8590c",
+  background: "#f6f6f8",
+  text: "#111114",
+  textMuted: "#5f6068",
+  textFaint: "#93949c",
+  border: "#e4e4e9",
+  borderLight: "#eeeef2",
+  primary: "#ea580c",
   primaryText: "#ffffff",
   danger: "#d92d20",
-  success: "#13a45a",
-  chipBackground: "#f1e8df",
+  success: "#12a15a",
+  chipBackground: "#eeeef2",
   // Extended tokens
   surface: "#ffffff",
-  surfaceElevated: "#f5ece3",
+  surfaceElevated: "#f1f1f4",
   secondary: "#d98300",
-  primarySoft: "rgba(232,89,12,0.12)",
-  successSoft: "rgba(19,164,90,0.12)",
-  glow: "rgba(232,89,12,0.25)",
-  scrim: "rgba(26,20,17,0.55)",
+  primarySoft: "rgba(234,88,12,0.10)",
+  successSoft: "rgba(18,161,90,0.10)",
+  glow: "rgba(234,88,12,0.25)",
+  scrim: "rgba(17,17,20,0.55)",
 };
 
 export const darkColors: typeof lightColors = {

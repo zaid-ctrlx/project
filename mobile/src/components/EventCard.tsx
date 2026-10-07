@@ -27,6 +27,9 @@ type Props = {
   // Bookmarks/My Posts do) keeps every card single-tap.
   onToggleJoin?: (event: Event) => void;
   joinBusy?: boolean;
+  // Dense list-row layout (thumbnail left, details right) used by Discover;
+  // the default tall cover card is for Home-style feeds.
+  compact?: boolean;
 };
 
 function formatWhen(iso: string): string {
@@ -55,6 +58,7 @@ export default function EventCard({
   bookmarkBusy,
   onToggleJoin,
   joinBusy,
+  compact,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isExpandable = event.kind === "community" && !!onToggleJoin;
@@ -140,6 +144,44 @@ export default function EventCard({
       gap: spacing.sm,
     },
     expandedRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    // Compact row layout
+    rowCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    rowMain: { flexDirection: "row", gap: spacing.md },
+    thumb: {
+      width: 92,
+      height: 92,
+      borderRadius: radius.md,
+      overflow: "hidden",
+      backgroundColor: colors.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    thumbImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
+    rowBody: { flex: 1, justifyContent: "space-between" },
+    rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+    kicker: { flexShrink: 1, fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", color: colors.primary },
+    rowTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, letterSpacing: -0.2, marginTop: 2 },
+    rowMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+    rowMetaText: { flexShrink: 1, fontSize: fontSize.sm, color: colors.textMuted },
+    rowFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+    goingPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.successSoft,
+      borderRadius: radius.pill,
+      paddingVertical: 3,
+      paddingHorizontal: spacing.sm,
+    },
+    goingPillText: { fontSize: 12, fontWeight: "700", color: colors.success },
+    policyText: { fontSize: 12, color: colors.textFaint },
   }));
 
   function handleCardPress() {
@@ -153,6 +195,79 @@ export default function EventCard({
   const isEvent = event.kind === "event";
   const when = event.starts_at ? formatWhen(event.starts_at) : null;
   const count = isEvent ? event.attendee_count : event.member_count;
+
+  if (compact) {
+    return (
+      <Pressable style={({ pressed }) => [styles.rowCard, pressed && styles.cardPressed]} onPress={handleCardPress}>
+        <View style={styles.rowMain}>
+          <View style={styles.thumb}>
+            {event.cover_image_url ? (
+              <Image source={{ uri: mediaUrl(event.cover_image_url)! }} style={styles.thumbImage} resizeMode="cover" />
+            ) : (
+              <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={30} color={colors.primary} />
+            )}
+          </View>
+          <View style={styles.rowBody}>
+            <View>
+              <View style={styles.rowTop}>
+                <Text style={styles.kicker} numberOfLines={1}>
+                  {event.activity_type ? ACTIVITY_TYPE_LABELS[event.activity_type] : EVENT_KIND_LABELS[event.kind]}
+                </Text>
+                <Pressable onPress={() => onToggleBookmark(event)} disabled={bookmarkBusy} hitSlop={10}>
+                  <Ionicons
+                    name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
+                    size={20}
+                    color={event.is_bookmarked ? colors.primary : colors.textFaint}
+                  />
+                </Pressable>
+              </View>
+              <Text style={styles.rowTitle} numberOfLines={2}>
+                {event.title}
+              </Text>
+              {when && (
+                <View style={styles.rowMeta}>
+                  <Ionicons name="time-outline" size={14} color={colors.textFaint} />
+                  <Text style={styles.rowMetaText} numberOfLines={1}>
+                    {when}
+                  </Text>
+                </View>
+              )}
+              {event.location_label && (
+                <View style={styles.rowMeta}>
+                  <Ionicons name={event.is_online ? "globe-outline" : "location-outline"} size={14} color={colors.textFaint} />
+                  <Text style={styles.rowMetaText} numberOfLines={1}>
+                    {event.location_label}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+        <View style={styles.rowFooter}>
+          <View style={styles.goingPill}>
+            <Ionicons name="people" size={13} color={colors.success} />
+            <Text style={styles.goingPillText}>
+              {count} {isEvent ? "going" : count === 1 ? "member" : "members"}
+            </Text>
+          </View>
+          <Text style={styles.policyText}>
+            {isEvent ? JOIN_POLICY_LABELS[event.join_policy] : FREQUENCY_LABELS[event.frequency ?? "irregular"]}
+          </Text>
+        </View>
+        {isExpandable && expanded && (
+          <View style={styles.expandedBlock}>
+            {event.description && <Text style={styles.description}>{event.description}</Text>}
+            <Button
+              label={event.is_joined ? "Leave community" : "Join community"}
+              onPress={() => onToggleJoin!(event)}
+              loading={joinBusy}
+              variant={event.is_joined ? "secondary" : "primary"}
+            />
+          </View>
+        )}
+      </Pressable>
+    );
+  }
 
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={handleCardPress}>

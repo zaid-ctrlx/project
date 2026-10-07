@@ -119,7 +119,7 @@ export default function MainTabs() {
               >
                 <Ionicons name="add" size={28} color={colors.primaryText} />
               </View>
-              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textFaint, marginTop: 4 }}>Create</Text>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textFaint, marginTop: 0 }}>Create</Text>
             </Pressable>
           ),
         }}
