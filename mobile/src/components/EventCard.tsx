@@ -91,7 +91,7 @@ export default function EventCard({
       paddingHorizontal: spacing.md,
       backgroundColor: colors.scrim,
     },
-    pillText: { fontSize: 11, color: "#F4F5F8", fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+    pillText: { fontSize: 11, color: "#faf6f1", fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
     glassButton: {
       width: 36,
       height: 36,
@@ -172,7 +172,7 @@ export default function EventCard({
         />
         <View style={styles.topRow}>
           <View style={styles.pill}>
-            <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={12} color="#F4F5F8" />
+            <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={12} color="#faf6f1" />
             <Text style={styles.pillText}>
               {event.activity_type ? ACTIVITY_TYPE_LABELS[event.activity_type] : EVENT_KIND_LABELS[event.kind]}
             </Text>
@@ -186,7 +186,7 @@ export default function EventCard({
             <Ionicons
               name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
               size={18}
-              color={event.is_bookmarked ? colors.primary : "#F4F5F8"}
+              color={event.is_bookmarked ? colors.primary : "#faf6f1"}
             />
           </Pressable>
         </View>
