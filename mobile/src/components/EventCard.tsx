@@ -72,8 +72,9 @@ export default function EventCard({
       overflow: "hidden",
       marginBottom: spacing.lg,
     },
-    cardPressed: { borderColor: colors.primary },
-    media: { width: "100%", height: 150, backgroundColor: colors.primarySoft, justifyContent: "flex-end" },
+    cardPressed: { borderColor: colors.textFaint },
+    accentBar: { position: "absolute", top: 0, left: 0, right: 0, height: 3, zIndex: 3 },
+    media: { width: "100%", height: 150, justifyContent: "flex-end" },
     mediaImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
     mediaFallback: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
     scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
@@ -86,16 +87,18 @@ export default function EventCard({
       justifyContent: "space-between",
       alignItems: "center",
     },
-    pill: {
+    // Kind badge: outlined in the kind's accent so Event vs Community is
+    // readable before any text is.
+    kindPill: {
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.xs,
-      borderRadius: radius.pill,
+      borderWidth: 1,
       paddingVertical: 4,
       paddingHorizontal: spacing.md,
       backgroundColor: colors.scrim,
     },
-    pillText: { fontSize: 11, color: "#faf6f1", fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+    kindPillText: { fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
     glassButton: {
       width: 36,
       height: 36,
@@ -111,16 +114,14 @@ export default function EventCard({
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      borderRadius: radius.sm,
+      borderWidth: 1,
       paddingVertical: 3,
       paddingHorizontal: spacing.sm,
-      backgroundColor: colors.successSoft,
-      borderWidth: 1,
-      borderColor: colors.success,
+      backgroundColor: colors.scrim,
     },
-    whenText: { fontSize: 11, color: colors.success, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
-    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
+    whenText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase" },
     content: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.xs },
+    category: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", color: colors.textMuted },
     title: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, letterSpacing: -0.2 },
     meta: { fontSize: fontSize.sm, color: colors.textMuted },
     metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
@@ -134,7 +135,8 @@ export default function EventCard({
       borderRadius: radius.md,
       backgroundColor: colors.surfaceElevated,
     },
-    going: { fontSize: fontSize.sm, color: colors.success, fontWeight: "700" },
+    footerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+    going: { fontSize: fontSize.sm, fontWeight: "700" },
     expandChevron: { alignSelf: "center", marginTop: spacing.sm },
     expandedBlock: {
       marginTop: spacing.md,
@@ -149,6 +151,7 @@ export default function EventCard({
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      borderLeftWidth: 4,
       borderRadius: radius.lg,
       padding: spacing.md,
       marginBottom: spacing.md,
@@ -157,16 +160,15 @@ export default function EventCard({
     thumb: {
       width: 92,
       height: 92,
-      borderRadius: radius.md,
       overflow: "hidden",
-      backgroundColor: colors.primarySoft,
       alignItems: "center",
       justifyContent: "center",
     },
     thumbImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
     rowBody: { flex: 1, justifyContent: "space-between" },
     rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-    kicker: { flexShrink: 1, fontSize: 11, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", color: colors.primary },
+    kicker: { flexShrink: 1, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
+    kickerCategory: { fontWeight: "600", color: colors.textMuted },
     rowTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, letterSpacing: -0.2, marginTop: 2 },
     rowMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
     rowMetaText: { flexShrink: 1, fontSize: fontSize.sm, color: colors.textMuted },
@@ -175,12 +177,11 @@ export default function EventCard({
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: colors.successSoft,
       borderRadius: radius.pill,
       paddingVertical: 3,
       paddingHorizontal: spacing.sm,
     },
-    goingPillText: { fontSize: 12, fontWeight: "700", color: colors.success },
+    goingPillText: { fontSize: 12, fontWeight: "700" },
     policyText: { fontSize: 12, color: colors.textFaint },
   }));
 
@@ -196,39 +197,66 @@ export default function EventCard({
   const when = event.starts_at ? formatWhen(event.starts_at) : null;
   const count = isEvent ? event.attendee_count : event.member_count;
 
+  // Events are orange + calendar + squared corners; communities are teal +
+  // people + fully round shapes — the cues that make the two kinds
+  // distinguishable at a glance (see also the map markers, same colours).
+  const accent = isEvent ? colors.primary : colors.community;
+  const accentSoft = isEvent ? colors.primarySoft : colors.communitySoft;
+  const kindLabel = EVENT_KIND_LABELS[event.kind];
+  const kindIcon = EVENT_KIND_ICONS[event.kind];
+  const badgeRadius = isEvent ? radius.sm : radius.pill;
+  const categoryLabel = event.activity_type ? ACTIVITY_TYPE_LABELS[event.activity_type] : null;
+  const repeatsLabel = event.frequency ? `Repeats ${FREQUENCY_LABELS[event.frequency].toLowerCase()}` : null;
+  // "When" line: a date for events, the repeat cadence for communities.
+  const whenLine = isEvent ? when : repeatsLabel;
+  const whenIcon = isEvent ? "time-outline" : "repeat";
+  const countLabel = `${count} ${isEvent ? "going" : count === 1 ? "member" : "members"}`;
+  const countColor = isEvent ? colors.success : colors.community;
+  const countSoft = isEvent ? colors.successSoft : colors.communitySoft;
+  const countIcon = isEvent ? "checkmark-circle" : "people";
+
   if (compact) {
     return (
-      <Pressable style={({ pressed }) => [styles.rowCard, pressed && styles.cardPressed]} onPress={handleCardPress}>
+      <Pressable
+        style={({ pressed }) => [styles.rowCard, { borderLeftColor: accent }, pressed && styles.cardPressed]}
+        onPress={handleCardPress}
+      >
         <View style={styles.rowMain}>
-          <View style={styles.thumb}>
+          <View
+            style={[
+              styles.thumb,
+              { backgroundColor: accentSoft, borderRadius: isEvent ? radius.md : 46 },
+            ]}
+          >
             {event.cover_image_url ? (
               <Image source={{ uri: mediaUrl(event.cover_image_url)! }} style={styles.thumbImage} resizeMode="cover" />
             ) : (
-              <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={30} color={colors.primary} />
+              <Ionicons name={kindIcon} size={32} color={accent} />
             )}
           </View>
           <View style={styles.rowBody}>
             <View>
               <View style={styles.rowTop}>
-                <Text style={styles.kicker} numberOfLines={1}>
-                  {event.activity_type ? ACTIVITY_TYPE_LABELS[event.activity_type] : EVENT_KIND_LABELS[event.kind]}
+                <Text style={[styles.kicker, { color: accent }]} numberOfLines={1}>
+                  {kindLabel}
+                  {categoryLabel ? <Text style={styles.kickerCategory}>{` · ${categoryLabel}`}</Text> : null}
                 </Text>
                 <Pressable onPress={() => onToggleBookmark(event)} disabled={bookmarkBusy} hitSlop={10}>
                   <Ionicons
                     name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
                     size={20}
-                    color={event.is_bookmarked ? colors.primary : colors.textFaint}
+                    color={event.is_bookmarked ? accent : colors.textFaint}
                   />
                 </Pressable>
               </View>
               <Text style={styles.rowTitle} numberOfLines={2}>
                 {event.title}
               </Text>
-              {when && (
+              {whenLine && (
                 <View style={styles.rowMeta}>
-                  <Ionicons name="time-outline" size={14} color={colors.textFaint} />
+                  <Ionicons name={whenIcon} size={14} color={accent} />
                   <Text style={styles.rowMetaText} numberOfLines={1}>
-                    {when}
+                    {whenLine}
                   </Text>
                 </View>
               )}
@@ -244,11 +272,9 @@ export default function EventCard({
           </View>
         </View>
         <View style={styles.rowFooter}>
-          <View style={styles.goingPill}>
-            <Ionicons name="people" size={13} color={colors.success} />
-            <Text style={styles.goingPillText}>
-              {count} {isEvent ? "going" : count === 1 ? "member" : "members"}
-            </Text>
+          <View style={[styles.goingPill, { backgroundColor: countSoft }]}>
+            <Ionicons name={countIcon} size={13} color={countColor} />
+            <Text style={[styles.goingPillText, { color: countColor }]}>{countLabel}</Text>
           </View>
           <Text style={styles.policyText}>
             {isEvent ? JOIN_POLICY_LABELS[event.join_policy] : FREQUENCY_LABELS[event.frequency ?? "irregular"]}
@@ -271,12 +297,13 @@ export default function EventCard({
 
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={handleCardPress}>
-      <View style={styles.media}>
+      <View style={[styles.accentBar, { backgroundColor: accent }]} />
+      <View style={[styles.media, { backgroundColor: accentSoft }]}>
         {event.cover_image_url ? (
           <Image source={{ uri: mediaUrl(event.cover_image_url)! }} style={styles.mediaImage} resizeMode="cover" />
         ) : (
-          <LinearGradient colors={[colors.primarySoft, colors.surfaceElevated]} style={styles.mediaFallback}>
-            <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={44} color={colors.primary} />
+          <LinearGradient colors={[accentSoft, colors.surfaceElevated]} style={styles.mediaFallback}>
+            <Ionicons name={kindIcon} size={48} color={accent} />
           </LinearGradient>
         )}
         <LinearGradient
@@ -286,11 +313,9 @@ export default function EventCard({
           pointerEvents="none"
         />
         <View style={styles.topRow}>
-          <View style={styles.pill}>
-            <Ionicons name={EVENT_KIND_ICONS[event.kind]} size={12} color="#faf6f1" />
-            <Text style={styles.pillText}>
-              {event.activity_type ? ACTIVITY_TYPE_LABELS[event.activity_type] : EVENT_KIND_LABELS[event.kind]}
-            </Text>
+          <View style={[styles.kindPill, { borderColor: accent, borderRadius: badgeRadius }]}>
+            <Ionicons name={kindIcon} size={13} color={accent} />
+            <Text style={[styles.kindPillText, { color: accent }]}>{kindLabel}</Text>
           </View>
           <Pressable
             onPress={() => onToggleBookmark(event)}
@@ -301,25 +326,26 @@ export default function EventCard({
             <Ionicons
               name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
               size={18}
-              color={event.is_bookmarked ? colors.primary : "#faf6f1"}
+              color={event.is_bookmarked ? accent : "#faf6f1"}
             />
           </Pressable>
         </View>
-        {when && (
-          <View style={styles.whenBadge}>
-            <View style={styles.dot} />
-            <Text style={styles.whenText}>{when}</Text>
+        {whenLine && (
+          <View style={[styles.whenBadge, { borderColor: accent, borderRadius: badgeRadius }]}>
+            <Ionicons name={isEvent ? "calendar-outline" : "repeat"} size={12} color={accent} />
+            <Text style={[styles.whenText, { color: accent }]}>{whenLine}</Text>
           </View>
         )}
       </View>
 
       <View style={styles.content}>
+        {categoryLabel && <Text style={styles.category}>{categoryLabel}</Text>}
         <Text style={styles.title} numberOfLines={2}>
           {event.title}
         </Text>
         {event.location_label && (
           <View style={styles.metaRow}>
-            <Ionicons name={event.is_online ? "globe-outline" : "location"} size={14} color={colors.primary} />
+            <Ionicons name={event.is_online ? "globe-outline" : "location"} size={14} color={accent} />
             <Text style={styles.meta} numberOfLines={1}>
               {event.location_label}
             </Text>
@@ -332,9 +358,10 @@ export default function EventCard({
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.going}>
-            {count} {isEvent ? "going" : count === 1 ? "member" : "members"}
-          </Text>
+          <View style={styles.footerLeft}>
+            <Ionicons name={countIcon} size={16} color={countColor} />
+            <Text style={[styles.going, { color: countColor }]}>{countLabel}</Text>
+          </View>
           <Text style={styles.meta}>
             {isEvent ? JOIN_POLICY_LABELS[event.join_policy] : FREQUENCY_LABELS[event.frequency ?? "irregular"]}
           </Text>

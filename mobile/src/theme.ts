@@ -32,6 +32,10 @@ export const lightColors = {
   successSoft: "rgba(18,161,90,0.10)",
   glow: "rgba(234,88,12,0.25)",
   scrim: "rgba(17,17,20,0.55)",
+  // Communities get their own accent (teal) so they read differently from
+  // events (orange) at a glance.
+  community: "#0d9488",
+  communitySoft: "rgba(13,148,136,0.12)",
 };
 
 export const darkColors: typeof lightColors = {
@@ -53,6 +57,8 @@ export const darkColors: typeof lightColors = {
   successSoft: "rgba(50,213,131,0.12)",
   glow: "rgba(255,106,26,0.4)",
   scrim: "rgba(10,10,10,0.7)",
+  community: "#2dd4bf",
+  communitySoft: "rgba(45,212,191,0.14)",
 };
 
 export type ThemeColors = typeof lightColors;
