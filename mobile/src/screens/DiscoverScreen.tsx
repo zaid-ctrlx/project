@@ -11,9 +11,11 @@ import { listMapItems, MapItem } from "../api/map";
 import { searchUsers, UserSearchResult } from "../api/profile";
 import EventCard from "../components/EventCard";
 import DiscoverMapView from "../components/DiscoverMapView";
+import CollapsibleHeader from "../components/CollapsibleHeader";
 import SearchField from "../components/SearchField";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
@@ -57,6 +59,9 @@ type AllListItem =
 export default function DiscoverScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
+  // Title header + filter pills hide on scroll-down and return on any
+  // upward scroll (direction-based); the search bar stays pinned.
+  const headerScroll = useScrollAwareHeader();
 
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -265,13 +270,17 @@ export default function DiscoverScreen() {
   }
 
   function goToTab(index: number) {
+    headerScroll.show();
     setActiveIndex(index);
     pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
   }
 
   function onScrollEnd(offsetX: number) {
     const index = Math.round(offsetX / pageWidth);
-    if (index !== activeIndex) setActiveIndex(index);
+    if (index !== activeIndex) {
+      setActiveIndex(index);
+      headerScroll.show();
+    }
   }
 
   // Shared by the Accounts tab and the "All" tab's user rows (see allItems)
@@ -324,6 +333,8 @@ export default function DiscoverScreen() {
             data={allItems}
             keyExtractor={(item) => item.key}
             contentContainerStyle={styles.list}
+            onScroll={headerScroll.onScroll("all")}
+            scrollEventThrottle={16}
             renderItem={({ item }) => {
               if (item.kind === "section") return <Text style={styles.sectionHeader}>{item.label}</Text>;
               if (item.kind === "user") return renderPersonRow(item.user);
@@ -348,7 +359,7 @@ export default function DiscoverScreen() {
     );
   }
 
-  function eventPage(list: Event[], emptyMessage: string) {
+  function eventPage(listId: string, list: Event[], emptyMessage: string) {
     return (
       <View style={[styles.page, { width: pageWidth }]}>
         {loading && list.length === 0 ? (
@@ -358,6 +369,8 @@ export default function DiscoverScreen() {
             data={list}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
+            onScroll={headerScroll.onScroll(listId)}
+            scrollEventThrottle={16}
             renderItem={({ item }) => (
               <EventCard
                 compact
@@ -378,24 +391,30 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Discover</Text>
-          <Text style={styles.subtitle}>Events & communities near you</Text>
+      <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Discover</Text>
+            <Text style={styles.subtitle}>Events & communities near you</Text>
+          </View>
+          <Pressable
+            onPress={() => {
+            headerScroll.show();
+            setMapMode((value) => !value);
+          }}
+            accessibilityRole="button"
+            accessibilityLabel={mapMode ? "List view" : "View map"}
+            style={({ pressed }) => [styles.mapButton, mapMode && styles.mapButtonActive, pressed && { opacity: 0.8 }]}
+          >
+            <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => setMapMode((value) => !value)}
-          accessibilityRole="button"
-          accessibilityLabel={mapMode ? "List view" : "View map"}
-          style={({ pressed }) => [styles.mapButton, mapMode && styles.mapButtonActive, pressed && { opacity: 0.8 }]}
-        >
-          <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
-        </Pressable>
-      </View>
+      </CollapsibleHeader>
 
       <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
 
       {!mapMode && (
+        <CollapsibleHeader progress={headerScroll.progress}>
         <View style={styles.chipsWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {TABS.map((tab, index) => (
@@ -409,6 +428,7 @@ export default function DiscoverScreen() {
             ))}
           </ScrollView>
         </View>
+        </CollapsibleHeader>
       )}
 
       {mapMode ? (
@@ -436,6 +456,8 @@ export default function DiscoverScreen() {
               data={people}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.list}
+              onScroll={headerScroll.onScroll("people")}
+              scrollEventThrottle={16}
               renderItem={({ item }) => renderPersonRow(item)}
               ListEmptyComponent={
                 <Text style={styles.empty}>
@@ -446,8 +468,8 @@ export default function DiscoverScreen() {
           )}
         </View>
 
-        {eventPage(onlyEvents, "No events found.")}
-        {eventPage(onlyCommunities, "No communities found.")}
+        {eventPage("events", onlyEvents, "No events found.")}
+        {eventPage("communities", onlyCommunities, "No communities found.")}
       </Animated.ScrollView>}
     </View>
   );

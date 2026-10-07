@@ -20,10 +20,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { mediaUrl } from "../api/client";
 import { GroupMessage } from "../api/groups";
 import { ConversationSummary, listConversations, Message } from "../api/messages";
+import CollapsibleHeader from "../components/CollapsibleHeader";
 import SearchField from "../components/SearchField";
 import { useAuth } from "../context/AuthContext";
 import { useMessaging } from "../context/MessagingContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, radius, spacing } from "../theme";
 
@@ -88,45 +90,11 @@ export default function MessagesScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
 
-  // Collapsible filter-chip row: `chipRowHeight` is the row's own natural
-  // height, measured once via onLayout (so this never has to guess/hardcode
-  // a pixel value that'd drift if fonts/spacing change) — `chipAnim` is the
-  // live animated height driven by scroll, clamped to [0, chipRowHeight].
-  // `chipHeightRef` mirrors chipAnim's current numeric value (Animated.Value
-  // has no public synchronous getter) so onListScroll can do clamped delta
-  // math without waiting on a listener round trip.
-  const [chipRowHeight, setChipRowHeight] = useState(0);
-  const chipAnim = useRef(new Animated.Value(0)).current;
-  const chipHeightRef = useRef(0);
-  const lastScrollYRef = useRef(0);
+  // Header + filter chips hide when scrolling down the list and come back
+  // on any upward scroll (direction-based, see useScrollAwareHeader); the
+  // search bar stays pinned.
+  const headerScroll = useScrollAwareHeader();
 
-  useEffect(() => {
-    if (chipRowHeight > 0) {
-      chipHeightRef.current = chipRowHeight;
-      chipAnim.setValue(chipRowHeight);
-    }
-  }, [chipRowHeight, chipAnim]);
-
-  // Shrinks the row by however far you scrolled (scrolling down hides it,
-  // scrolling up brings it back), live rather than snapping at a threshold —
-  // and forces it fully open at/above the top (y <= 0, which also covers
-  // iOS's overscroll bounce), matching "even already at the top, it's
-  // there" from WhatsApp's own chip row.
-  function onListScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const y = e.nativeEvent.contentOffset.y;
-    const delta = y - lastScrollYRef.current;
-    lastScrollYRef.current = y;
-    if (!chipRowHeight) return;
-
-    if (y <= 0) {
-      chipHeightRef.current = chipRowHeight;
-      chipAnim.setValue(chipRowHeight);
-      return;
-    }
-    const next = Math.max(0, Math.min(chipRowHeight, chipHeightRef.current - delta));
-    chipHeightRef.current = next;
-    chipAnim.setValue(next);
-  }
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: {
@@ -346,12 +314,14 @@ export default function MessagesScreen() {
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Messages</Text>
-        <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
-        </Pressable>
-      </View>
+      <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Messages</Text>
+          <Pressable onPress={() => setMenuOpen(true)} hitSlop={12}>
+            <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+      </CollapsibleHeader>
 
       {/* Tapping search pushes MessageSearch instead of typing in place —
           a real stack screen, so it hides the bottom tab bar and picks up
@@ -362,16 +332,8 @@ export default function MessagesScreen() {
         </View>
       </Pressable>
 
-      <Animated.View style={{ height: chipRowHeight > 0 ? chipAnim : undefined, overflow: "hidden" }}>
-        <View
-          style={styles.filterRow}
-          onLayout={(e) => {
-            // Measured once — natural height doesn't change after the
-            // first render, so no reason to keep re-measuring on every
-            // layout pass.
-            if (chipRowHeight === 0) setChipRowHeight(e.nativeEvent.layout.height);
-          }}
-        >
+      <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.filterRow}>
           {FILTERS.map((f) => (
             <Pressable
               key={f.key}
@@ -382,7 +344,7 @@ export default function MessagesScreen() {
             </Pressable>
           ))}
         </View>
-      </Animated.View>
+      </CollapsibleHeader>
 
       {loading ? (
         <ActivityIndicator style={styles.spinner} />
@@ -391,7 +353,7 @@ export default function MessagesScreen() {
           data={filteredConversations}
           keyExtractor={(item) => (item.type === "dm" ? `dm-${item.other_user.id}` : `group-${item.group_id}`)}
           contentContainerStyle={styles.list}
-          onScroll={onListScroll}
+          onScroll={headerScroll.onScroll("messages")}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
