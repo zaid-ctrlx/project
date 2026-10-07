@@ -5,7 +5,7 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
-import { StyleSheet, Text, TextInput } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
 // Plus Jakarta Sans is the design system's only typeface. Custom fonts on
 // native are one file per weight, so `fontWeight` has to be translated to a
@@ -42,7 +42,10 @@ let applied = false;
 export function applyGlobalFont(): void {
   if (applied) return;
   applied = true;
-  for (const Component of [Text, TextInput] as any[]) {
+  // Only <Text> is patched. TextInput is deliberately left alone: re-wrapping
+  // its props on every render is risky for focus handling on native, so
+  // TextField sets the font family on its own inputs instead.
+  for (const Component of [Text] as any[]) {
     const originalRender = Component.render;
     if (typeof originalRender !== "function") continue;
     Component.render = function patchedRender(props: any, ref: any) {

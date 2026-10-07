@@ -15,7 +15,7 @@ export function buildMapHtml(opts: { dark: boolean; colors: { event: string; com
   ];
   // OSM tiles (no key needed); dark mode is a CSS filter over the tile pane.
   const tiles = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-  const bg = opts.dark ? "#10131a" : "#e8e8e8";
+  const bg = opts.dark ? "#0a0a0a" : "#e8e8e8";
   const b = JSON.stringify(bounds);
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -26,9 +26,9 @@ html,body,#map{height:100%;margin:0;padding:0;background:${bg}}
 .pin{width:26px;height:26px;border:3px solid #fff;box-sizing:border-box}
 .pin.event{border-radius:8px;background:${opts.colors.event};box-shadow:0 0 14px ${opts.colors.event}}
 .pin.community{border-radius:50%;background:${opts.colors.community};box-shadow:0 0 14px ${opts.colors.community}}
-.cl{background:#7C5CFF;color:#fff;border:3px solid rgba(255,255,255,.9);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;box-shadow:0 0 16px rgba(124,92,255,.6);box-sizing:border-box}
+.cl{background:#FF6A1A;color:#fff;border:3px solid rgba(255,255,255,.9);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;box-shadow:0 0 16px rgba(255,106,26,.6);box-sizing:border-box}
 .leaflet-control-attribution{font-size:9px;opacity:.7}
-${opts.dark ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(200deg) brightness(.85) contrast(.95) saturate(.7)}.leaflet-control-attribution{background:rgba(8,9,13,.7)!important;color:#9CA3AF!important}.leaflet-control-attribution a{color:#9CA3AF!important}.leaflet-bar a{background:#13161D;color:#F4F5F8;border-color:#242832}" : ""}
+${opts.dark ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.8) contrast(.95) saturate(.35) sepia(.25)}.leaflet-control-attribution{background:rgba(10,10,10,.7)!important;color:#9CA3AF!important}.leaflet-control-attribution a{color:#9CA3AF!important}.leaflet-bar a{background:#141210;color:#faf6f1;border-color:#2a2623}" : ""}
 </style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>

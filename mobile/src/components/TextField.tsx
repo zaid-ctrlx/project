@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { Text, TextInput, TextInputProps, View } from "react-native";
 
+import { FONT_REGULAR } from "../lib/fonts";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";
 
@@ -12,8 +13,7 @@ type Props = TextInputProps & {
   label?: string;
 };
 
-export default function TextField({ style, containerStyle, label, onFocus, onBlur, ...rest }: Props) {
-  const [focused, setFocused] = useState(false);
+export default function TextField({ style, containerStyle, label, ...rest }: Props) {
   const { styles, colors } = useThemedStyles((colors) => ({
     input: {
       borderWidth: 1,
@@ -25,8 +25,8 @@ export default function TextField({ style, containerStyle, label, onFocus, onBlu
       color: colors.text,
       backgroundColor: colors.surface,
       minHeight: 48,
+      fontFamily: FONT_REGULAR,
     },
-    focused: { borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
     labeledBox: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -38,6 +38,7 @@ export default function TextField({ style, containerStyle, label, onFocus, onBlu
     },
     label: { fontSize: fontSize.sm, color: colors.textMuted },
     labeledInput: {
+      fontFamily: FONT_REGULAR,
       fontSize: fontSize.md,
       color: colors.text,
       padding: 0,
@@ -48,13 +49,11 @@ export default function TextField({ style, containerStyle, label, onFocus, onBlu
 
   if (label) {
     return (
-      <View style={[styles.labeledBox, focused && styles.focused, containerStyle]}>
+      <View style={[styles.labeledBox, containerStyle]}>
         <Text style={styles.label}>{label}</Text>
         <TextInput
           style={[styles.labeledInput, style]}
           placeholderTextColor={colors.textFaint}
-          onFocus={(e) => { setFocused(true); onFocus?.(e); }}
-          onBlur={(e) => { setFocused(false); onBlur?.(e); }}
           {...rest}
         />
       </View>
@@ -64,10 +63,8 @@ export default function TextField({ style, containerStyle, label, onFocus, onBlu
   return (
     <View style={containerStyle}>
       <TextInput
-        style={[styles.input, focused && styles.focused, style]}
+        style={[styles.input, style]}
         placeholderTextColor={colors.textFaint}
-        onFocus={(e) => { setFocused(true); onFocus?.(e); }}
-        onBlur={(e) => { setFocused(false); onBlur?.(e); }}
         {...rest}
       />
     </View>

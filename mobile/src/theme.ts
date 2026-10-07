@@ -9,50 +9,50 @@
 // screen/component must go through the theme hooks, and removing the
 // static export is what makes `tsc` catch any file that still imports one
 // directly instead of migrating.
-// "Nocturne Social" palette (see the Huddle UI design system): deep
-// slate canvas, electric violet/blue accents, emerald for success/"going".
-// Dark is the primary look; the light palette is a matching, calmer variant.
+// Huddle palette: warm orange accent on near-black ("ember" look), with
+// amber as the secondary accent and emerald kept for success/"going".
+// Dark is the primary look; the light palette is a matching, warm variant.
 export const lightColors = {
-  background: "#f6f6fb",
-  text: "#14151c",
-  textMuted: "#5b6070",
-  textFaint: "#8b90a0",
-  border: "#dcdce8",
-  borderLight: "#e9e9f2",
-  primary: "#6b47f5",
+  background: "#fbf7f3",
+  text: "#1a1411",
+  textMuted: "#6a5f58",
+  textFaint: "#9a8f87",
+  border: "#e6dcd3",
+  borderLight: "#f0e8e0",
+  primary: "#e8590c",
   primaryText: "#ffffff",
   danger: "#d92d20",
   success: "#13a45a",
-  chipBackground: "#ececf6",
+  chipBackground: "#f1e8df",
   // Extended tokens
   surface: "#ffffff",
-  surfaceElevated: "#f0f0f8",
-  secondary: "#2b7fe0",
-  primarySoft: "rgba(107,71,245,0.12)",
+  surfaceElevated: "#f5ece3",
+  secondary: "#d98300",
+  primarySoft: "rgba(232,89,12,0.12)",
   successSoft: "rgba(19,164,90,0.12)",
-  glow: "rgba(107,71,245,0.25)",
-  scrim: "rgba(20,21,28,0.55)",
+  glow: "rgba(232,89,12,0.25)",
+  scrim: "rgba(26,20,17,0.55)",
 };
 
 export const darkColors: typeof lightColors = {
-  background: "#08090D",
-  text: "#F4F5F8",
-  textMuted: "#9CA3AF",
-  textFaint: "#626978",
-  border: "#242832",
-  borderLight: "#1a1d26",
-  primary: "#7C5CFF",
-  primaryText: "#FFFFFF",
+  background: "#0a0a0a",
+  text: "#faf6f1",
+  textMuted: "#a8a09a",
+  textFaint: "#6e665f",
+  border: "#2a2623",
+  borderLight: "#1c1917",
+  primary: "#ff6a1a",
+  primaryText: "#140a03",
   danger: "#ff6b6b",
   success: "#32D583",
-  chipBackground: "#191D26",
-  surface: "#13161D",
-  surfaceElevated: "#191D26",
-  secondary: "#4DA3FF",
-  primarySoft: "rgba(124,92,255,0.16)",
+  chipBackground: "#1f1b18",
+  surface: "#141210",
+  surfaceElevated: "#1d1916",
+  secondary: "#ffb020",
+  primarySoft: "rgba(255,106,26,0.16)",
   successSoft: "rgba(50,213,131,0.12)",
-  glow: "rgba(124,92,255,0.35)",
-  scrim: "rgba(8,9,13,0.7)",
+  glow: "rgba(255,106,26,0.4)",
+  scrim: "rgba(10,10,10,0.7)",
 };
 
 export type ThemeColors = typeof lightColors;
