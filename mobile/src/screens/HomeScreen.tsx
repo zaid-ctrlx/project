@@ -26,6 +26,7 @@ import {
   FeedFilters,
   formatDay,
   loadFilters,
+  radiusChipLabel,
   saveFilters,
   SORT_LABELS,
 } from "../lib/feedFilters";
@@ -326,7 +327,7 @@ export default function HomeScreen() {
   if (filters.radiusKm !== null) {
     activeChips.push({
       key: "radius",
-      label: `Within ${filters.radiusKm} km`,
+      label: radiusChipLabel(filters.radiusKm),
       icon: "radio-button-on",
       clear: () => applyFilters({ ...filters, radiusKm: null }),
     });

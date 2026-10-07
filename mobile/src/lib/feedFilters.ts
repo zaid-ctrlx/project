@@ -25,7 +25,26 @@ export const SORT_LABELS: Record<SortKey, string> = {
   recent: "Recently added",
 };
 
-export const RADIUS_CHOICES: (number | null)[] = [null, 5, 10, 20, 30, 50];
+// "Nearby" first, "Anywhere" (no limit) last.
+export const RADIUS_CHOICES: (number | null)[] = [15, 50, 100, 150, null];
+export const NEARBY_KM = 15;
+
+export function radiusLabel(km: number | null): string {
+  if (km === null) return "Anywhere";
+  return km === NEARBY_KM ? `Nearby · ${km} km` : `${km} km`;
+}
+
+// Short wording for the removable chip on Home.
+export function radiusChipLabel(km: number): string {
+  return km === NEARBY_KM ? `Nearby (${km} km)` : `Within ${km} km`;
+}
+
+// Radii saved by older versions (5/10/20/30...) snap to the next available
+// choice so the saved filter still matches one of the options.
+function snapRadius(km: number): number | null {
+  const choices = RADIUS_CHOICES.filter((c): c is number => c !== null);
+  return choices.find((c) => c >= km) ?? null;
+}
 
 // Number of filters currently narrowing/reordering the feed (drives the
 // badge on the Filters button).
@@ -67,7 +86,7 @@ export async function loadFilters(): Promise<FeedFilters> {
         parsed.location && typeof parsed.location.lat === "number" && typeof parsed.location.lng === "number"
           ? { label: String(parsed.location.label ?? ""), lat: parsed.location.lat, lng: parsed.location.lng }
           : null,
-      radiusKm: typeof parsed.radiusKm === "number" ? parsed.radiusKm : null,
+      radiusKm: typeof parsed.radiusKm === "number" ? snapRadius(parsed.radiusKm) : null,
       from: typeof parsed.from === "string" ? parsed.from : null,
       to: typeof parsed.to === "string" ? parsed.to : null,
       sort: parsed.sort === "nearest" || parsed.sort === "recent" ? parsed.sort : "soonest",
