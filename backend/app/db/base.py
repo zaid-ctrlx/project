@@ -8,3 +8,4 @@ from app.models.message import DmClear, DmMute, Message  # noqa: F401
 from app.models.group import ChatGroup, GroupMember, GroupMessage  # noqa: F401
 from app.models.block import UserBlock  # noqa: F401
 from app.models.notification import Notification, PushToken  # noqa: F401
+from app.models.join_request import JoinRequest  # noqa: F401

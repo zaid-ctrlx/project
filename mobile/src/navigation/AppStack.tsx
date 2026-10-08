@@ -9,6 +9,7 @@ import BookmarksScreen from "../screens/BookmarksScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
 import CommunityProfileScreen from "../screens/CommunityProfileScreen";
+import CommunitySettingsScreen from "../screens/CommunitySettingsScreen";
 import CreateGroupScreen from "../screens/CreateGroupScreen";
 import CreatePostScreen from "../screens/CreatePostScreen";
 import DeleteAccountScreen from "../screens/DeleteAccountScreen";
@@ -18,6 +19,7 @@ import EventAttendeesScreen from "../screens/EventAttendeesScreen";
 import EventDetailScreen from "../screens/EventDetailScreen";
 import GroupChatScreen from "../screens/GroupChatScreen";
 import GroupInfoScreen from "../screens/GroupInfoScreen";
+import JoinRequestsScreen from "../screens/JoinRequestsScreen";
 import MessageSearchScreen from "../screens/MessageSearchScreen";
 import MyPostsScreen from "../screens/MyPostsScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
@@ -65,6 +67,14 @@ export type AppStackParamList = {
   // Bookmarks/My Posts. Full event, not just an id — same reasoning as
   // EventDetail (already fetched, no round trip needed).
   CommunityProfile: { event: Event };
+  // Admin-only, pushed from the "Admin tools" card on CommunityProfile --
+  // who can join, meeting frequency, delete -- so a community can be managed
+  // without going through Profile > Settings > My Posts.
+  CommunitySettings: { event: Event };
+  // Admin-only: who has asked to join an approval-only community, with
+  // approve / decline. Pushed from the Admin tools card on CommunityProfile
+  // or from a "new join request" notification.
+  JoinRequests: { eventId: string; eventTitle: string };
   // Pushed from Messages' search bar.
   MessageSearch: undefined;
   // Pushed from Profile's top-left "+" button, which opens a picker
@@ -114,6 +124,8 @@ export default function AppStack() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} />
+      <Stack.Screen name="CommunitySettings" component={CommunitySettingsScreen} />
+      <Stack.Screen name="JoinRequests" component={JoinRequestsScreen} />
       <Stack.Screen name="MessageSearch" component={MessageSearchScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
