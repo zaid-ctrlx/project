@@ -3,7 +3,7 @@ import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navig
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
 import { EventCreator, listEventAttendees } from "../api/events";

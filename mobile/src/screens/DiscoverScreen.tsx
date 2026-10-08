@@ -3,7 +3,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
 import { bookmarkEvent, Event, EventKind, getEvent, joinCommunity, leaveCommunity, listEvents, unbookmarkEvent } from "../api/events";
@@ -254,7 +254,8 @@ export default function DiscoverScreen() {
   async function toggleJoin(event: Event) {
     setJoinBusyIds((prev) => new Set(prev).add(event.id));
     try {
-      const updated = event.is_joined ? await leaveCommunity(event.id) : await joinCommunity(event.id);
+      const updated =
+        event.is_joined || event.has_requested ? await leaveCommunity(event.id) : await joinCommunity(event.id);
       setAllEvents((prev) => patchEventList(prev, event.id, updated));
       setOnlyEvents((prev) => patchEventList(prev, event.id, updated));
       setOnlyCommunities((prev) => patchEventList(prev, event.id, updated));
