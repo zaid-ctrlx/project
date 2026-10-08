@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import ProfileForm from "../components/ProfileForm";
 import { useAuth } from "../context/AuthContext";
