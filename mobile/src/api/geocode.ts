@@ -6,6 +6,6 @@ export function reverseGeocode(lat: number, lng: number): Promise<{ label: strin
   return api.authed(`/geocode/reverse?lat=${lat}&lng=${lng}`);
 }
 
-export function searchLocation(query: string): Promise<GeocodeResult[]> {
-  return api.authed(`/geocode/search?q=${encodeURIComponent(query)}`);
+export function searchLocation(query: string, restrict = false): Promise<GeocodeResult[]> {
+  return api.authed(`/geocode/search?q=${encodeURIComponent(query)}${restrict ? "&restrict=true" : ""}`);
 }

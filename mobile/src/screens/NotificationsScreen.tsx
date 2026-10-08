@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import {
   AppNotification,
@@ -12,6 +12,7 @@ import {
   markNotificationRead as markNotificationReadApi,
 } from "../api/notifications";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { getEvent } from "../api/events";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, spacing } from "../theme";
 
@@ -19,6 +20,9 @@ const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   dm_message: "chatbubble-outline",
   group_message: "people-outline",
   added_to_group: "person-add-outline",
+  join_request: "person-add-outline",
+  join_approved: "checkmark-circle-outline",
+  join_rejected: "close-circle-outline",
 };
 
 function timeAgo(iso: string): string {
@@ -142,6 +146,17 @@ export default function NotificationsScreen() {
         break;
       case "added_to_group":
         navigation.navigate("GroupInfo", { groupId: notification.data.group_id });
+        break;
+      case "join_request":
+        navigation.navigate("JoinRequests", { eventId: notification.data.event_id, eventTitle: "Join requests" });
+        break;
+      case "join_approved":
+      case "join_rejected":
+        // Open the community itself (now joinable / joined) -- needs the full
+        // event, so fetch it first; if it was deleted meanwhile, do nothing.
+        getEvent(notification.data.event_id)
+          .then((event) => navigation.navigate("CommunityProfile", { event }))
+          .catch(() => {});
         break;
     }
   }

@@ -1,6 +1,14 @@
 import { api } from "./client";
 
-export type NotificationType = "dm_message" | "group_message" | "added_to_group";
+export type NotificationType =
+  | "dm_message"
+  | "group_message"
+  | "added_to_group"
+  // Community join flow: admins get join_request; the applicant gets
+  // join_approved / join_rejected. All carry data.event_id.
+  | "join_request"
+  | "join_approved"
+  | "join_rejected";
 
 export type AppNotification = {
   id: string;

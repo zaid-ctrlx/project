@@ -9,32 +9,56 @@
 // screen/component must go through the theme hooks, and removing the
 // static export is what makes `tsc` catch any file that still imports one
 // directly instead of migrating.
+// Huddle palette: warm orange accent on near-black ("ember" look), with
+// amber as the secondary accent and emerald kept for success/"going".
+// Dark is the primary look; the light palette is a matching, warm variant.
 export const lightColors = {
-  background: "#ffffff",
-  text: "#111111",
-  textMuted: "#666666",
-  textFaint: "#999999",
-  border: "#d9d9d9",
-  borderLight: "#eeeeee",
-  primary: "#111111",
+  background: "#f6f6f8",
+  text: "#111114",
+  textMuted: "#5f6068",
+  textFaint: "#93949c",
+  border: "#e4e4e9",
+  borderLight: "#eeeef2",
+  primary: "#ea580c",
   primaryText: "#ffffff",
-  danger: "#cc0000",
-  success: "#0a8a0a",
-  chipBackground: "#f4f4f5",
+  danger: "#d92d20",
+  success: "#12a15a",
+  chipBackground: "#eeeef2",
+  // Extended tokens
+  surface: "#ffffff",
+  surfaceElevated: "#f1f1f4",
+  secondary: "#d98300",
+  primarySoft: "rgba(234,88,12,0.10)",
+  successSoft: "rgba(18,161,90,0.10)",
+  glow: "rgba(234,88,12,0.25)",
+  scrim: "rgba(17,17,20,0.55)",
+  // Communities get their own accent (teal) so they read differently from
+  // events (orange) at a glance.
+  community: "#0d9488",
+  communitySoft: "rgba(13,148,136,0.12)",
 };
 
 export const darkColors: typeof lightColors = {
-  background: "#0f0f10",
-  text: "#f2f2f2",
-  textMuted: "#a3a3a3",
-  textFaint: "#737373",
-  border: "#3a3a3c",
-  borderLight: "#242426",
-  primary: "#f2f2f2",
-  primaryText: "#111111",
+  background: "#0a0a0a",
+  text: "#faf6f1",
+  textMuted: "#a8a09a",
+  textFaint: "#6e665f",
+  border: "#2a2623",
+  borderLight: "#1c1917",
+  primary: "#ff6a1a",
+  primaryText: "#140a03",
   danger: "#ff6b6b",
-  success: "#4ade80",
-  chipBackground: "#1c1c1e",
+  success: "#32D583",
+  chipBackground: "#1f1b18",
+  surface: "#141210",
+  surfaceElevated: "#1d1916",
+  secondary: "#ffb020",
+  primarySoft: "rgba(255,106,26,0.16)",
+  successSoft: "rgba(50,213,131,0.12)",
+  glow: "rgba(255,106,26,0.4)",
+  scrim: "rgba(10,10,10,0.7)",
+  community: "#2dd4bf",
+  communitySoft: "rgba(45,212,191,0.14)",
 };
 
 export type ThemeColors = typeof lightColors;
@@ -51,6 +75,8 @@ export const spacing = {
 export const radius = {
   sm: 8,
   md: 12,
+  lg: 16,
+  xl: 24,
   pill: 999,
 };
 
