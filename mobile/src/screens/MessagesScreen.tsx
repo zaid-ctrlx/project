@@ -7,6 +7,7 @@ import {
   Animated,
   FlatList,
   Image,
+  LayoutChangeEvent,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -15,7 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
 import { GroupMessage } from "../api/groups";
@@ -95,6 +96,49 @@ export default function MessagesScreen() {
   // search bar stays pinned.
   const headerScroll = useScrollAwareHeader();
 
+  // The filter chips live *inside* the list, as its header, and the list
+  // starts scrolled past them — so they're hidden until you scroll up a
+  // little (WhatsApp/Instagram style), on Android and iOS alike. A snap on
+  // release finishes the reveal/hide instead of leaving them half-cut.
+  const listRef = useRef<FlatList<ConversationSummary>>(null);
+  const [chipsHeight, setChipsHeight] = useState(0);
+  const [listHeight, setListHeight] = useState(0);
+  const scrollY = useRef(0);
+  const settledFor = useRef(0);
+  // The scroll that parks the list below the chips must not look like the
+  // user scrolling down (it would hide the title header on every open).
+  const ignoreScroll = useRef(false);
+
+  // The list unmounts while loading (spinner), so it needs parking again.
+  useEffect(() => {
+    if (loading) settledFor.current = 0;
+  }, [loading]);
+
+  function parkBelowChips(offset: number, animated: boolean) {
+    ignoreScroll.current = true;
+    listRef.current?.scrollToOffset({ offset, animated });
+    setTimeout(() => {
+      ignoreScroll.current = false;
+    }, 350);
+  }
+
+  function onChipsLayout(e: LayoutChangeEvent) {
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (h > 0 && h !== chipsHeight) setChipsHeight(h);
+  }
+
+  function snapChips() {
+    if (chipsHeight <= 0) return;
+    const y = scrollY.current;
+    if (y > 0 && y < chipsHeight) parkBelowChips(y > chipsHeight / 2 ? chipsHeight : 0, true);
+  }
+
+  function onListScroll(e: Parameters<ReturnType<typeof headerScroll.onScroll>>[0]) {
+    scrollY.current = e.nativeEvent.contentOffset.y;
+    if (ignoreScroll.current) return;
+    headerScroll.onScroll("messages")(e);
+  }
+
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
     header: {
@@ -109,7 +153,7 @@ export default function MessagesScreen() {
     // it collapses away along with the row's height when hidden (a sibling
     // margin wouldn't shrink with it, leaving a gap). See the
     // scroll-tracking Animated.View wrapping this in the render below.
-    filterRow: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.md },
+    filterRow: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.md, paddingTop: spacing.xs },
     chip: {
       paddingVertical: spacing.xs,
       paddingHorizontal: spacing.md,
@@ -332,28 +376,41 @@ export default function MessagesScreen() {
         </View>
       </Pressable>
 
-      <CollapsibleHeader progress={headerScroll.progress}>
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <Pressable
-              key={f.key}
-              onPress={() => setFilter(f.key)}
-              style={({ pressed }) => [styles.chip, filter === f.key && styles.chipActive, pressed && styles.chipPressed]}
-            >
-              <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </CollapsibleHeader>
-
       {loading ? (
         <ActivityIndicator style={styles.spinner} />
       ) : (
         <FlatList
+          ref={listRef}
           data={filteredConversations}
+          onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
+          onContentSizeChange={() => {
+            // Park below the chips once their height is known (and again if
+            // it changes), without animating.
+            if (chipsHeight > 0 && settledFor.current !== chipsHeight) {
+              settledFor.current = chipsHeight;
+              parkBelowChips(chipsHeight, false);
+            }
+          }}
+          onScrollEndDrag={snapChips}
+          onMomentumScrollEnd={snapChips}
+          ListHeaderComponent={
+            <View onLayout={onChipsLayout} style={styles.filterRow}>
+              {FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  onPress={() => setFilter(f.key)}
+                  style={({ pressed }) => [styles.chip, filter === f.key && styles.chipActive, pressed && styles.chipPressed]}
+                >
+                  <Text style={[styles.chipText, filter === f.key && styles.chipTextActive]}>{f.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          }
           keyExtractor={(item) => (item.type === "dm" ? `dm-${item.other_user.id}` : `group-${item.group_id}`)}
-          contentContainerStyle={styles.list}
-          onScroll={headerScroll.onScroll("messages")}
+          // minHeight guarantees there is always enough to scroll past the
+          // chips, even with one or zero conversations.
+          contentContainerStyle={[styles.list, { minHeight: listHeight + chipsHeight }]}
+          onScroll={onListScroll}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
