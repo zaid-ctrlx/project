@@ -8,7 +8,7 @@ import { Event } from "../api/events";
 import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { FREQUENCY_LABELS } from "../constants/frequency";
-import { JOIN_POLICY_LABELS } from "../constants/joinPolicy";
+import { JOIN_POLICY_LABELS, joinButtonIsPrimary, joinButtonLabel } from "../constants/joinPolicy";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { formatDistance } from "../lib/geo";
 import { fontSize, radius, spacing } from "../theme";
@@ -25,7 +25,9 @@ type Props = {
   // on the already-expanded card then calls onPress (Discover routes that
   // to CommunityProfileScreen — see openEventDetail). Event cards always
   // call onPress on the first tap regardless. Omitting this prop (as
-  // Bookmarks/My Posts do) keeps every card single-tap.
+  // Bookmarks/My Posts do) keeps every card single-tap. An expanded card
+  // can be folded back up with its "Show less" row, or opened via "View
+  // community".
   onToggleJoin?: (event: Event) => void;
   joinBusy?: boolean;
   // Dense list-row layout (thumbnail left, details right) used by Discover;
@@ -150,6 +152,15 @@ export default function EventCard({
       gap: spacing.sm,
     },
     expandedRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    collapseRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+    },
+    collapseText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textMuted },
+    footerRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     // Compact row layout
     rowCard: {
       backgroundColor: colors.surface,
@@ -285,19 +296,35 @@ export default function EventCard({
             <Ionicons name={countIcon} size={13} color={countColor} />
             <Text style={[styles.goingPillText, { color: countColor }]}>{countLabel}</Text>
           </View>
-          <Text style={styles.policyText}>
-            {isEvent ? JOIN_POLICY_LABELS[event.join_policy] : FREQUENCY_LABELS[event.frequency ?? "irregular"]}
-          </Text>
+          <View style={styles.footerRight}>
+            <Text style={styles.policyText}>
+              {isEvent ? JOIN_POLICY_LABELS[event.join_policy] : FREQUENCY_LABELS[event.frequency ?? "irregular"]}
+            </Text>
+            {isExpandable && (
+              <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textFaint} />
+            )}
+          </View>
         </View>
         {isExpandable && expanded && (
           <View style={styles.expandedBlock}>
             {event.description && <Text style={styles.description}>{event.description}</Text>}
             <Button
-              label={event.is_joined ? "Leave community" : "Join community"}
+              label={joinButtonLabel(event)}
               onPress={() => onToggleJoin!(event)}
               loading={joinBusy}
-              variant={event.is_joined ? "secondary" : "primary"}
+              variant={joinButtonIsPrimary(event) ? "primary" : "secondary"}
             />
+            <Button label="View community" variant="secondary" onPress={() => onPress(event)} />
+            <Pressable
+              onPress={() => setExpanded(false)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Show less"
+              style={styles.collapseRow}
+            >
+              <Ionicons name="chevron-up" size={16} color={colors.textMuted} />
+              <Text style={styles.collapseText}>Show less</Text>
+            </Pressable>
           </View>
         )}
       </Pressable>
@@ -396,11 +423,22 @@ export default function EventCard({
               </Text>
             </View>
             <Button
-              label={event.is_joined ? "Leave community" : "Join community"}
+              label={joinButtonLabel(event)}
               onPress={() => onToggleJoin!(event)}
               loading={joinBusy}
-              variant={event.is_joined ? "secondary" : "primary"}
+              variant={joinButtonIsPrimary(event) ? "primary" : "secondary"}
             />
+            <Button label="View community" variant="secondary" onPress={() => onPress(event)} />
+            <Pressable
+              onPress={() => setExpanded(false)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Show less"
+              style={styles.collapseRow}
+            >
+              <Ionicons name="chevron-up" size={16} color={colors.textMuted} />
+              <Text style={styles.collapseText}>Show less</Text>
+            </Pressable>
           </View>
         )}
       </View>

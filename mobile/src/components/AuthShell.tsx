@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";

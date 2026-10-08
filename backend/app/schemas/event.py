@@ -151,4 +151,17 @@ class EventOut(BaseModel):
     # app/models/event.py's event_rsvps comment).
     is_rsvped: bool
     attendee_count: int
+    # Communities with join_policy="admin_approval" only (see JoinRequest):
+    # has_requested = the current user has a pending request; and
+    # pending_request_count = how many are waiting, filled in only for a
+    # community's admins (0 for everyone else).
+    has_requested: bool = False
+    pending_request_count: int = 0
+    created_at: datetime
+
+
+class JoinRequestOut(BaseModel):
+    """One pending applicant, as shown to a community's admins."""
+
+    user: EventCreatorOut
     created_at: datetime

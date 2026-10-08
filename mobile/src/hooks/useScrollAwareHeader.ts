@@ -6,6 +6,25 @@ import { Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react
 const DIRECTION_THRESHOLD = 14;
 const ANIMATION_MS = 200;
 
+// Each <CollapsibleHeader> reports its measured height here, keyed by the
+// shared `progress` value, so the scroll handler knows how much taller the
+// list's viewport gets once the headers are hidden (see onScroll below).
+const headerHeights = new WeakMap<Animated.Value, Map<symbol, number>>();
+export function reportHeaderHeight(progress: Animated.Value, key: symbol, height: number | null) {
+  let map = headerHeights.get(progress);
+  if (!map) {
+    map = new Map();
+    headerHeights.set(progress, map);
+  }
+  if (height == null) map.delete(key);
+  else map.set(key, height);
+}
+function totalHeaderHeight(progress: Animated.Value): number {
+  let sum = 0;
+  headerHeights.get(progress)?.forEach((h) => (sum += h));
+  return sum;
+}
+
 export type ScrollAwareHeader = {
   // 0 = fully hidden, 1 = fully shown. Drives <CollapsibleHeader progress=...>.
   progress: Animated.Value;
@@ -66,9 +85,15 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
           return;
         }
         // Don't hide anything on lists that barely scroll — it would just
-        // make the content jump.
-        if (contentSize.height - layoutMeasurement.height < 120) {
-          show();
+        // make the content jump. Hiding grows the viewport by the headers'
+        // height, so a list only counts as scrollable if it still overflows
+        // *after* that growth; otherwise hiding would leave it too short to
+        // scroll, the next event would re-show the header, which shrinks the
+        // viewport again, and the header would flicker forever (this is what
+        // made the title vanish/jitter on real phones with short lists). The
+        // check only runs while the header is shown: once hidden we stay
+        // hidden until the user scrolls up or reaches the top.
+        if (visibleRef.current && contentSize.height - layoutMeasurement.height < totalHeaderHeight(progress) + 80) {
           return;
         }
         // Ignore the rubber-band at the bottom edge.
@@ -82,7 +107,7 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
         if (accum.current > DIRECTION_THRESHOLD) animateTo(false);
         else if (accum.current < -DIRECTION_THRESHOLD) animateTo(true);
       },
-    [animateTo, show]
+    [animateTo, show, progress]
   );
 
   return useMemo(() => ({ progress, onScroll, show, hide }), [progress, onScroll, show, hide]);

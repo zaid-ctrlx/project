@@ -82,6 +82,11 @@ export type Event = {
   // app/models/event.py's event_rsvps comment).
   is_rsvped: boolean;
   attendee_count: number;
+  // Communities with join_policy "admin_approval": has_requested = you have
+  // a pending join request; pending_request_count = requests waiting on an
+  // admin (only non-zero for the community's admins).
+  has_requested: boolean;
+  pending_request_count: number;
   created_at: string;
 };
 
@@ -169,17 +174,37 @@ export function unbookmarkEvent(id: string): Promise<void> {
   return api.authed(`/events/${id}/bookmark`, { method: "DELETE" });
 }
 
-// Community only (400 otherwise server-side) — immediate, regardless of
-// join_policy. "Anyone"/"admin_approval" is stored but doesn't gate
-// anything yet, same as it never did before this endpoint existed; a real
-// pending-request/approve flow is future work. Returns the updated event
-// (is_joined/member_count refreshed) so the caller can swap it in directly.
+// Community only (400 otherwise server-side). Open communities ("anyone")
+// add you immediately; "admin_approval" ones only file a pending request
+// (the returned event has has_requested=true, is_joined=false) until an
+// admin approves it. Returns the updated event so the caller can swap it in
+// directly.
 export function joinCommunity(id: string): Promise<Event> {
   return api.authed(`/events/${id}/join`, { method: "POST" });
 }
 
+// Also withdraws a pending join request when you aren't a member yet.
 export function leaveCommunity(id: string): Promise<Event> {
   return api.authed(`/events/${id}/join`, { method: "DELETE" });
+}
+
+export type JoinRequest = {
+  user: EventCreator;
+  created_at: string;
+};
+
+// Admin-only server-side (403 otherwise): who is waiting to join.
+export function listJoinRequests(id: string): Promise<JoinRequest[]> {
+  return api.authed(`/events/${id}/join-requests`);
+}
+
+// Admin-only. Both notify the applicant.
+export function approveJoinRequest(id: string, userId: string): Promise<void> {
+  return api.authed(`/events/${id}/join-requests/${userId}/approve`, { method: "POST" });
+}
+
+export function rejectJoinRequest(id: string, userId: string): Promise<void> {
+  return api.authed(`/events/${id}/join-requests/${userId}/reject`, { method: "POST" });
 }
 
 // Event only (400 otherwise server-side) — "I'm going". Idempotent, same
