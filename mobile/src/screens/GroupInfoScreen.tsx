@@ -3,7 +3,7 @@ import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navig
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Switch, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { ApiError, mediaUrl } from "../api/client";
 import { ChatGroup, deleteGroup, getGroup, GroupMember, setGroupMuted } from "../api/groups";

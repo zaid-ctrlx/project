@@ -34,6 +34,7 @@ export default function SearchField({ value, onChangeText, placeholder, busy, ed
   const { colors } = useTheme();
   return (
     <View style={styles.wrap}>
+      <Ionicons name="search" size={20} color={colors.textMuted} style={styles.leading} />
       <TextField
         placeholder={placeholder}
         value={value}
@@ -59,6 +60,7 @@ export default function SearchField({ value, onChangeText, placeholder, busy, ed
 
 const styles = StyleSheet.create({
   wrap: { justifyContent: "center" },
-  input: { paddingRight: 40 },
+  input: { paddingRight: 40, paddingLeft: 44 },
+  leading: { position: "absolute", left: spacing.lg, zIndex: 1 },
   accessory: { position: "absolute", right: spacing.md },
 });

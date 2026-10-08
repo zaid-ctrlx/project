@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 
 import { GeocodeResult, reverseGeocode, searchLocation as searchLocationApi } from "../api/geocode";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { enabledRegionLabels, isWithinEnabledRegion } from "../constants/mapRegion";
 import { fontSize, radius, spacing } from "../theme";
 
 export type LocationValue = { label: string; lat: number; lng: number };
@@ -16,6 +17,9 @@ type Props = {
   // doesn't need the coordinates for anything of its own.
   initialLabel?: string | null;
   onChange: (value: LocationValue) => void;
+  // Event/community creation only: reject places outside the enabled map
+  // regions (profile/onboarding location is not region-limited).
+  restrictToRegion?: boolean;
 };
 
 // One bar, not a button-then-field stack: a plain text input taking up most
@@ -26,7 +30,7 @@ type Props = {
 // "📍 Use my current location" button + "or search for it" + separate field
 // stack — same underlying search/GPS logic (see useCurrentLocation and the
 // debounced-search effect below), just one control instead of three.
-export default function LocationPicker({ initialLabel, onChange }: Props) {
+export default function LocationPicker({ initialLabel, onChange, restrictToRegion = false }: Props) {
   const [locationLabel, setLocationLabel] = useState<string | null>(initialLabel ?? null);
   const [searchText, setSearchText] = useState(initialLabel ?? "");
   const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
@@ -96,6 +100,10 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
 
       const position = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = position.coords;
+      if (restrictToRegion && !isWithinEnabledRegion(latitude, longitude)) {
+        setLocationError(`Your current location is outside the supported area (${enabledRegionLabels()}). Search for a place there instead.`);
+        return;
+      }
       const fallbackLabel = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
       commit(fallbackLabel, latitude, longitude);
 
@@ -128,10 +136,10 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
       setSearchBusy(true);
       setLocationError(null);
       try {
-        const results = await searchLocationApi(searchText.trim());
+        const results = await searchLocationApi(searchText.trim(), restrictToRegion);
         setSearchResults(results);
         if (results.length === 0) {
-          setLocationError("No matches found. Try a different search.");
+          setLocationError(restrictToRegion ? `No confident matches in ${enabledRegionLabels()}. Try a more specific place or address.` : "No matches found. Try a different search.");
         }
       } catch {
         setLocationError("Search failed. Check your connection and try again.");
@@ -146,6 +154,10 @@ export default function LocationPicker({ initialLabel, onChange }: Props) {
   }, [searchText]);
 
   function selectSearchResult(result: GeocodeResult) {
+    if (restrictToRegion && !isWithinEnabledRegion(result.lat, result.lng)) {
+      setLocationError(`That place is outside the supported area (${enabledRegionLabels()}). Please choose a closer match.`);
+      return;
+    }
     commit(result.label, result.lat, result.lng);
     setSearchResults([]);
     setLocationError(null);

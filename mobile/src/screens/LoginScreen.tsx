@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { ApiError } from "../api/client";
+import AuthShell from "../components/AuthShell";
 import Button from "../components/Button";
 import TextField from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
@@ -19,11 +20,10 @@ export default function LoginScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { styles } = useThemedStyles((colors) => ({
-    container: { flex: 1, justifyContent: "center", padding: spacing.xl, backgroundColor: colors.background },
-    title: { fontSize: fontSize.xxl, fontWeight: "700", marginBottom: spacing.xl, color: colors.text },
     field: { marginBottom: spacing.md },
     error: { color: colors.danger, marginBottom: spacing.md, fontSize: fontSize.base },
-    link: { color: colors.text, marginTop: spacing.lg, textAlign: "center", textDecorationLine: "underline" },
+    link: { color: colors.textMuted, marginTop: spacing.lg, textAlign: "center" },
+    linkAccent: { color: colors.primary, fontWeight: "700" },
   }));
 
   async function onSubmit() {
@@ -39,8 +39,7 @@ export default function LoginScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Log in</Text>
+    <AuthShell title="Welcome back" subtitle="Log in to see what is happening near you.">
 
       <View style={styles.field}>
         <TextField
@@ -62,8 +61,10 @@ export default function LoginScreen({ navigation }: Props) {
       </View>
 
       <Pressable onPress={() => navigation.navigate("Register")} hitSlop={8}>
-        <Text style={styles.link}>Don't have an account? Register</Text>
+        <Text style={styles.link}>
+          Don't have an account? <Text style={styles.linkAccent}>Register</Text>
+        </Text>
       </Pressable>
-    </View>
+    </AuthShell>
   );
 }

@@ -29,3 +29,18 @@ export const INDIA_BOUNDARY = {
   northEast: { latitude: 37.6, longitude: 97.5 },
   southWest: { latitude: 6.5, longitude: 68.0 },
 };
+
+// Mirrors backend/app/core/geo.py ENABLED_REGIONS (the real gate is
+// server-side; this just lets the creation flow reject a bad pick early with
+// a clear message instead of waiting for a 422).
+export const ENABLED_REGIONS: Record<string, { label: string; minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
+  karnataka: { label: "Karnataka", minLat: 11.3, maxLat: 18.5, minLng: 74.0, maxLng: 78.6 },
+};
+
+export function isWithinEnabledRegion(lat: number, lng: number): boolean {
+  return Object.values(ENABLED_REGIONS).some((r) => lat >= r.minLat && lat <= r.maxLat && lng >= r.minLng && lng <= r.maxLng);
+}
+
+export function enabledRegionLabels(): string {
+  return Object.values(ENABLED_REGIONS).map((r) => r.label).join(", ");
+}

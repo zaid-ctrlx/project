@@ -16,7 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { ApiError, mediaUrl } from "../api/client";
 import { createGroup, uploadGroupAvatar } from "../api/groups";

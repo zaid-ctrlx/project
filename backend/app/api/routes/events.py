@@ -9,11 +9,20 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.geo import ENABLED_REGIONS
+from app.core.notify import notify_user
 from app.db.session import get_db
 from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import ChatGroup, GroupMember
+from app.models.join_request import JoinRequest
 from app.models.user import User
-from app.schemas.event import EVENT_KIND_OPTIONS, JOIN_POLICY_OPTIONS, EventCreate, EventCreatorOut, EventOut
+from app.schemas.event import (
+    EVENT_KIND_OPTIONS,
+    JOIN_POLICY_OPTIONS,
+    EventCreate,
+    EventCreatorOut,
+    EventOut,
+    JoinRequestOut,
+)
 from app.schemas.map import MapItemOut
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -84,6 +93,59 @@ def _set_event_flags(db: Session, event: Event, current_user_id: uuid.UUID) -> N
     ).scalar_one()
     event.attendee_count = db.execute(
         select(func.count()).select_from(event_rsvps).where(event_rsvps.c.event_id == event.id)
+    ).scalar_one()
+    _attach_request_info(db, [event], current_user_id)
+
+
+def _attach_request_info(db: Session, events: list[Event], current_user_id: uuid.UUID) -> None:
+    """Sets has_requested / pending_request_count on already-loaded events
+    (not mapped columns, see EventOut). Two small queries for the whole
+    batch rather than per-event lookups. pending_request_count is only
+    filled in for communities the current user administers (creator, or
+    admin of the linked group) -- everyone else sees 0."""
+    for e in events:
+        e.has_requested = False
+        e.pending_request_count = 0
+    ids = [e.id for e in events if e.kind == "community" and e.join_policy == "admin_approval"]
+    if not ids:
+        return
+    requested = set(
+        db.scalars(
+            select(JoinRequest.event_id).where(
+                JoinRequest.event_id.in_(ids),
+                JoinRequest.user_id == current_user_id,
+                JoinRequest.status == "pending",
+            )
+        ).all()
+    )
+    admin_groups = set(
+        db.scalars(
+            select(GroupMember.group_id).where(GroupMember.user_id == current_user_id, GroupMember.role == "admin")
+        ).all()
+    )
+    admin_ids = [e.id for e in events if e.id in ids and (e.creator_id == current_user_id or e.group_id in admin_groups)]
+    counts: dict[uuid.UUID, int] = {}
+    if admin_ids:
+        counts = dict(
+            db.execute(
+                select(JoinRequest.event_id, func.count())
+                .where(JoinRequest.event_id.in_(admin_ids), JoinRequest.status == "pending")
+                .group_by(JoinRequest.event_id)
+            ).all()
+        )
+    for e in events:
+        if e.id in ids:
+            e.has_requested = e.id in requested
+            e.pending_request_count = counts.get(e.id, 0)
+
+
+def _is_community_admin(db: Session, event: Event, user_id: uuid.UUID) -> bool:
+    if event.creator_id == user_id:
+        return True
+    if event.group_id is None:
+        return False
+    return db.execute(
+        select(exists().where(GroupMember.group_id == event.group_id, GroupMember.user_id == user_id, GroupMember.role == "admin"))
     ).scalar_one()
 
 
@@ -176,6 +238,7 @@ def list_events(
         event.is_rsvped = rsvped
         event.attendee_count = attendee_count
         events.append(event)
+    _attach_request_info(db, events, current_user.id)
     return events
 
 
@@ -204,6 +267,7 @@ def list_bookmarked_events(
         event.is_rsvped = rsvped
         event.attendee_count = attendee_count
         events.append(event)
+    _attach_request_info(db, events, current_user.id)
     return events
 
 
@@ -225,6 +289,7 @@ def list_my_events(
         event.is_rsvped = rsvped
         event.attendee_count = attendee_count
         events.append(event)
+    _attach_request_info(db, events, current_user.id)
     return events
 
 
@@ -316,6 +381,7 @@ def get_event(
     event.member_count = member_count
     event.is_rsvped = rsvped
     event.attendee_count = attendee_count
+    _attach_request_info(db, [event], current_user.id)
     return event
 
 
@@ -483,11 +549,15 @@ def unbookmark_event(
 
 
 @router.post("/{event_id}/join", response_model=EventOut)
-def join_community(
+async def join_community(
     event_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Event:
+    """Open communities (join_policy="anyone") add you straight away. For
+    "admin_approval" ones this only files (or re-files, after a rejection) a
+    pending JoinRequest and notifies the community's admins -- membership
+    starts when one of them approves it (see approve_join_request)."""
     event = _get_community(db, event_id)
 
     if event.group_id is None:
@@ -502,12 +572,41 @@ def join_community(
         select(GroupMember).where(GroupMember.group_id == event.group_id, GroupMember.user_id == current_user.id)
     ).first()
     if already is None:
-        # join_policy ("anyone" vs "admin_approval") isn't enforced here —
-        # every join is immediate. It already didn't gate anything before
-        # this endpoint existed; a real pending-request/approve flow is
-        # future work, not this pass.
-        db.add(GroupMember(group_id=event.group_id, user_id=current_user.id, role="member"))
-        db.commit()
+        if event.join_policy == "admin_approval":
+            req = db.scalar(
+                select(JoinRequest).where(JoinRequest.event_id == event.id, JoinRequest.user_id == current_user.id)
+            )
+            newly_pending = req is None or req.status != "pending"
+            if req is None:
+                db.add(JoinRequest(event_id=event.id, user_id=current_user.id, status="pending"))
+            elif req.status != "pending":
+                req.status = "pending"
+                req.created_at = datetime.now(timezone.utc)
+                req.decided_at = None
+            db.commit()
+
+            if newly_pending:
+                admin_ids = set(
+                    db.scalars(
+                        select(GroupMember.user_id).where(
+                            GroupMember.group_id == event.group_id, GroupMember.role == "admin"
+                        )
+                    ).all()
+                )
+                admin_ids.add(event.creator_id)
+                admin_ids.discard(current_user.id)
+                for admin_id in admin_ids:
+                    await notify_user(
+                        db,
+                        user_id=admin_id,
+                        type="join_request",
+                        title="New join request",
+                        body=f"{current_user.username} wants to join {event.title}",
+                        data={"event_id": str(event.id), "user_id": str(current_user.id)},
+                    )
+        else:
+            db.add(GroupMember(group_id=event.group_id, user_id=current_user.id, role="member"))
+            db.commit()
 
     db.refresh(event)
     _set_event_flags(db, event, current_user.id)
@@ -520,7 +619,14 @@ def leave_community(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Event:
+    """Leaves the community -- or, if you're not a member yet, withdraws
+    your pending join request."""
     event = _get_community(db, event_id)
+    db.execute(
+        delete(JoinRequest).where(
+            JoinRequest.event_id == event.id, JoinRequest.user_id == current_user.id, JoinRequest.status == "pending"
+        )
+    )
     if event.group_id is not None:
         # Community creators can leave their own community same as anyone
         # else for now — no special-case blocking it (mirrors how
@@ -529,10 +635,87 @@ def leave_community(
         db.execute(
             delete(GroupMember).where(GroupMember.group_id == event.group_id, GroupMember.user_id == current_user.id)
         )
-        db.commit()
+    db.commit()
 
     _set_event_flags(db, event, current_user.id)
     return event
+
+
+@router.get("/{event_id}/join-requests", response_model=list[JoinRequestOut])
+def list_join_requests(
+    event_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[JoinRequestOut]:
+    """Pending applicants, oldest first. Community admins only."""
+    event = _get_community(db, event_id)
+    if not _is_community_admin(db, event, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only a community admin can see join requests")
+    rows = db.execute(
+        select(JoinRequest, User)
+        .join(User, User.id == JoinRequest.user_id)
+        .where(JoinRequest.event_id == event.id, JoinRequest.status == "pending")
+        .order_by(JoinRequest.created_at.asc())
+    ).all()
+    return [JoinRequestOut(user=user, created_at=req.created_at) for req, user in rows]
+
+
+async def _decide_join_request(
+    db: Session, event_id: uuid.UUID, user_id: uuid.UUID, current_user: User, approve: bool
+) -> None:
+    event = _get_community(db, event_id)
+    if not _is_community_admin(db, event, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only a community admin can do that")
+    req = db.scalar(
+        select(JoinRequest).where(
+            JoinRequest.event_id == event.id, JoinRequest.user_id == user_id, JoinRequest.status == "pending"
+        )
+    )
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pending request from that user")
+
+    req.status = "approved" if approve else "rejected"
+    req.decided_at = datetime.now(timezone.utc)
+    if approve and event.group_id is not None:
+        member = db.execute(
+            select(GroupMember).where(GroupMember.group_id == event.group_id, GroupMember.user_id == user_id)
+        ).first()
+        if member is None:
+            db.add(GroupMember(group_id=event.group_id, user_id=user_id, role="member"))
+    db.commit()
+
+    await notify_user(
+        db,
+        user_id=user_id,
+        type="join_approved" if approve else "join_rejected",
+        title="Request approved" if approve else "Request declined",
+        body=(
+            f"You're now a member of {event.title}"
+            if approve
+            else f"Your request to join {event.title} wasn't approved"
+        ),
+        data={"event_id": str(event.id), **({"group_id": str(event.group_id)} if approve and event.group_id else {})},
+    )
+
+
+@router.post("/{event_id}/join-requests/{user_id}/approve", status_code=status.HTTP_204_NO_CONTENT)
+async def approve_join_request(
+    event_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    await _decide_join_request(db, event_id, user_id, current_user, approve=True)
+
+
+@router.post("/{event_id}/join-requests/{user_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
+async def reject_join_request(
+    event_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    await _decide_join_request(db, event_id, user_id, current_user, approve=False)
 
 
 @router.get("/{event_id}/attendees", response_model=list[EventCreatorOut])

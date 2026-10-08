@@ -1,8 +1,9 @@
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
 import { bookmarkEvent, Event, EventKind, getEvent, joinCommunity, leaveCommunity, listEvents, unbookmarkEvent } from "../api/events";
@@ -10,12 +11,14 @@ import { listMapItems, MapItem } from "../api/map";
 import { searchUsers, UserSearchResult } from "../api/profile";
 import EventCard from "../components/EventCard";
 import DiscoverMapView from "../components/DiscoverMapView";
+import CollapsibleHeader from "../components/CollapsibleHeader";
 import SearchField from "../components/SearchField";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
+import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
-import { fontSize, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 // Instagram search-style section bar: tap a heading or swipe between pages,
 // same idea as its For you/Accounts/Audio/Tags row. "All" is truly
@@ -26,9 +29,9 @@ import { fontSize, spacing } from "../theme";
 type TabKey = "all" | "accounts" | "event" | "community";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "accounts", label: "Accounts" },
-  { key: "event", label: EVENT_KIND_LABELS.event },
-  { key: "community", label: EVENT_KIND_LABELS.community },
+  { key: "accounts", label: "People" },
+  { key: "event", label: "Events" },
+  { key: "community", label: "Communities" },
 ];
 
 function patchEventList(list: Event[], id: string, patch: Partial<Event>): Event[] {
@@ -56,6 +59,9 @@ type AllListItem =
 export default function DiscoverScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
+  // Title header + filter pills hide on scroll-down and return on any
+  // upward scroll (direction-based); the search bar stays pinned.
+  const headerScroll = useScrollAwareHeader();
 
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -81,18 +87,37 @@ export default function DiscoverScreen() {
   const pagerRef = useRef<ScrollView>(null);
 
   const { styles, colors } = useThemedStyles((colors) => ({
-    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.xl },
-    header: { marginBottom: spacing.lg },
-    title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
-    mapToggle: { alignSelf: "flex-end", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginTop: spacing.sm },
-    mapToggleText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: "600" },
-    tabBar: { flexDirection: "row", marginTop: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    tab: { flex: 1, alignItems: "center", paddingBottom: spacing.md },
-    tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textFaint },
-    tabTextActive: { color: colors.text },
-    underline: { position: "absolute", bottom: -1, height: 2, backgroundColor: colors.text },
+    wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
+    title: { fontSize: 30, fontWeight: "800", color: colors.text, letterSpacing: -0.8 },
+    subtitle: { fontSize: fontSize.base, color: colors.textMuted, marginTop: 2 },
+    mapButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    mapButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipsWrap: { marginTop: spacing.md, marginHorizontal: -spacing.lg },
+    chips: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+    chip: {
+      paddingVertical: 8,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: { backgroundColor: colors.text, borderColor: colors.text },
+    chipText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
+    chipTextActive: { color: colors.background },
+    mapWrap: { flex: 1, marginTop: spacing.md, marginBottom: spacing.md },
     pager: { flex: 1 },
-    page: { flex: 1, paddingTop: spacing.lg },
+    page: { flex: 1, paddingTop: spacing.md },
     spinner: { marginTop: spacing.xl },
     list: { paddingBottom: spacing.xl },
     empty: { textAlign: "center", color: colors.textFaint, marginTop: spacing.xl, fontSize: fontSize.base },
@@ -168,12 +193,12 @@ export default function DiscoverScreen() {
     }, [load, query])
   );
 
-  const loadMap = useCallback(() => {
+  const loadMap = useCallback((force = false) => {
     if (!mapMode) return Promise.resolve();
     let active = true;
     setMapLoading(true);
     setMapError(null);
-    return listMapItems()
+    return listMapItems(undefined, force)
       .then((items) => { if (active) setMapItems(items); })
       .catch(() => { if (active) setMapError("Couldn’t load map posts. Check your connection and try again."); })
       .finally(() => { if (active) setMapLoading(false); });
@@ -182,6 +207,10 @@ export default function DiscoverScreen() {
   useEffect(() => {
     loadMap();
   }, [loadMap]);
+
+  // Event creation/edit invalidates nothing here by itself; refocusing the
+  // screen revalidates past the 60s cache window only, so unchanged data
+  // isn't refetched on every open.
 
   async function openMapItem(item: MapItem) {
     setMapViewBusy(true);
@@ -225,7 +254,8 @@ export default function DiscoverScreen() {
   async function toggleJoin(event: Event) {
     setJoinBusyIds((prev) => new Set(prev).add(event.id));
     try {
-      const updated = event.is_joined ? await leaveCommunity(event.id) : await joinCommunity(event.id);
+      const updated =
+        event.is_joined || event.has_requested ? await leaveCommunity(event.id) : await joinCommunity(event.id);
       setAllEvents((prev) => patchEventList(prev, event.id, updated));
       setOnlyEvents((prev) => patchEventList(prev, event.id, updated));
       setOnlyCommunities((prev) => patchEventList(prev, event.id, updated));
@@ -241,17 +271,18 @@ export default function DiscoverScreen() {
   }
 
   function goToTab(index: number) {
+    headerScroll.show();
     setActiveIndex(index);
     pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
   }
 
   function onScrollEnd(offsetX: number) {
     const index = Math.round(offsetX / pageWidth);
-    if (index !== activeIndex) setActiveIndex(index);
+    if (index !== activeIndex) {
+      setActiveIndex(index);
+      headerScroll.show();
+    }
   }
-
-  const underlineWidth = pageWidth / TABS.length;
-  const underlineX = scrollX.interpolate({ inputRange: [0, pageWidth], outputRange: [0, underlineWidth] });
 
   // Shared by the Accounts tab and the "All" tab's user rows (see allItems)
   // so the row markup exists in one place.
@@ -303,11 +334,14 @@ export default function DiscoverScreen() {
             data={allItems}
             keyExtractor={(item) => item.key}
             contentContainerStyle={styles.list}
+            onScroll={headerScroll.onScroll("all")}
+            scrollEventThrottle={16}
             renderItem={({ item }) => {
               if (item.kind === "section") return <Text style={styles.sectionHeader}>{item.label}</Text>;
               if (item.kind === "user") return renderPersonRow(item.user);
               return (
                 <EventCard
+                  compact
                   event={item.event}
                   onPress={(event) => openEventDetail(navigation, event)}
                   onToggleBookmark={toggleBookmark}
@@ -326,7 +360,7 @@ export default function DiscoverScreen() {
     );
   }
 
-  function eventPage(list: Event[], emptyMessage: string) {
+  function eventPage(listId: string, list: Event[], emptyMessage: string) {
     return (
       <View style={[styles.page, { width: pageWidth }]}>
         {loading && list.length === 0 ? (
@@ -336,8 +370,11 @@ export default function DiscoverScreen() {
             data={list}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
+            onScroll={headerScroll.onScroll(listId)}
+            scrollEventThrottle={16}
             renderItem={({ item }) => (
               <EventCard
+                compact
                 event={item}
                 onPress={(event) => openEventDetail(navigation, event)}
                 onToggleBookmark={toggleBookmark}
@@ -355,27 +392,50 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
-      </View>
-
-      <SearchField placeholder="Search events, communities, accounts" value={query} onChangeText={setQuery} busy={loading} />
-
-      <Pressable onPress={() => setMapMode((value) => !value)} style={styles.mapToggle}>
-        <Text style={styles.mapToggleText}>{mapMode ? "List view" : "Map view"}</Text>
-      </Pressable>
-
-      <View style={styles.tabBar}>
-        {TABS.map((tab, index) => (
-          <Pressable key={tab.key} style={styles.tab} onPress={() => goToTab(index)}>
-            <Text style={[styles.tabText, activeIndex === index && styles.tabTextActive]}>{tab.label}</Text>
+      <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Discover</Text>
+            <Text style={styles.subtitle}>Events & communities near you</Text>
+          </View>
+          <Pressable
+            onPress={() => {
+            headerScroll.show();
+            setMapMode((value) => !value);
+          }}
+            accessibilityRole="button"
+            accessibilityLabel={mapMode ? "List view" : "View map"}
+            style={({ pressed }) => [styles.mapButton, mapMode && styles.mapButtonActive, pressed && { opacity: 0.8 }]}
+          >
+            <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
           </Pressable>
-        ))}
-        <Animated.View style={[styles.underline, { width: underlineWidth, transform: [{ translateX: underlineX }] }]} />
-      </View>
+        </View>
+      </CollapsibleHeader>
+
+      <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
+
+      {!mapMode && (
+        <CollapsibleHeader progress={headerScroll.progress}>
+        <View style={styles.chipsWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {TABS.map((tab, index) => (
+              <Pressable
+                key={tab.key}
+                onPress={() => goToTab(index)}
+                style={[styles.chip, activeIndex === index && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, activeIndex === index && styles.chipTextActive]}>{tab.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+        </CollapsibleHeader>
+      )}
 
       {mapMode ? (
+        <View style={styles.mapWrap}>
         <DiscoverMapView items={mapItems} loading={mapLoading} error={mapError} selected={selectedMapItem} onSelect={setSelectedMapItem} onClose={() => setSelectedMapItem(null)} onView={openMapItem} busy={mapViewBusy} />
+        </View>
       ) : <Animated.ScrollView
         ref={pagerRef}
         horizontal
@@ -397,6 +457,8 @@ export default function DiscoverScreen() {
               data={people}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.list}
+              onScroll={headerScroll.onScroll("people")}
+              scrollEventThrottle={16}
               renderItem={({ item }) => renderPersonRow(item)}
               ListEmptyComponent={
                 <Text style={styles.empty}>
@@ -407,8 +469,8 @@ export default function DiscoverScreen() {
           )}
         </View>
 
-        {eventPage(onlyEvents, "No events found.")}
-        {eventPage(onlyCommunities, "No communities found.")}
+        {eventPage("events", onlyEvents, "No events found.")}
+        {eventPage("communities", onlyCommunities, "No communities found.")}
       </Animated.ScrollView>}
     </View>
   );

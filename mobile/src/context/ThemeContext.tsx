@@ -18,7 +18,7 @@ const FADE_IN_MS = 150;
 const FADE_OUT_MS = 220;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>("light");
+  const [mode, setMode] = useState<ThemeMode>("dark");
   // Same plain-AsyncStorage pattern as auth tokens (see api/storage.ts) —
   // fine for a UI preference, no encryption needed.
   useEffect(() => {
@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [overlay, setOverlay] = useState<{ visible: boolean; color: string }>({
     visible: false,
-    color: lightColors.background,
+    color: darkColors.background,
   });
 
   function toggle() {

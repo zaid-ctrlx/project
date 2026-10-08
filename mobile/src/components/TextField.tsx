@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, TextInput, TextInputProps, View } from "react-native";
 
+import { FONT_REGULAR } from "../lib/fonts";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";
 
@@ -17,12 +18,14 @@ export default function TextField({ style, containerStyle, label, ...rest }: Pro
     input: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: radius.sm,
+      borderRadius: radius.md,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,
       fontSize: fontSize.md,
       color: colors.text,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
+      minHeight: 48,
+      fontFamily: FONT_REGULAR,
     },
     labeledBox: {
       borderWidth: 1,
@@ -31,10 +34,11 @@ export default function TextField({ style, containerStyle, label, ...rest }: Pro
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,
       paddingBottom: spacing.xs,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
     },
     label: { fontSize: fontSize.sm, color: colors.textMuted },
     labeledInput: {
+      fontFamily: FONT_REGULAR,
       fontSize: fontSize.md,
       color: colors.text,
       padding: 0,
@@ -58,7 +62,11 @@ export default function TextField({ style, containerStyle, label, ...rest }: Pro
 
   return (
     <View style={containerStyle}>
-      <TextInput style={[styles.input, style]} placeholderTextColor={colors.textFaint} {...rest} />
+      <TextInput
+        style={[styles.input, style]}
+        placeholderTextColor={colors.textFaint}
+        {...rest}
+      />
     </View>
   );
 }
