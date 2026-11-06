@@ -8,6 +8,7 @@ type AuthState = {
   isLoading: boolean;
   login: (identifier: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: authApi.User) => void;
 };
@@ -41,8 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function handleRegister(email: string, password: string, fullName?: string) {
+    // Only sends the code; the caller moves on to the verify screen.
     await authApi.register(email, password, fullName);
-    await handleLogin(email, password);
+  }
+
+  async function handleVerifyEmail(email: string, code: string) {
+    const tokens = await authApi.verifyEmail(email, code);
+    await saveTokens(tokens.access_token, tokens.refresh_token);
+    setUser(await authApi.fetchMe());
   }
 
   async function handleLogout() {
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, login: handleLogin, register: handleRegister, logout: handleLogout, setUser }}
+      value={{ user, isLoading, login: handleLogin, register: handleRegister, verifyEmail: handleVerifyEmail, logout: handleLogout, setUser }}
     >
       {children}
     </AuthContext.Provider>

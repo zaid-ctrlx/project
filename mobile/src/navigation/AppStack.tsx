@@ -24,6 +24,7 @@ import MessageSearchScreen from "../screens/MessageSearchScreen";
 import MyPostsScreen from "../screens/MyPostsScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import SettingsScreen from "../screens/SettingsScreen";
+import ConnectionsScreen from "../screens/ConnectionsScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
 import MainTabs from "./MainTabs";
 
@@ -61,6 +62,9 @@ export type AppStackParamList = {
   // see DmInfoScreen's top comment.
   DmInfo: { userId: string; username: string; avatarUrl: string | null; onSearch: () => void; onClearChat: () => void };
   UserProfile: { userId: string };
+  // Mutual connections + incoming requests. Opened from the Connections stat
+  // on your own profile or from a connection-request notification.
+  Connections: { initialTab?: "connections" | "requests" } | undefined;
   EventDetail: { event: Event };
   // Communities only — pushed from a community card's second tap (see
   // EventCard's expand-then-open behavior on Discover) or directly from
@@ -122,6 +126,7 @@ export default function AppStack() {
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="DmInfo" component={DmInfoScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+      <Stack.Screen name="Connections" component={ConnectionsScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} />
       <Stack.Screen name="CommunitySettings" component={CommunitySettingsScreen} />

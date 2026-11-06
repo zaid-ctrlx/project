@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StyleSheet } from "react-native";
+import { ImageStyle, StyleSheet, TextStyle, ViewStyle } from "react-native";
 
 import { useTheme } from "../context/ThemeContext";
 import type { ThemeColors } from "../theme";
@@ -12,7 +12,10 @@ import type { ThemeColors } from "../theme";
 // colors) so call sites need one import/hook instead of two. Returns
 // `colors` too since a few screens reach for it outside the styles object
 // (e.g. an icon's `color` prop).
-export function useThemedStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
+// RN 0.88 dropped the StyleSheet.NamedStyles type, so spell it out.
+type NamedStyles = Record<string, ViewStyle | TextStyle | ImageStyle>;
+
+export function useThemedStyles<T extends NamedStyles>(
   factory: (colors: ThemeColors) => T
 ): { styles: T; colors: ThemeColors } {
   const { colors } = useTheme();
