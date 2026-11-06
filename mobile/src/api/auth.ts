@@ -25,7 +25,7 @@ export type User = {
 
 type TokenPair = { access_token: string; refresh_token: string; token_type: string };
 
-export function register(email: string, password: string, fullName?: string): Promise<User> {
+export function register(email: string, password: string, fullName?: string): Promise<{ message: string }> {
   return api.public("/auth/register", {
     method: "POST",
     body: JSON.stringify({ email, password, full_name: fullName ?? null }),
@@ -43,4 +43,34 @@ export function login(identifier: string, password: string): Promise<TokenPair> 
 
 export function fetchMe(): Promise<User> {
   return api.authed("/users/me");
+}
+
+// Registration only emails a code; the account can't log in until the code
+// is confirmed here, which also returns the first token pair.
+export function verifyEmail(email: string, code: string): Promise<TokenPair> {
+  return api.public("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
+}
+
+export function resendVerification(email: string): Promise<{ message: string }> {
+  return api.public("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function forgotPassword(email: string): Promise<{ message: string }> {
+  return api.public("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(email: string, code: string, newPassword: string): Promise<{ message: string }> {
+  return api.public("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+  });
 }

@@ -139,6 +139,12 @@ export function listBookmarkedEvents(): Promise<Event[]> {
 }
 
 // Posts (events + communities) the current user created — see MyPostsScreen.
+// Profile tabs. "communities" and "attended" are private to the profile's
+// owner (the API returns 403 for anyone else).
+export function listUserEvents(userId: string, tab: "hosted" | "communities" | "attended"): Promise<Event[]> {
+  return api.authed(`/events/user/${userId}/${tab}`);
+}
+
 export function listMyEvents(): Promise<Event[]> {
   return api.authed("/events/mine");
 }

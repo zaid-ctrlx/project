@@ -229,10 +229,6 @@ export default function ProfileForm({
       setSaveError("Username must be at least 3 characters: letters, numbers, and underscores only.");
       return;
     }
-    if (!location) {
-      setSaveError("Set a location before continuing.");
-      return;
-    }
 
     setSaving(true);
     try {
@@ -241,9 +237,9 @@ export default function ProfileForm({
         username: trimmedUsername,
         bio: bio.trim() || null,
         gender,
-        location_lat: location.lat,
-        location_lng: location.lng,
-        location_label: location.label,
+        ...(location
+          ? { location_lat: location.lat, location_lng: location.lng, location_label: location.label }
+          : {}),
         tag_ids: Array.from(selectedTagIds),
       });
       onSaved(updated);
@@ -339,7 +335,7 @@ export default function ProfileForm({
       <Text style={styles.sectionTitle}>Interests</Text>
       <TagMultiSelect selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
 
-      <Text style={styles.sectionTitle}>Location</Text>
+      <Text style={styles.sectionTitle}>Location (optional)</Text>
       <LocationPicker initialLabel={initialLocationLabel} onChange={setLocation} />
 
       {saveError && <Text style={styles.error}>{saveError}</Text>}
