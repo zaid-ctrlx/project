@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # Outbound email for verification / password-reset codes. Leave SMTP_HOST
+    # empty in local dev and the codes are printed to the server console.
+    # For Gmail: smtp.gmail.com, port 587, an App Password as SMTP_PASSWORD.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
     # App
     PROJECT_NAME: str = "Niche Events API"
     API_V1_PREFIX: str = "/api/v1"
@@ -25,4 +34,12 @@ class Settings(BaseSettings):
     MEDIA_ROOT: str = "media"
 
 
-settings = Settings()
+
+# Refuse to boot with the example/placeholder secret: it's public in the repo,
+# so anyone could mint valid tokens. Generate one with:
+#   python -c "import secrets; print(secrets.token_urlsafe(64))"
+_settings = Settings()
+if _settings.SECRET_KEY.startswith("change-this") or len(_settings.SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY is a placeholder or too short - set a long random value in backend/.env")
+
+settings = _settings

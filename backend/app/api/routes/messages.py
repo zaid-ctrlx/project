@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.api.deps import get_current_user
 from app.core.notify import notify_user
-from app.core.security import decode_token
+from app.core.security import decode_token, token_is_current
 from app.core.ws_manager import manager
 from app.db.session import SessionLocal, get_db
 from app.models.block import UserBlock
@@ -394,7 +394,7 @@ async def messages_ws(websocket: WebSocket, token: str = Query(...)) -> None:
         user = db.get(User, user_id)
     finally:
         db.close()
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or not user.is_verified or not token_is_current(payload, user.hashed_password):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 

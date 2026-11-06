@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.images import verify_image
 from app.core.geo import ENABLED_REGIONS
 from app.core.notify import notify_user
 from app.db.session import get_db
@@ -293,6 +294,92 @@ def list_my_events(
     return events
 
 
+def _load_event_rows(db: Session, stmt, current_user: User) -> list[Event]:
+    """Runs an Event select with the usual per-viewer flags attached (same
+    columns as /mine and /bookmarks, in one query) and returns the events."""
+    stmt = _with_bookmark_flag(stmt, current_user.id)
+    stmt = _with_join_flags(stmt, current_user.id)
+    stmt = _with_rsvp_flags(stmt, current_user.id)
+    events: list[Event] = []
+    for event, bookmarked, joined, member_count, rsvped, attendee_count in db.execute(stmt).all():
+        event.is_bookmarked = bookmarked
+        event.is_joined = joined
+        event.member_count = member_count
+        event.is_rsvped = rsvped
+        event.attendee_count = attendee_count
+        events.append(event)
+    _attach_request_info(db, events, current_user.id)
+    return events
+
+
+def _own_profile_only(user_id: uuid.UUID, current_user: User) -> None:
+    # What someone has joined or attended is only shown to them for now; it
+    # opens up to others once profiles get a privacy setting.
+    if user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This list is private")
+
+
+# Profile tabs. Declared before GET /{event_id} (like /mine and /map) and with
+# a literal "user" first segment so they can't be mistaken for an event id.
+@router.get("/user/{user_id}/hosted", response_model=list[EventOut])
+def list_user_hosted(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    stmt = (
+        select(Event)
+        .options(selectinload(Event.creator))
+        .where(Event.creator_id == user_id)
+        .order_by(Event.created_at.desc())
+        .limit(50)
+    )
+    return _load_event_rows(db, stmt, current_user)
+
+
+@router.get("/user/{user_id}/communities", response_model=list[EventOut])
+def list_user_communities(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    _own_profile_only(user_id, current_user)
+    stmt = (
+        select(Event)
+        .options(selectinload(Event.creator))
+        # IN (subquery), not a join: _load_event_rows adds correlated counts over
+        # GroupMember/event_rsvps, which break if the outer query joins them too.
+        .where(
+            Event.group_id.in_(select(GroupMember.group_id).where(GroupMember.user_id == user_id)),
+            Event.kind == "community",
+            Event.creator_id != user_id,
+        )
+        .order_by(Event.created_at.desc())
+        .limit(50)
+    )
+    return _load_event_rows(db, stmt, current_user)
+
+
+@router.get("/user/{user_id}/attended", response_model=list[EventOut])
+def list_user_attended(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    _own_profile_only(user_id, current_user)
+    stmt = (
+        select(Event)
+        .options(selectinload(Event.creator))
+        .where(
+            Event.id.in_(select(event_rsvps.c.event_id).where(event_rsvps.c.user_id == user_id)),
+            Event.starts_at < datetime.now(timezone.utc),
+        )
+        .order_by(Event.starts_at.desc())
+        .limit(50)
+    )
+    return _load_event_rows(db, stmt, current_user)
+
+
 # Declared before GET /{event_id} below so "map" is never captured as an
 # event_id path parameter — same reasoning as /bookmarks and /mine above.
 @router.get("/map", response_model=list[MapItemOut])
@@ -437,6 +524,7 @@ async def upload_event_cover(
     contents = await file.read()
     if len(contents) > COVER_MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image must be under 5MB")
+    verify_image(contents, file.content_type)
 
     covers_dir = Path(settings.MEDIA_ROOT) / "event_covers"
     covers_dir.mkdir(parents=True, exist_ok=True)

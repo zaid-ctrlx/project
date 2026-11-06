@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -6,10 +7,14 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.routes.connections import connection_status, count_connections, remove_connection
 from app.core.config import settings
+from app.core.images import verify_image
 from app.core.security import verify_password
 from app.db.session import get_db
 from app.models.block import UserBlock
+from app.models.event import Event, event_rsvps
+from app.models.group import GroupMember
 from app.models.message import DmMute
 from app.models.user import Tag, User
 from app.schemas.user import (
@@ -19,6 +24,7 @@ from app.schemas.user import (
     UserOut,
     UserPublicOut,
     UserSearchResult,
+    UserStatsOut,
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -117,7 +123,9 @@ def block_user(
     ).scalar_one_or_none()
     if already is None:
         db.add(UserBlock(blocker_id=current_user.id, blocked_id=user_id))
-        db.commit()
+    # Blocking someone ends any connection or pending request between you.
+    remove_connection(db, current_user.id, user_id)
+    db.commit()
 
 
 @router.delete("/{user_id}/block", status_code=status.HTTP_204_NO_CONTENT)
@@ -192,9 +200,10 @@ def update_profile(
     current_user.username = payload.username
     current_user.bio = payload.bio
     current_user.gender = payload.gender
-    current_user.location_lat = payload.location_lat
-    current_user.location_lng = payload.location_lng
-    current_user.location_label = payload.location_label
+    if payload.location_lat is not None and payload.location_lng is not None:
+        current_user.location_lat = payload.location_lat
+        current_user.location_lng = payload.location_lng
+        current_user.location_label = payload.location_label
     current_user.onboarding_completed = True
 
     db.add(current_user)
@@ -218,6 +227,7 @@ async def upload_avatar(
     contents = await file.read()
     if len(contents) > AVATAR_MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image must be under 5MB")
+    verify_image(contents, file.content_type)
 
     avatars_dir = Path(settings.MEDIA_ROOT) / "avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)
@@ -240,6 +250,37 @@ async def upload_avatar(
     return current_user
 
 
+# "/{user_id}/stats" has an extra path segment, so it can't be swallowed by the
+# bare "/{user_id}" route below; the app passes its own id for "my" stats.
+@router.get("/{user_id}/stats", response_model=UserStatsOut)
+def read_user_stats(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserStatsOut:
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    hosted = db.scalar(select(func.count()).select_from(Event).where(Event.creator_id == user_id)) or 0
+    communities_joined = db.scalar(
+        select(func.count())
+        .select_from(GroupMember)
+        .join(Event, Event.group_id == GroupMember.group_id)
+        .where(GroupMember.user_id == user_id, Event.kind == "community", Event.creator_id != user_id)
+    ) or 0
+    events_attended = db.scalar(
+        select(func.count())
+        .select_from(event_rsvps)
+        .join(Event, Event.id == event_rsvps.c.event_id)
+        .where(event_rsvps.c.user_id == user_id, Event.starts_at < datetime.now(timezone.utc))
+    ) or 0
+    return UserStatsOut(
+        hosted=hosted,
+        communities_joined=communities_joined,
+        events_attended=events_attended,
+        connections=count_connections(db, user_id),
+    )
+
+
 # Registered last (and after the /me, /search literal paths above) so it
 # never shadows them — "me" or "search" would otherwise be swallowed here
 # as an (invalid) {user_id} first, per FastAPI's registration-order matching.
@@ -258,4 +299,5 @@ def read_user_profile(
     user.is_muted = db.execute(
         select(DmMute).where(DmMute.user_id == current_user.id, DmMute.other_user_id == user_id)
     ).scalar_one_or_none() is not None
+    user.connection_status = connection_status(db, current_user.id, user_id)
     return user

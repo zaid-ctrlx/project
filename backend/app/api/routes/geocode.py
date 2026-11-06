@@ -1,10 +1,14 @@
 import httpx
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from app.api.deps import get_current_user
 
 from app.core.geo import ENABLED_REGIONS, is_within_enabled_region
 from app.schemas.geocode import GeocodeResult, ReverseGeocodeOut
 
-router = APIRouter(prefix="/geocode", tags=["geocode"])
+# Login required: otherwise this is an open proxy to Nominatim that anyone
+# could use to burn our rate limit / get the server IP banned.
+router = APIRouter(prefix="/geocode", tags=["geocode"], dependencies=[Depends(get_current_user)])
 
 # Free, no API key. Their usage policy requires a real User-Agent and caps
 # ~1 req/sec — fine for dev/FYP scale. Swap for a paid provider (Mapbox,

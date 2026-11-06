@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.images import verify_image
 from app.core.notify import notify_user
 from app.core.ws_manager import manager
 from app.db.session import get_db
@@ -213,6 +214,7 @@ async def upload_group_avatar(
     contents = await file.read()
     if len(contents) > AVATAR_MAX_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image must be under 5MB")
+    verify_image(contents, file.content_type)
 
     avatars_dir = Path(settings.MEDIA_ROOT) / "group_avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)
