@@ -1,5 +1,6 @@
 import { api } from "./client";
 import { Gender, Tag, User } from "./auth";
+import type { ConnectionStatus } from "./connections";
 
 export function fetchTags(): Promise<Tag[]> {
   return api.authed("/tags");
@@ -10,9 +11,10 @@ export type ProfileUpdatePayload = {
   username: string;
   bio: string | null;
   gender: Gender | null;
-  location_lat: number;
-  location_lng: number;
-  location_label: string;
+  // Optional: leaving these out keeps whatever location is already stored.
+  location_lat?: number;
+  location_lng?: number;
+  location_label?: string;
   tag_ids: string[];
 };
 
@@ -50,7 +52,15 @@ export type PublicProfile = {
   // One-directional, unlike is_blocked: says nothing about whether they've
   // muted me.
   is_muted: boolean;
+  // My relationship to them -- see UserPublicOut.connection_status.
+  connection_status: ConnectionStatus;
 };
+
+export type UserStats = { hosted: number; communities_joined: number; events_attended: number; connections: number };
+
+export function getUserStats(userId: string): Promise<UserStats> {
+  return api.authed(`/users/${userId}/stats`);
+}
 
 export function getUserProfile(userId: string): Promise<PublicProfile> {
   return api.authed(`/users/${userId}`);

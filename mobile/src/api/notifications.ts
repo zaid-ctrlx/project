@@ -8,7 +8,11 @@ export type NotificationType =
   // join_approved / join_rejected. All carry data.event_id.
   | "join_request"
   | "join_approved"
-  | "join_rejected";
+  | "join_rejected"
+  // Mutual connections: the addressee gets connection_request, the requester
+  // gets connection_accepted. Both carry data.user_id (the other person).
+  | "connection_request"
+  | "connection_accepted";
 
 export type AppNotification = {
   id: string;

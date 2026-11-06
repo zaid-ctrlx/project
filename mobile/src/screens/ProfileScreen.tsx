@@ -1,13 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useState } from "react";
-import { Image, Pressable, ScrollView, Share, Text, View } from "react-native";
+import React, { useCallback, useState } from "react";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
-import { mediaUrl } from "../api/client";
+import { getUserStats, UserStats } from "../api/profile";
 import Button from "../components/Button";
 import OptionsMenu from "../components/OptionsMenu";
+import ProfileHeader from "../components/ProfileHeader";
+import ProfileTabs from "../components/ProfileTabs";
 import ProfileForm from "../components/ProfileForm";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +23,20 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const userId = user?.id;
+
+  // Refresh on every visit so the numbers move after you create or join something.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
+      getUserStats(userId)
+        .then(setStats)
+        .catch(() => {
+          // keep whatever was shown; the row falls back to "–" on first load
+        });
+    }, [userId])
+  );
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -51,10 +67,18 @@ export default function ProfileScreen() {
     username: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
     fullName: { fontSize: fontSize.base, color: colors.textMuted, marginTop: spacing.xs },
     bio: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.md },
-    actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
+    actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
     actionButton: { flex: 1 },
     metaBlock: { marginTop: spacing.xl },
-    meta: { fontSize: fontSize.base, color: colors.textMuted, marginBottom: spacing.sm },
+    tabsBlock: { marginTop: spacing.xl },
+    sectionTitle: {
+      fontSize: fontSize.sm,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: spacing.sm,
+    },
     tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     tagChip: {
       borderWidth: 1,
@@ -128,21 +152,14 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.profileRow}>
-        {user.avatar_url ? (
-          <Image source={{ uri: mediaUrl(user.avatar_url)! }} style={styles.avatarImage} />
-        ) : (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
-        <View style={styles.identity}>
-          <Text style={styles.username}>{user.username}</Text>
-          {user.full_name && <Text style={styles.fullName}>{user.full_name}</Text>}
-        </View>
-      </View>
-
-      {user.bio && <Text style={styles.bio}>{user.bio}</Text>}
+      <ProfileHeader
+        avatarUrl={user.avatar_url}
+        username={user.username}
+        fullName={user.full_name}
+        bio={user.bio}
+        stats={stats}
+        onPressConnections={() => navigation.navigate("Connections")}
+      />
 
       <View style={styles.actionRow}>
         <View style={styles.actionButton}>
@@ -153,20 +170,22 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {(user.location_label || user.tags.length > 0) && (
+      {user.tags.length > 0 && (
         <View style={styles.metaBlock}>
-          {user.location_label && <Text style={styles.meta}>📍 {user.location_label}</Text>}
-          {user.tags.length > 0 && (
-            <View style={styles.tagRow}>
-              {user.tags.map((tag) => (
-                <View key={tag.id} style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{tag.name}</Text>
-                </View>
-              ))}
-            </View>
-          )}
+          <Text style={styles.sectionTitle}>Interests</Text>
+          <View style={styles.tagRow}>
+            {user.tags.map((tag) => (
+              <View key={tag.id} style={styles.tagChip}>
+                <Text style={styles.tagChipText}>{tag.name}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
+
+      <View style={styles.tabsBlock}>
+        <ProfileTabs userId={user.id} isOwn />
+      </View>
 
       {/* Only two kinds for now — event (one-time) and community
           (repeating); more are meant to slot into this same list later. */}

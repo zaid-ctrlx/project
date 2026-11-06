@@ -2,6 +2,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ScrollViewInstance } from "react-native";
 import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
@@ -84,11 +85,11 @@ export default function DiscoverScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollX = useRef(new Animated.Value(0)).current;
-  const pagerRef = useRef<ScrollView>(null);
+  const pagerRef = useRef<ScrollViewInstance>(null);
 
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg, minHeight: 56 },
     title: { fontSize: 30, fontWeight: "800", color: colors.text, letterSpacing: -0.8 },
     subtitle: { fontSize: fontSize.base, color: colors.textMuted, marginTop: 2 },
     mapButton: {
@@ -392,7 +393,9 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.lg }]}>
-      <CollapsibleHeader progress={headerScroll.progress}>
+      {/* Pinned (not collapsible): this row holds the list/map switch, which
+          must never be clipped or slide away mid-animation on a real phone. */}
+      <View>
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Discover</Text>
@@ -410,7 +413,7 @@ export default function DiscoverScreen() {
             <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
           </Pressable>
         </View>
-      </CollapsibleHeader>
+      </View>
 
       <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
 

@@ -22,6 +22,7 @@ export default function LoginScreen({ navigation }: Props) {
   const { styles } = useThemedStyles((colors) => ({
     field: { marginBottom: spacing.md },
     error: { color: colors.danger, marginBottom: spacing.md, fontSize: fontSize.base },
+    forgot: { color: colors.primary, fontWeight: "600", textAlign: "right", marginBottom: spacing.lg },
     link: { color: colors.textMuted, marginTop: spacing.lg, textAlign: "center" },
     linkAccent: { color: colors.primary, fontWeight: "700" },
   }));
@@ -32,6 +33,10 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       await login(identifier.trim(), password);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "email_not_verified" && typeof err.extra?.email === "string") {
+        navigation.navigate("VerifyEmail", { email: err.extra.email });
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {
       setSubmitting(false);
@@ -55,6 +60,10 @@ export default function LoginScreen({ navigation }: Props) {
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <Pressable onPress={() => navigation.navigate("ForgotPassword")} hitSlop={8}>
+        <Text style={styles.forgot}>Forgot password?</Text>
+      </Pressable>
 
       <View style={styles.field}>
         <Button label="Log in" onPress={onSubmit} loading={submitting} />

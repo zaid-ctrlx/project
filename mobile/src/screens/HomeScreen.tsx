@@ -27,6 +27,7 @@ import {
   formatDay,
   KIND_FILTER_LABELS,
   loadFilters,
+  minPeopleLabel,
   radiusChipLabel,
   saveFilters,
   SORT_LABELS,
@@ -36,9 +37,10 @@ import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
 
-// Icon-flip duration for the light/dark toggle — double ThemeContext's
-// FADE_IN_MS (150ms) so the icon is edge-on exactly when `mode` flips.
-const ICON_FLIP_MS = 300;
+// Light/dark toggle icon: it shrinks away while ThemeContext's overlay fades in
+// (FADE_IN_MS = 150ms), the icon swaps when `mode` flips underneath it, then
+// it springs back in. (A rotateY flip left the new icon mirrored.)
+const ICON_OUT_MS = 150;
 
 // Home from the Huddle design: a Filters button (location + radius, sort,
 // date range — all combinable, see FiltersSheet) + bell, a one-line
@@ -50,8 +52,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user } = useAuth();
   const { mode, colors, toggle } = useTheme();
-  const flip = useRef(new Animated.Value(0)).current;
-  const flipStep = useRef(0);
+  const iconScale = useRef(new Animated.Value(1)).current;
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -220,16 +221,13 @@ export default function HomeScreen() {
   }
 
   function handleToggleTheme() {
-    flipStep.current += 1;
-    Animated.timing(flip, {
-      toValue: flipStep.current,
-      duration: ICON_FLIP_MS,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }).start();
+    iconScale.stopAnimation();
+    Animated.sequence([
+      Animated.timing(iconScale, { toValue: 0, duration: ICON_OUT_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      Animated.spring(iconScale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }),
+    ]).start();
     toggle();
   }
-  const rotateY = flip.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] });
 
   // Where distances are measured from: the filter's location if set,
   // otherwise the profile location.
@@ -257,6 +255,10 @@ export default function HomeScreen() {
     const toT = filters.to ? dayEnd(filters.to).getTime() : null;
     return events.filter((e) => {
       if (filters.kind !== "all" && e.kind !== filters.kind) return false;
+      if (filters.minPeople > 0) {
+        const people = e.kind === "community" ? e.member_count : e.attendee_count;
+        if (people < filters.minPeople) return false;
+      }
       if (filters.radiusKm !== null) {
         const d = distances.get(e.id);
         if (d !== undefined && d > filters.radiusKm) return false;
@@ -273,7 +275,7 @@ export default function HomeScreen() {
       }
       return true;
     });
-  }, [events, distances, filters.kind, filters.radiusKm, filters.from, filters.to]);
+  }, [events, distances, filters.kind, filters.radiusKm, filters.minPeople, filters.from, filters.to]);
 
   const ordered = useMemo(() => {
     const now = Date.now();
@@ -353,6 +355,14 @@ export default function HomeScreen() {
       clear: () => applyFilters({ ...filters, radiusKm: null }),
     });
   }
+  if (filters.minPeople > 0) {
+    activeChips.push({
+      key: "minPeople",
+      label: minPeopleLabel(filters.minPeople),
+      icon: "people-outline",
+      clear: () => applyFilters({ ...filters, minPeople: 0 }),
+    });
+  }
   if (filters.from || filters.to) {
     const range =
       filters.from && filters.to
@@ -412,7 +422,7 @@ export default function HomeScreen() {
             )}
           </Pressable>
           <Pressable onPress={handleToggleTheme} hitSlop={8} style={styles.iconButton}>
-            <Animated.View style={{ transform: [{ perspective: 800 }, { rotateY }] }}>
+            <Animated.View style={{ opacity: iconScale, transform: [{ scale: iconScale }] }}>
               <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.textMuted} />
             </Animated.View>
           </Pressable>

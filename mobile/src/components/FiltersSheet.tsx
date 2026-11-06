@@ -16,6 +16,8 @@ import {
   KIND_FILTER_LABELS,
   KindFilter,
   formatDay,
+  MIN_PEOPLE_CHOICES,
+  minPeopleLabel,
   RADIUS_CHOICES,
   radiusLabel,
   SORT_LABELS,
@@ -27,6 +29,7 @@ import Button from "./Button";
 import DateField from "./DateField";
 import LocationMapPicker from "./LocationMapPicker";
 import LocationPicker, { LocationValue } from "./LocationPicker";
+import SliderRow from "./SliderRow";
 
 type Props = {
   visible: boolean;
@@ -36,7 +39,7 @@ type Props = {
 };
 
 type SheetView = "main" | "search" | "map";
-type SectionKey = "type" | "location" | "radius" | "sort" | "date";
+type SectionKey = "type" | "location" | "sort" | "date";
 
 function withinIndia(lat: number, lng: number): boolean {
   return (
@@ -132,6 +135,8 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
     chipText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
     chipTextActive: { color: colors.primaryText },
     dateRow: { flexDirection: "row", gap: spacing.sm },
+    sliderCard: { borderRadius: radius.md, backgroundColor: colors.surfaceElevated, marginBottom: spacing.sm, padding: spacing.md, paddingBottom: spacing.xs },
+    sliderNote: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: -spacing.sm, marginBottom: spacing.md },
     footer: { flexDirection: "row", gap: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
     footerItem: { flex: 1 },
     error: { color: colors.danger, fontSize: fontSize.base, marginTop: spacing.sm },
@@ -369,29 +374,27 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
                   </>
                 )}
 
-                {renderSection(
-                  "radius",
-                  "radio-button-on",
-                  "Show activities within",
-                  radiusLabel(draft.radiusKm),
-                  draft.radiusKm !== null,
-                  <>
-                    <View style={styles.chipRow}>
-                      {RADIUS_CHOICES.map((km) => (
-                        <Pressable
-                          key={km ?? "any"}
-                          onPress={() => setDraft((d) => ({ ...d, radiusKm: km }))}
-                          style={[styles.chip, draft.radiusKm === km && styles.chipActive]}
-                        >
-                          <Text style={[styles.chipText, draft.radiusKm === km && styles.chipTextActive]}>{radiusLabel(km)}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    {draft.radiusKm !== null && !originLabel && (
-                      <Text style={styles.sectionNote}>Set a location so the distance can be measured.</Text>
-                    )}
-                  </>
-                )}
+                <View style={styles.sliderCard}>
+                  <SliderRow
+                    label="Distance"
+                    valueText={radiusLabel(draft.radiusKm)}
+                    index={RADIUS_CHOICES.indexOf(draft.radiusKm)}
+                    count={RADIUS_CHOICES.length}
+                    active={draft.radiusKm !== null}
+                    onChange={(i) => setDraft((d) => ({ ...d, radiusKm: RADIUS_CHOICES[i] }))}
+                  />
+                  {draft.radiusKm !== null && !originLabel && (
+                    <Text style={styles.sliderNote}>Set a location so the distance can be measured.</Text>
+                  )}
+                  <SliderRow
+                    label="Minimum people"
+                    valueText={minPeopleLabel(draft.minPeople)}
+                    index={MIN_PEOPLE_CHOICES.indexOf(draft.minPeople)}
+                    count={MIN_PEOPLE_CHOICES.length}
+                    active={draft.minPeople > 0}
+                    onChange={(i) => setDraft((d) => ({ ...d, minPeople: MIN_PEOPLE_CHOICES[i] }))}
+                  />
+                </View>
 
                 {renderSection(
                   "sort",

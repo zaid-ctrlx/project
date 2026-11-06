@@ -31,7 +31,9 @@ export default function RegisterScreen({ navigation }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await register(email.trim(), password, fullName.trim() || undefined);
+      const trimmed = email.trim();
+      await register(trimmed, password, fullName.trim() || undefined);
+      navigation.navigate("VerifyEmail", { email: trimmed });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {

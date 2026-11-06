@@ -23,6 +23,8 @@ const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   join_request: "person-add-outline",
   join_approved: "checkmark-circle-outline",
   join_rejected: "close-circle-outline",
+  connection_request: "person-add-outline",
+  connection_accepted: "people-circle-outline",
 };
 
 function timeAgo(iso: string): string {
@@ -149,6 +151,12 @@ export default function NotificationsScreen() {
         break;
       case "join_request":
         navigation.navigate("JoinRequests", { eventId: notification.data.event_id, eventTitle: "Join requests" });
+        break;
+      case "connection_request":
+        navigation.navigate("Connections", { initialTab: "requests" });
+        break;
+      case "connection_accepted":
+        navigation.navigate("UserProfile", { userId: notification.data.user_id });
         break;
       case "join_approved":
       case "join_rejected":

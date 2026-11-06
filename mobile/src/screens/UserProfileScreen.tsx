@@ -2,14 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
-import { ApiError, mediaUrl } from "../api/client";
-import { blockUser, getUserProfile, PublicProfile, unblockUser } from "../api/profile";
+import { ApiError } from "../api/client";
+import { acceptConnection, ConnectionStatus, removeConnection, sendConnectionRequest } from "../api/connections";
+import { blockUser, getUserProfile, getUserStats, PublicProfile, unblockUser, UserStats } from "../api/profile";
 import Button from "../components/Button";
 import ConfirmSheet from "../components/ConfirmSheet";
 import OptionsMenu from "../components/OptionsMenu";
+import ProfileHeader from "../components/ProfileHeader";
+import ProfileTabs from "../components/ProfileTabs";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, radius, spacing } from "../theme";
@@ -22,9 +25,11 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [blockActionBusy, setBlockActionBusy] = useState(false);
+  const [connectBusy, setConnectBusy] = useState(false);
   const [blockActionError, setBlockActionError] = useState<string | null>(null);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
@@ -75,6 +80,8 @@ export default function UserProfileScreen() {
       backgroundColor: colors.chipBackground,
     },
     tagChipText: { fontSize: fontSize.sm, color: colors.text },
+    actionRow: { flexDirection: "row", gap: spacing.sm },
+    actionCell: { flex: 1 },
     blockedNotice: { fontSize: fontSize.sm, color: colors.textMuted, fontStyle: "italic" },
   }));
 
@@ -86,6 +93,10 @@ export default function UserProfileScreen() {
       try {
         const result = await getUserProfile(userId);
         if (!cancelled) setProfile(result);
+        // Numbers are a nice-to-have: the profile still shows if they fail.
+        getUserStats(userId)
+          .then((s) => !cancelled && setStats(s))
+          .catch(() => {});
       } catch {
         if (!cancelled) setError("Couldn't load this profile.");
       } finally {
@@ -111,6 +122,38 @@ export default function UserProfileScreen() {
       setBlockActionBusy(false);
     }
   }
+
+  // One handler for every state of the Connect button: connect / accept
+  // (when they asked me first) / cancel my request / disconnect.
+  async function onConnectPress() {
+    if (!profile || connectBusy) return;
+    const current = profile.connection_status;
+    setConnectBusy(true);
+    setBlockActionError(null);
+    try {
+      const result =
+        current === "none"
+          ? await sendConnectionRequest(profile.id)
+          : current === "pending_in"
+            ? await acceptConnection(profile.id)
+            : await removeConnection(profile.id);
+      setProfile({ ...profile, connection_status: result.status as ConnectionStatus });
+      getUserStats(profile.id)
+        .then(setStats)
+        .catch(() => {});
+    } catch (err) {
+      setBlockActionError(err instanceof ApiError ? err.message : "Couldn't update the connection. Try again.");
+    } finally {
+      setConnectBusy(false);
+    }
+  }
+
+  const connectLabel: Record<ConnectionStatus, string> = {
+    none: "Connect",
+    pending_out: "Requested",
+    pending_in: "Accept request",
+    connected: "Connected",
+  };
 
   async function onUnblock() {
     if (!profile) return;
@@ -146,35 +189,40 @@ export default function UserProfileScreen() {
         <Text style={styles.error}>{error ?? "Something went wrong."}</Text>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.profileRow}>
-            {profile.avatar_url ? (
-              <Image source={{ uri: mediaUrl(profile.avatar_url)! }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{profile.username.charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-            <View style={styles.identity}>
-              <Text style={styles.username}>{profile.username}</Text>
-              {profile.full_name && <Text style={styles.fullName}>{profile.full_name}</Text>}
-            </View>
-          </View>
-
-          {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+          <ProfileHeader
+            avatarUrl={profile.avatar_url}
+            username={profile.username}
+            fullName={profile.full_name}
+            bio={profile.bio}
+            stats={stats}
+          />
 
           {profile.is_blocked ? (
             <Text style={styles.blockedNotice}>You've blocked this user. Unblock them from the ⋯ menu to message them again.</Text>
           ) : (
-            <Button
-              label="Message"
-              onPress={() =>
-                navigation.navigate("Chat", {
-                  userId: profile.id,
-                  username: profile.username,
-                  avatarUrl: profile.avatar_url,
-                })
-              }
-            />
+            <View style={styles.actionRow}>
+              <View style={styles.actionCell}>
+                <Button
+                  label={connectLabel[profile.connection_status]}
+                  onPress={onConnectPress}
+                  variant={profile.connection_status === "none" || profile.connection_status === "pending_in" ? "primary" : "secondary"}
+                  loading={connectBusy}
+                />
+              </View>
+              <View style={styles.actionCell}>
+                <Button
+                  label="Message"
+                  variant="secondary"
+                  onPress={() =>
+                    navigation.navigate("Chat", {
+                      userId: profile.id,
+                      username: profile.username,
+                      avatarUrl: profile.avatar_url,
+                    })
+                  }
+                />
+              </View>
+            </View>
           )}
           {blockActionError && <Text style={styles.error}>{blockActionError}</Text>}
 
@@ -190,6 +238,10 @@ export default function UserProfileScreen() {
               </View>
             </View>
           )}
+
+          <View style={styles.metaBlock}>
+            <ProfileTabs userId={profile.id} isOwn={false} />
+          </View>
         </ScrollView>
       )}
 

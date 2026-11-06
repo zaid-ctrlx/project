@@ -339,7 +339,7 @@ export default function GroupInfoScreen() {
                 </Pressable>
                 {deleteError && <Text style={styles.deleteError}>{deleteError}</Text>}
               </>
-            ) : null
+            ) : undefined
           }
         />
       )}

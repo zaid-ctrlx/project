@@ -122,7 +122,7 @@ export default function MessageSearchScreen() {
             <Text style={styles.emptyBody}>No users found.</Text>
           ) : !isSearching ? (
             <Text style={styles.emptyBody}>Search for a username to start a conversation.</Text>
-          ) : null
+          ) : undefined
         }
       />
     </View>

@@ -299,7 +299,7 @@ export default function GroupChatScreen() {
           keyboardDismissMode="interactive"
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.loadingMore} /> : null}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.loadingMore} /> : undefined}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyBody}>

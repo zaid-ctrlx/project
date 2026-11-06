@@ -18,6 +18,9 @@ export type FeedFilters = {
   to: string | null;
   sort: SortKey;
   kind: KindFilter;
+  // Hide posts with fewer than this many people (attendees for events,
+  // members for communities). 0 = no minimum.
+  minPeople: number;
 };
 
 export const DEFAULT_FILTERS: FeedFilters = {
@@ -27,6 +30,7 @@ export const DEFAULT_FILTERS: FeedFilters = {
   to: null,
   sort: "soonest",
   kind: "all",
+  minPeople: 0,
 };
 
 export const KIND_FILTER_LABELS: Record<KindFilter, string> = {
@@ -41,8 +45,16 @@ export const SORT_LABELS: Record<SortKey, string> = {
   recent: "Recently added",
 };
 
-// "Nearby" first, "Anywhere" (no limit) last.
-export const RADIUS_CHOICES: (number | null)[] = [15, 50, 100, 150, null];
+// Stops of the distance slider: "Nearby" is 15 km, "Anywhere" (no limit) is
+// the far end.
+export const RADIUS_CHOICES: (number | null)[] = [5, 10, 15, 25, 50, 75, 100, 150, null];
+
+// Stops of the minimum-people slider.
+export const MIN_PEOPLE_CHOICES: number[] = [0, 1, 3, 5, 10, 25, 50];
+
+export function minPeopleLabel(n: number): string {
+  return n === 0 ? "Any" : `${n}+ people`;
+}
 export const NEARBY_KM = 15;
 
 export function radiusLabel(km: number | null): string {
@@ -71,6 +83,7 @@ export function activeFilterCount(f: FeedFilters): number {
   if (f.from || f.to) n += 1;
   if (f.sort !== "soonest") n += 1;
   if (f.kind !== "all") n += 1;
+  if (f.minPeople > 0) n += 1;
   return n;
 }
 
@@ -108,6 +121,8 @@ export async function loadFilters(): Promise<FeedFilters> {
       to: typeof parsed.to === "string" ? parsed.to : null,
       sort: parsed.sort === "nearest" || parsed.sort === "recent" ? parsed.sort : "soonest",
       kind: parsed.kind === "event" || parsed.kind === "community" ? parsed.kind : "all",
+      minPeople:
+        typeof parsed.minPeople === "number" && MIN_PEOPLE_CHOICES.includes(parsed.minPeople) ? parsed.minPeople : 0,
     };
   } catch {
     return DEFAULT_FILTERS;

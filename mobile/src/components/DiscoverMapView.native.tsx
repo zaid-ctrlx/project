@@ -40,7 +40,9 @@ export default function DiscoverMapView({ items, loading, error, selected, onSel
     },
   }));
   const html = useMemo(() => buildMapHtml({ dark: mode === "dark", colors: MAP_MARKER_COLORS }), [mode]);
-  const webRef = useRef<WebView>(null);
+  // WebView<object>: react-native-webview 14.0.1 types intersect props with
+  // its generic default (`undefined`), which collapses them to `never`.
+  const webRef = useRef<WebView<object>>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const [ready, setReady] = useState(false);
@@ -73,7 +75,7 @@ export default function DiscoverMapView({ items, loading, error, selected, onSel
 
   return (
     <View style={styles.wrapper}>
-      <WebView
+      <WebView<object>
         key={mode}
         ref={webRef}
         originWhitelist={["*"]}
