@@ -11,6 +11,8 @@ NOTIFICATION_TYPES = Literal[
     "join_request",
     "join_approved",
     "join_rejected",
+    "connection_request",
+    "connection_accepted",
 ]
 
 

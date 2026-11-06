@@ -21,10 +21,36 @@ export function mediaUrl(path: string | null | undefined): string | null {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Machine-readable reason when the backend sends detail as an object
+   * (e.g. "email_not_verified"); undefined for plain string details. */
+  code?: string;
+  extra?: Record<string, unknown>;
+  constructor(status: number, message: string, extra?: Record<string, unknown>) {
     super(message);
     this.status = status;
+    this.extra = extra;
+    this.code = typeof extra?.code === "string" ? extra.code : undefined;
   }
+}
+
+const REQUEST_TIMEOUT_MS = 15000;
+
+// FastAPI 422s arrive as a list of { loc, msg, ... }. Turn the first one into
+// a sentence a person can act on instead of showing raw JSON.
+function describeValidationErrors(errors: { loc?: unknown[]; msg?: string; type?: string; ctx?: { min_length?: number } }[]): string {
+  const first = errors[0];
+  if (!first) return "Please check what you entered.";
+  const field = String(first.loc?.[first.loc.length - 1] ?? "");
+  if (field === "email" || field === "identifier") {
+    return field === "email" ? "Enter a valid email address." : "Enter your email or username.";
+  }
+  if (field === "password" || field === "new_password") {
+    return first.ctx?.min_length
+      ? `Password must be at least ${first.ctx.min_length} characters.`
+      : "That password isn't valid.";
+  }
+  if (field === "code") return "Enter the 6-digit code.";
+  return (first.msg ?? "Please check what you entered.").replace(/^Value error, /, "");
 }
 
 async function rawRequest(path: string, options: RequestInit = {}, accessToken?: string | null) {
@@ -39,17 +65,41 @@ async function rawRequest(path: string, options: RequestInit = {}, accessToken?:
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  // Without a timeout an unreachable server (wrong LAN IP, backend down, other
+  // Wi-Fi) leaves every screen spinning for a minute or more before failing.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller.signal });
+  } catch {
+    throw new ApiError(
+      0,
+      `Can't reach the server (${API_ORIGIN}). Check you're on the same Wi-Fi as the PC and that the backend is running.`
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     let detail = res.statusText;
+    let extra: Record<string, unknown> | undefined;
     try {
       const body = await res.json();
-      detail = body.detail ?? detail;
+      const d = body.detail;
+      if (Array.isArray(d)) {
+        detail = describeValidationErrors(d);
+      } else if (d && typeof d === "object") {
+        // Structured error, e.g. { code: "email_not_verified", message, email }.
+        extra = d;
+        detail = typeof d.message === "string" ? d.message : detail;
+      } else if (typeof d === "string") {
+        detail = d;
+      }
     } catch {
       // response wasn't JSON — keep statusText
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, extra);
   }
 
   if (res.status === 204) return null;

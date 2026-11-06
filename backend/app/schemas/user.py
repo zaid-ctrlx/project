@@ -51,9 +51,10 @@ class ProfileUpdate(BaseModel):
     username: str = Field(min_length=3, max_length=30, pattern=USERNAME_PATTERN)
     bio: str | None = Field(default=None, max_length=150)
     gender: GENDER_OPTIONS | None = None
-    location_lat: float = Field(ge=-90, le=90)
-    location_lng: float = Field(ge=-180, le=180)
-    location_label: str = Field(min_length=1, max_length=255)
+    # Optional: omitted means "leave the stored location as it is".
+    location_lat: float | None = Field(default=None, ge=-90, le=90)
+    location_lng: float | None = Field(default=None, ge=-180, le=180)
+    location_label: str | None = Field(default=None, min_length=1, max_length=255)
     tag_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
 
 
@@ -88,6 +89,18 @@ class UserPublicOut(BaseModel):
     # Whether *I* have muted this user's DMs — same non-mapped-attribute
     # pattern as is_blocked above. See DmMute's docstring.
     is_muted: bool = False
+    # My relationship to this user: "none" | "pending_out" (I asked) |
+    # "pending_in" (they asked me) | "connected". Set by the route.
+    connection_status: str = "none"
+
+
+class UserStatsOut(BaseModel):
+    """Headline counts for a profile. All public (no per-viewer data)."""
+
+    hosted: int  # events + communities this user created
+    communities_joined: int  # communities they belong to but didn't create
+    events_attended: int  # events they RSVP'd to that have already started
+    connections: int  # accepted mutual connections (each pair counts once per person)
 
 
 class AccountDeleteRequest(BaseModel):
