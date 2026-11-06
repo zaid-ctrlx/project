@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: app_password
       POSTGRES_DB: app_db
     ports:
-      - "5432:5432"
+      # Loopback only: the backend runs on this PC, so nothing else on the
+      # network should be able to reach Postgres.
+      - "127.0.0.1:5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

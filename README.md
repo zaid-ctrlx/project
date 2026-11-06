@@ -73,6 +73,16 @@ Scan the QR code with Expo Go.
   Native uses `react-native-maps` with clustering; web uses Leaflet/OSM.
   Event/community creation rejects locations outside the enabled regions.
 
+## Email verification & password reset
+
+Registration emails a 6-digit code (10 min expiry, 5 attempts, 60s resend
+cooldown); the account can't log in or call the API until it's verified.
+"Forgot password" uses the same code mechanism. Configure `SMTP_*` in
+`backend/.env` (Gmail: smtp.gmail.com:587 + an App Password). With
+`SMTP_HOST` blank, codes are printed in the backend console. Run
+`alembic upgrade head` to add the `email_otps` table. Existing accounts
+are unverified and must confirm their email on next login.
+
 ## Demo data
 
 `python -m scripts.seed_demo` (from `backend/`, venv active) adds four demo
@@ -96,6 +106,6 @@ is run; re-run `--remove` then the seed to refresh them.
 - Map: web marker clustering, filters (kind/category/date/distance), end
   dates, distance from user
 - Token storage is plain AsyncStorage (move to `expo-secure-store`)
-- No email verification / password reset / auth rate limiting
+- Auth rate limiting (OTP attempts/resend are limited; login itself is not)
 - Locations stored at full precision (round before showing other users')
 - Tests (none yet)
