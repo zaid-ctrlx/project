@@ -45,11 +45,12 @@ cd mobile
 npm install
 copy .env.example .env
 ```
-For web preview on the same PC, set `EXPO_PUBLIC_API_URL` to
-`http://localhost:8000/api/v1`. For Expo Go on a physical phone, use your
-PC's LAN IP instead, for example `http://192.168.1.28:8000/api/v1`
-(`localhost` on the phone would refer to the phone itself). Find your IP with
-`ipconfig` on Windows; your phone and PC must be on the same Wi-Fi network.
+You don't need to set your PC's IP address: in development the app reaches
+the backend on the same address it loaded from Expo (port 8000), so it keeps
+working when your Wi-Fi address changes. Your phone and PC still need to be on
+the same Wi-Fi network. `EXPO_PUBLIC_API_URL` is only a fallback for production
+builds and `expo start --tunnel`; set `EXPO_PUBLIC_API_URL_FORCE=1` to always
+use it.
 
 ```
 npm start

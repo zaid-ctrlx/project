@@ -8,8 +8,8 @@ import { EventKind } from "../api/events";
 // own palette instead of pulling from theme.ts. Kept in one place so the
 // legend and the actual markers can never drift apart.
 export const MAP_MARKER_COLORS: Record<EventKind, string> = {
-  event: "#FF6A1A", // ember orange
-  community: "#2dd4bf", // teal (matches theme.community)
+  event: "#FF824D", // adventure orange
+  community: "#7565F5", // electric violet (matches theme.community)
 };
 
 export const MAP_MARKER_ICONS: Record<EventKind, keyof typeof Ionicons.glyphMap> = {

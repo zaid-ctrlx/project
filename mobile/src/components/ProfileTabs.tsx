@@ -39,7 +39,7 @@ export default function ProfileTabs({ userId, isOwn }: Props) {
   const { styles, colors } = useThemedStyles((colors) => ({
     tabBar: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: spacing.lg },
     tab: { paddingVertical: spacing.md, marginRight: spacing.xl },
-    tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary, marginBottom: -1 },
+    tabActive: { borderBottomWidth: 2, borderBottomColor: colors.accent, marginBottom: -1 },
     tabText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
     tabTextActive: { color: colors.text },
     title: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, marginBottom: spacing.md },

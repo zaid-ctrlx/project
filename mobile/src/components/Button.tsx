@@ -30,15 +30,15 @@ export default function Button({ label, onPress, variant = "primary", loading, d
       justifyContent: "center",
       minHeight: 48,
     },
-    // Violet fill with a soft ambient glow, per the design system's
-    // "Go Do It" primary button.
+    // Solid violet with a short, quiet drop shadow — reads as a real
+    // pressable object rather than a glowing neon pill.
     primary: {
       backgroundColor: colors.primary,
-      shadowColor: colors.primary,
-      shadowOpacity: 0.45,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
+      shadowColor: "#24213F",
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
     },
     secondary: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
     dangerBox: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.danger, shadowOpacity: 0, elevation: 0 },

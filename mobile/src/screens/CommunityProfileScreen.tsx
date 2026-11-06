@@ -100,11 +100,11 @@ export default function CommunityProfileScreen() {
       height: 22,
       borderRadius: 11,
       paddingHorizontal: 6,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
     },
-    requestBadgeText: { fontSize: 12, fontWeight: "700", color: colors.primaryText },
+    requestBadgeText: { fontSize: 12, fontWeight: "700", color: colors.accentText },
     creator: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.md, textAlign: "center" },
     adminCard: {
       marginTop: spacing.lg,
@@ -235,7 +235,7 @@ export default function CommunityProfileScreen() {
           <Ionicons
             name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
             size={24}
-            color={event.is_bookmarked ? colors.primary : colors.textMuted}
+            color={event.is_bookmarked ? colors.accent : colors.textMuted}
           />
         </Pressable>
       </View>

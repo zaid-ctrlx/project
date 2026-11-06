@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, useColorScheme, View } from "react-native";
 
 import { darkColors, lightColors, ThemeColors } from "../theme";
 
@@ -18,12 +18,17 @@ const FADE_IN_MS = 150;
 const FADE_OUT_MS = 220;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>("dark");
+  // Follows the phone's light/dark setting by default. Tapping the toggle on
+  // Home stores an explicit choice, which then wins over the system until
+  // the app data is cleared.
+  const system: ThemeMode = useColorScheme() === "dark" ? "dark" : "light";
+  const [override, setOverride] = useState<ThemeMode | null>(null);
+  const mode: ThemeMode = override ?? system;
   // Same plain-AsyncStorage pattern as auth tokens (see api/storage.ts) —
   // fine for a UI preference, no encryption needed.
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
-      if (saved === "light" || saved === "dark") setMode(saved);
+      if (saved === "light" || saved === "dark") setOverride(saved);
     });
   }, []);
 
@@ -46,7 +51,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const nextBackground = (next === "dark" ? darkColors : lightColors).background;
     setOverlay({ visible: true, color: nextBackground });
     Animated.timing(overlayOpacity, { toValue: 1, duration: FADE_IN_MS, useNativeDriver: true }).start(() => {
-      setMode(next);
+      setOverride(next);
       AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
         // Preference just won't survive a restart — not worth surfacing.
       });

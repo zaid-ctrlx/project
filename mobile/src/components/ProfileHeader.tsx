@@ -33,7 +33,7 @@ export default function ProfileHeader({ avatarUrl, username, fullName, bio, stat
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: colors.primary,
+      borderColor: colors.accent,
     },
     avatarImage: { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2 },
     avatarText: { fontSize: 38, fontWeight: "700", color: colors.text },
@@ -66,7 +66,7 @@ export default function ProfileHeader({ avatarUrl, username, fullName, bio, stat
   return (
     <View style={styles.wrap}>
       {avatarUrl ? (
-        <Image source={{ uri: mediaUrl(avatarUrl)! }} style={[styles.avatarImage, { borderWidth: 2, borderColor: colors.primary }]} />
+        <Image source={{ uri: mediaUrl(avatarUrl)! }} style={[styles.avatarImage, { borderWidth: 2, borderColor: colors.accent }]} />
       ) : (
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{username.charAt(0).toUpperCase()}</Text>

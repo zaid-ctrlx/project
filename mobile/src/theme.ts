@@ -9,56 +9,90 @@
 // screen/component must go through the theme hooks, and removing the
 // static export is what makes `tsc` catch any file that still imports one
 // directly instead of migrating.
-// Huddle palette: warm orange accent on near-black ("ember" look), with
-// amber as the secondary accent and emerald kept for success/"going".
-// Dark is the primary look; the light palette is a matching, warm variant.
+// Brand palette — four colours, everything else is a tint or shade of them:
+//   Deep Navy        #24213F  ink in light mode, the base of dark mode
+//   Electric Violet  #7565F5  primary actions, communities
+//   Adventure Orange #FF824D  events, highlights
+//   Warm Cream       #F5F3EF  paper in light mode, ink in dark mode
+// Light mode keeps the cream as-is; dark mode flips it — navy becomes the
+// page and cream becomes the text — so both feel like the same product.
+//
+// Each colour has its own job so all four show up, instead of violet doing
+// everything:
+//   violet  -> actions: primary buttons, links, your own chat bubbles
+//   orange  -> attention: active tab, badges, events, slider, highlights
+//   navy    -> structure: the tab bar, selected chips/segments ("inverse")
+//   cream   -> paper and the text that sits on navy
 export const lightColors = {
-  background: "#f6f6f8",
-  text: "#111114",
-  textMuted: "#5f6068",
-  textFaint: "#93949c",
-  border: "#e4e4e9",
-  borderLight: "#eeeef2",
-  primary: "#ea580c",
-  primaryText: "#ffffff",
-  danger: "#d92d20",
-  success: "#12a15a",
-  chipBackground: "#eeeef2",
+  background: "#F5F3EF",
+  text: "#24213F",
+  textMuted: "#5D5A73",
+  textFaint: "#9A97A8",
+  border: "#E2DDD4",
+  borderLight: "#ECE8E1",
+  primary: "#7565F5",
+  primaryText: "#FFFFFF",
+  danger: "#C4453A",
+  success: "#2F8A5F",
+  chipBackground: "#ECE8E1",
   // Extended tokens
-  surface: "#ffffff",
-  surfaceElevated: "#f1f1f4",
-  secondary: "#d98300",
-  primarySoft: "rgba(234,88,12,0.10)",
-  successSoft: "rgba(18,161,90,0.10)",
-  glow: "rgba(234,88,12,0.25)",
-  scrim: "rgba(17,17,20,0.55)",
-  // Communities get their own accent (teal) so they read differently from
-  // events (orange) at a glance.
-  community: "#0d9488",
-  communitySoft: "rgba(13,148,136,0.12)",
+  surface: "#FCFBF8",
+  surfaceElevated: "#EFEBE4",
+  secondary: "#FF824D",
+  primarySoft: "rgba(117,101,245,0.10)",
+  successSoft: "rgba(47,138,95,0.10)",
+  glow: "rgba(36,33,63,0.10)",
+  scrim: "rgba(36,33,63,0.45)",
+  // Events are orange and communities violet, so the two read differently
+  // at a glance (see EventCard / map markers).
+  community: "#7565F5",
+  communitySoft: "rgba(117,101,245,0.10)",
+  event: "#E8693A",
+  eventSoft: "rgba(255,130,77,0.12)",
+  // Orange as a fill (badges, active tab, slider) with navy text on top —
+  // navy on orange reads better than white on orange.
+  accent: "#FF824D",
+  accentText: "#24213F",
+  accentSoft: "rgba(255,130,77,0.14)",
+  // Selected chips/segments: solid navy with cream text in light mode,
+  // flipped to cream with navy text in dark mode.
+  inverse: "#24213F",
+  inverseText: "#F5F3EF",
+  // Bottom tab bar is navy in both modes.
+  tabBar: "#24213F",
+  tabBarInactive: "rgba(245,243,239,0.55)",
 };
 
 export const darkColors: typeof lightColors = {
-  background: "#0a0a0a",
-  text: "#faf6f1",
-  textMuted: "#a8a09a",
-  textFaint: "#6e665f",
-  border: "#2a2623",
-  borderLight: "#1c1917",
-  primary: "#ff6a1a",
-  primaryText: "#140a03",
-  danger: "#ff6b6b",
-  success: "#32D583",
-  chipBackground: "#1f1b18",
-  surface: "#141210",
-  surfaceElevated: "#1d1916",
-  secondary: "#ffb020",
-  primarySoft: "rgba(255,106,26,0.16)",
-  successSoft: "rgba(50,213,131,0.12)",
-  glow: "rgba(255,106,26,0.4)",
-  scrim: "rgba(10,10,10,0.7)",
-  community: "#2dd4bf",
-  communitySoft: "rgba(45,212,191,0.14)",
+  background: "#16142A",
+  text: "#F5F3EF",
+  textMuted: "#B3AFC4",
+  textFaint: "#76728C",
+  border: "#34304F",
+  borderLight: "#24213F",
+  primary: "#8576FF",
+  primaryText: "#FFFFFF",
+  danger: "#FF7B6E",
+  success: "#5CC795",
+  chipBackground: "#2A2745",
+  surface: "#1E1B36",
+  surfaceElevated: "#28254A",
+  secondary: "#FF824D",
+  primarySoft: "rgba(133,118,255,0.16)",
+  successSoft: "rgba(92,199,149,0.14)",
+  glow: "rgba(0,0,0,0.35)",
+  scrim: "rgba(12,11,24,0.65)",
+  community: "#9A8DFF",
+  communitySoft: "rgba(154,141,255,0.14)",
+  event: "#FF824D",
+  eventSoft: "rgba(255,130,77,0.14)",
+  accent: "#FF824D",
+  accentText: "#24213F",
+  accentSoft: "rgba(255,130,77,0.16)",
+  inverse: "#F5F3EF",
+  inverseText: "#24213F",
+  tabBar: "#0F0D1F",
+  tabBarInactive: "rgba(245,243,239,0.5)",
 };
 
 export type ThemeColors = typeof lightColors;

@@ -29,9 +29,9 @@ export default function TagMultiSelect({ selectedIds, onChange }: Props) {
       paddingHorizontal: spacing.lg,
       backgroundColor: colors.chipBackground,
     },
-    tagChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+    tagChipSelected: { backgroundColor: colors.inverse, borderColor: colors.inverse },
     tagChipText: { fontSize: fontSize.base, color: colors.text },
-    tagChipTextSelected: { color: colors.primaryText },
+    tagChipTextSelected: { color: colors.inverseText },
   }));
 
   useEffect(() => {

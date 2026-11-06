@@ -39,7 +39,7 @@ export default function ConfirmDeleteSheet({ visible, onClose, title, body, conf
   const { styles, colors } = useThemedStyles((colors) => ({
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,

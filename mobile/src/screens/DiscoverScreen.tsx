@@ -102,7 +102,7 @@ export default function DiscoverScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    mapButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    mapButtonActive: { backgroundColor: colors.inverse, borderColor: colors.inverse },
     chipsWrap: { marginTop: spacing.md, marginHorizontal: -spacing.lg },
     chips: { paddingHorizontal: spacing.lg, gap: spacing.sm },
     chip: {
@@ -410,7 +410,7 @@ export default function DiscoverScreen() {
             accessibilityLabel={mapMode ? "List view" : "View map"}
             style={({ pressed }) => [styles.mapButton, mapMode && styles.mapButtonActive, pressed && { opacity: 0.8 }]}
           >
-            <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.primaryText : colors.text} />
+            <Ionicons name={mapMode ? "list" : "map-outline"} size={20} color={mapMode ? colors.inverseText : colors.text} />
           </Pressable>
         </View>
       </View>

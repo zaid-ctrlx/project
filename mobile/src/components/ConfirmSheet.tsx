@@ -26,7 +26,7 @@ export default function ConfirmSheet({ visible, onClose, title, body, confirmLab
   const { styles } = useThemedStyles((colors) => ({
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,

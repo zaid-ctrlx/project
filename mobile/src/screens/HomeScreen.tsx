@@ -72,7 +72,7 @@ export default function HomeScreen() {
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.sm,
     },
-    brand: { fontSize: fontSize.xl, fontWeight: "800", color: colors.primary, letterSpacing: -0.5 },
+    brand: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
     headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     filterButton: {
       flexDirection: "row",
@@ -95,25 +95,25 @@ export default function HomeScreen() {
       height: 18,
       borderRadius: 9,
       paddingHorizontal: 4,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
       borderColor: colors.background,
     },
-    filterBadgeText: { color: colors.primaryText, fontSize: 10, fontWeight: "800" },
+    filterBadgeText: { color: colors.accentText, fontSize: 10, fontWeight: "800" },
     activeChips: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
     activeChip: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      backgroundColor: colors.primarySoft,
+      backgroundColor: colors.inverse,
       borderRadius: radius.pill,
       paddingVertical: 5,
       paddingLeft: spacing.md,
       paddingRight: spacing.sm,
     },
-    activeChipText: { color: colors.primary, fontSize: fontSize.sm, fontWeight: "700", maxWidth: 200 },
+    activeChipText: { color: colors.inverseText, fontSize: fontSize.sm, fontWeight: "700", maxWidth: 200 },
     iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
     badgeDot: {
       position: "absolute",
@@ -398,8 +398,8 @@ export default function HomeScreen() {
   // Same kind cues as EventCard: orange + squared for events, teal + round
   // for communities.
   const fIsEvent = featured?.kind === "event";
-  const fAccent = fIsEvent ? colors.primary : colors.community;
-  const fSoft = fIsEvent ? colors.primarySoft : colors.communitySoft;
+  const fAccent = fIsEvent ? colors.event : colors.community;
+  const fSoft = fIsEvent ? colors.eventSoft : colors.communitySoft;
   const fRadius = fIsEvent ? radius.sm : radius.pill;
 
   return (
@@ -444,11 +444,11 @@ export default function HomeScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeChips}>
             {activeChips.map((chip) => (
               <Pressable key={chip.key} onPress={chip.clear} style={styles.activeChip} accessibilityLabel={`Remove ${chip.label} filter`}>
-                <Ionicons name={chip.icon} size={13} color={colors.primary} />
+                <Ionicons name={chip.icon} size={13} color={colors.accent} />
                 <Text style={styles.activeChipText} numberOfLines={1}>
                   {chip.label}
                 </Text>
-                <Ionicons name="close" size={14} color={colors.primary} />
+                <Ionicons name="close" size={14} color={colors.inverseText} />
               </Pressable>
             ))}
           </ScrollView>
@@ -502,7 +502,7 @@ export default function HomeScreen() {
           <>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="flame" size={20} color={colors.primary} />
+                <Ionicons name="flame" size={20} color={colors.accent} />
                 <Text style={styles.sectionTitle}>{featuredHeading}</Text>
               </View>
               <Pressable onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })} hitSlop={8}>

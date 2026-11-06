@@ -57,12 +57,12 @@ export default function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textFaint,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.tabBarInactive,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.tabBar,
+          borderTopWidth: 0,
           height: 64 + insets.bottom,
           paddingTop: 6,
         },
@@ -78,7 +78,7 @@ export default function MainTabs() {
       <Tab.Screen
         name="Messages"
         component={MessagesScreen}
-        options={{ tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined, tabBarBadgeStyle: { backgroundColor: colors.secondary, color: colors.background } }}
+        options={{ tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined, tabBarBadgeStyle: { backgroundColor: colors.primary, color: colors.primaryText } }}
       />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

@@ -82,7 +82,7 @@ export function clearDmChat(userId: string): Promise<void> {
 // API_URL already includes the /api/v1 prefix and an http(s) scheme (and is
 // guaranteed non-empty by client.ts's own module-level check) — swap the
 // scheme for ws(s) and append the route.
-const WS_BASE = API_URL!.replace(/^http/, "ws");
+const WS_BASE = API_URL.replace(/^http/, "ws");
 
 export async function buildMessagesSocketUrl(): Promise<string | null> {
   const token = await getAccessToken();

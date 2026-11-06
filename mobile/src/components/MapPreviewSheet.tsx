@@ -33,7 +33,7 @@ function formatDateTime(iso: string): string {
 // deliberately slim shape (see api/map.ts).
 export default function MapPreviewSheet({ item, onClose, onView, busy }: Props) {
   const { styles, colors } = useThemedStyles((colors) => ({
-    backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+    backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
     sheet: {
       backgroundColor: colors.background,
       borderTopLeftRadius: radius.md,

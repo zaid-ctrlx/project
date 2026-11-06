@@ -15,9 +15,9 @@ export function buildPickMapHtml(opts: {
     [southWest.latitude, southWest.longitude],
     [northEast.latitude, northEast.longitude],
   ]);
-  const bg = opts.dark ? "#0a0a0a" : "#e8e8e8";
+  const bg = opts.dark ? "#16142A" : "#EFEBE4";
   const dark = opts.dark
-    ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.8) contrast(.95) saturate(.35) sepia(.25)}.leaflet-control-attribution{background:rgba(10,10,10,.7)!important;color:#a8a09a!important}.leaflet-control-attribution a{color:#a8a09a!important}.leaflet-bar a{background:#141210;color:#faf6f1;border-color:#2a2623}"
+    ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.8) contrast(.95) saturate(.35) sepia(.1) hue-rotate(10deg)}.leaflet-control-attribution{background:rgba(22,20,42,.75)!important;color:#B3AFC4!important}.leaflet-control-attribution a{color:#B3AFC4!important}.leaflet-bar a{background:#1E1B36;color:#F5F3EF;border-color:#34304F}"
     : "";
   const initial = opts.initial ? JSON.stringify([opts.initial.lat, opts.initial.lng]) : "null";
   return `<!doctype html><html><head><meta charset="utf-8">
@@ -25,7 +25,7 @@ export function buildPickMapHtml(opts: {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 html,body,#map{height:100%;margin:0;padding:0;background:${bg};cursor:crosshair}
-.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${opts.accent};border:3px solid #fff;box-sizing:border-box;box-shadow:0 0 14px ${opts.accent}}
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${opts.accent};border:3px solid #fff;box-sizing:border-box;box-shadow:0 2px 8px rgba(36,33,63,.35)}
 .pin:after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;top:7px;left:7px}
 .leaflet-control-attribution{font-size:9px;opacity:.7}
 ${dark}

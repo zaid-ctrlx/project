@@ -43,7 +43,7 @@ export default function SliderRow({ label, valueText, index, count, onChange, ac
     row: { flexDirection: "row", alignItems: "center" },
     hit: { flex: 1, height: HIT_HEIGHT, justifyContent: "center" },
     track: { height: TRACK, borderRadius: TRACK / 2, backgroundColor: colors.border, marginHorizontal: THUMB / 2 },
-    fill: { position: "absolute", left: THUMB / 2, height: TRACK, borderRadius: TRACK / 2, backgroundColor: colors.primary },
+    fill: { position: "absolute", left: THUMB / 2, height: TRACK, borderRadius: TRACK / 2, backgroundColor: colors.accent },
     thumb: {
       position: "absolute",
       top: (HIT_HEIGHT - THUMB) / 2,
@@ -60,7 +60,7 @@ export default function SliderRow({ label, valueText, index, count, onChange, ac
       elevation: 3,
     },
     value: { width: 92, textAlign: "right", fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
-    valueActive: { color: colors.primary },
+    valueActive: { color: colors.event },
   }));
 
   const usable = Math.max(width - THUMB, 1);

@@ -33,7 +33,7 @@ export default function OptionsMenu({ visible, onClose, title, items }: Props) {
   const { styles } = useThemedStyles((colors) => ({
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,

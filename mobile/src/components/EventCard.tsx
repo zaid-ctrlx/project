@@ -215,8 +215,8 @@ export default function EventCard({
   // Events are orange + calendar + squared corners; communities are teal +
   // people + fully round shapes — the cues that make the two kinds
   // distinguishable at a glance (see also the map markers, same colours).
-  const accent = isEvent ? colors.primary : colors.community;
-  const accentSoft = isEvent ? colors.primarySoft : colors.communitySoft;
+  const accent = isEvent ? colors.event : colors.community;
+  const accentSoft = isEvent ? colors.eventSoft : colors.communitySoft;
   const kindLabel = EVENT_KIND_LABELS[event.kind];
   const kindIcon = EVENT_KIND_ICONS[event.kind];
   const badgeRadius = isEvent ? radius.sm : radius.pill;
@@ -362,7 +362,7 @@ export default function EventCard({
             <Ionicons
               name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
               size={18}
-              color={event.is_bookmarked ? accent : "#faf6f1"}
+              color={event.is_bookmarked ? accent : "#F5F3EF"}
             />
           </Pressable>
         </View>

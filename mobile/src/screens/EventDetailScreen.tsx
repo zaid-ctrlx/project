@@ -155,7 +155,7 @@ export default function EventDetailScreen() {
           <Ionicons
             name={event.is_bookmarked ? "bookmark" : "bookmark-outline"}
             size={24}
-            color={event.is_bookmarked ? colors.primary : colors.textMuted}
+            color={event.is_bookmarked ? colors.accent : colors.textMuted}
           />
         </Pressable>
       </View>

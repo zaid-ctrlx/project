@@ -100,7 +100,7 @@ export default function ProfileForm({
     changePhotoText: { color: colors.primary, fontSize: fontSize.base, fontWeight: "600", marginTop: spacing.sm },
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,

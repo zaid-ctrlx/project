@@ -161,14 +161,14 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
       borderRadius: radius.md,
       paddingVertical: spacing.md,
     },
-    segmentActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    segmentActive: { backgroundColor: colors.inverse, borderColor: colors.inverse },
     segmentText: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
-    segmentTextActive: { color: colors.primaryText },
+    segmentTextActive: { color: colors.inverseText },
 
     // Photo-source sheet (mirrors CreateGroupScreen's / ProfileForm's)
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,
@@ -396,7 +396,7 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
               <Ionicons
                 name="location-outline"
                 size={16}
-                color={locationMode === "physical" ? colors.primaryText : colors.text}
+                color={locationMode === "physical" ? colors.inverseText : colors.text}
               />
               <Text style={[styles.segmentText, locationMode === "physical" && styles.segmentTextActive]}>
                 Physical
@@ -409,7 +409,7 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
               <Ionicons
                 name="globe-outline"
                 size={16}
-                color={locationMode === "online" ? colors.primaryText : colors.text}
+                color={locationMode === "online" ? colors.inverseText : colors.text}
               />
               <Text style={[styles.segmentText, locationMode === "online" && styles.segmentTextActive]}>Online</Text>
             </Pressable>

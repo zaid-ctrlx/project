@@ -95,7 +95,7 @@ export default function NotificationsScreen() {
     body: { flex: 1 },
     titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     title: { fontSize: fontSize.md, fontWeight: "600", color: colors.text, flexShrink: 1 },
-    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
     text: { fontSize: fontSize.base, color: colors.textMuted, marginTop: 2 },
     time: { fontSize: fontSize.sm, color: colors.textFaint, marginTop: spacing.xs },
     empty: { alignItems: "center", paddingTop: spacing.xxl, gap: spacing.sm },

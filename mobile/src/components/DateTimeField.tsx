@@ -54,7 +54,7 @@ export default function DateTimeField({ label, value, onChange, minimumDate }: P
     placeholder: { color: colors.textFaint },
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
+      backgroundColor: colors.scrim,
       alignItems: "center",
       justifyContent: "center",
       padding: spacing.xl,

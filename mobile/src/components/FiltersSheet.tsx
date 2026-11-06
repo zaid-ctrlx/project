@@ -98,7 +98,7 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
     scroll: { paddingBottom: spacing.md },
     accCard: { borderRadius: radius.md, backgroundColor: colors.surfaceElevated, marginBottom: spacing.sm, overflow: "hidden" },
     accHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md },
-    accIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+    accIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft },
     accText: { flex: 1 },
     accTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
     accSummary: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 1 },
@@ -131,9 +131,9 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
       borderColor: colors.border,
       backgroundColor: colors.background,
     },
-    chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipActive: { backgroundColor: colors.inverse, borderColor: colors.inverse },
     chipText: { fontSize: fontSize.base, fontWeight: "600", color: colors.textMuted },
-    chipTextActive: { color: colors.primaryText },
+    chipTextActive: { color: colors.inverseText },
     dateRow: { flexDirection: "row", gap: spacing.sm },
     sliderCard: { borderRadius: radius.md, backgroundColor: colors.surfaceElevated, marginBottom: spacing.sm, padding: spacing.md, paddingBottom: spacing.xs },
     sliderNote: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: -spacing.sm, marginBottom: spacing.md },
@@ -277,7 +277,7 @@ export default function FiltersSheet({ visible, onClose, filters, onApply }: Pro
           accessibilityState={{ expanded: isOpen }}
         >
           <View style={styles.accIcon}>
-            <Ionicons name={icon} size={18} color={colors.primary} />
+            <Ionicons name={icon} size={18} color={colors.accent} />
           </View>
           <View style={styles.accText}>
             <Text style={styles.accTitle}>{title}</Text>

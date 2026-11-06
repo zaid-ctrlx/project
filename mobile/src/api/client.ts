@@ -1,13 +1,54 @@
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from "./storage";
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const BACKEND_PORT = 8000;
+const API_PREFIX = "/api/v1";
 
-if (!API_URL) {
+// Works out where the backend is, so nobody has to edit .env every time the
+// PC's Wi-Fi address changes. The backend runs on the same PC as the Expo
+// dev server, so whatever address the phone used to load the app from
+// Expo is also the address of the backend — just on port 8000.
+//   - Web: the page's own hostname (localhost on the PC itself).
+//   - Expo Go / dev build: the host part of Expo's hostUri, e.g.
+//     "10.141.240.161:8081" -> 10.141.240.161.
+// Falls back to EXPO_PUBLIC_API_URL when there's no dev server to read from
+// (a production build) or when Expo runs in tunnel mode, where the host is an
+// *.exp.direct proxy that only forwards the Metro port, not the backend's.
+function detectDevHost(): string | null {
+  if (Platform.OS === "web") {
+    return typeof window !== "undefined" ? window.location.hostname || null : null;
+  }
+  const hostUri = Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost;
+  if (!hostUri) return null;
+  const host = hostUri.split(":")[0];
+  if (!host || host.endsWith(".exp.direct")) return null;
+  return host;
+}
+
+function resolveApiUrl(): string | undefined {
+  // Set EXPO_PUBLIC_API_URL_FORCE=1 to always use the .env value (e.g. to
+  // point a phone at a backend on a different machine).
+  const forced = process.env.EXPO_PUBLIC_API_URL_FORCE === "1";
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  if (!forced) {
+    const host = detectDevHost();
+    if (host) return `http://${host}:${BACKEND_PORT}${API_PREFIX}`;
+  }
+  return fromEnv;
+}
+
+const resolved = resolveApiUrl();
+
+if (!resolved) {
   // Fail loud in dev rather than silently hitting "undefined/auth/login".
   throw new Error(
-    "EXPO_PUBLIC_API_URL is not set — copy mobile/.env.example to mobile/.env and set your LAN IP."
+    "Couldn't work out the backend address — set EXPO_PUBLIC_API_URL in mobile/.env (see .env.example)."
   );
 }
+
+export const API_URL: string = resolved;
 
 // API_URL includes the "/api/v1" prefix; strip it to get the origin that
 // relative paths returned by the API (e.g. avatar_url) are served from.
