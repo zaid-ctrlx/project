@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
@@ -32,7 +32,7 @@ import {
   saveFilters,
   SORT_LABELS,
 } from "../lib/feedFilters";
-import { startsInLabel, timeLabel } from "../lib/countdown";
+import { startsInLabel } from "../lib/countdown";
 import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
@@ -45,7 +45,7 @@ const ICON_OUT_MS = 150;
 
 // Home from the Huddle design: a Filters button (location + radius, sort,
 // date range — all combinable, see FiltersSheet) + bell, a one-line
-// time-of-day greeting, a "Recommended for you" row (hybrid recommender,
+// "Your plans" dropdown, a "Recommended for you" row (hybrid recommender,
 // GET /recommendations — hidden while filters are active), a featured card and
 // the rest of the feed (the real events list, soonest-first by default).
 export default function HomeScreen() {
@@ -57,12 +57,14 @@ export default function HomeScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [recs, setRecs] = useState<Event[]>([]);
   const [plans, setPlans] = useState<Event[]>([]);
+  const [plansOpen, setPlansOpen] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [filters, setFilters] = useState<FeedFilters>(DEFAULT_FILTERS);
-  // Greeting hides on scroll-down and returns on any upward scroll.
+  // Filter chips hide on scroll-down and return on any upward scroll.
   const headerScroll = useScrollAwareHeader();
   const [unread, setUnread] = useState(0);
 
@@ -129,9 +131,6 @@ export default function HomeScreen() {
       borderWidth: 2,
       borderColor: colors.background,
     },
-    greetingWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
-    greeting: { fontSize: fontSize.lg, fontWeight: "600", color: colors.textMuted, letterSpacing: -0.2 },
-    greetingName: { color: colors.text, fontWeight: "800" },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -182,22 +181,43 @@ export default function HomeScreen() {
     empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: "700" },
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
-    planRow: {
+    plansToggle: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.md,
+      justifyContent: "space-between",
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: radius.lg,
-      padding: spacing.md,
-      marginHorizontal: spacing.lg,
-      marginBottom: spacing.sm,
     },
-    planWhen: { width: 70, alignItems: "center" },
-    planTime: { color: colors.text, fontSize: fontSize.sm, fontWeight: "800" },
-    planCountdown: { color: colors.accent, fontSize: 11, fontWeight: "700", textAlign: "center" },
-    planTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "700", flex: 1 },
+    plansCount: {
+      minWidth: 22,
+      height: 22,
+      borderRadius: 11,
+      paddingHorizontal: 6,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    plansCountText: { color: colors.accentText, fontSize: 12, fontWeight: "800" },
+    planCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.xs,
+      justifyContent: "center",
+      minHeight: 96,
+    },
+    planCountdown: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "700" },
+    planTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: "700" },
+    planMeta: { color: colors.textMuted, fontSize: fontSize.sm },
+    seeAllCard: { alignItems: "center", gap: spacing.xs },
     recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
     recCard: {
       width: 220,
@@ -232,7 +252,7 @@ export default function HomeScreen() {
         getRecommendations(8).catch(() => [] as Event[]),
         listMyPlans("upcoming").catch(() => [] as Event[]),
       ]);
-      setPlans(planList.slice(0, 3));
+      setPlans(planList.slice(0, 8));
       setEvents(list);
       setRecs(recList);
       setUnread(count.unread_count);
@@ -349,15 +369,6 @@ export default function HomeScreen() {
   const featured = ordered.find((e) => e.kind === "event") ?? ordered[0];
   const rest = ordered.filter((e) => e.id !== featured?.id);
 
-  // Minimal time-of-day greeting (night owls get their own line).
-  const greeting = (() => {
-    const hour = new Date().getHours();
-    const name = user?.username ?? "";
-    if (hour >= 22 || hour < 5) return { lead: "Hello, ", name: "night owl" };
-    if (hour < 12) return { lead: "Good morning, ", name };
-    if (hour < 17) return { lead: "Good afternoon, ", name };
-    return { lead: "Good evening, ", name };
-  })();
   const filterCount = activeFilterCount(filters);
   const shortOrigin = originLabel ? originLabel.split(",")[0] : null;
   const featuredHeading =
@@ -369,7 +380,7 @@ export default function HomeScreen() {
           ? "Communities"
           : "Happening soon";
 
-  // Removable chips summarising the active filters (shown under the greeting).
+  // Removable chips summarising the active filters (shown under the title row).
   const activeChips: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; clear: () => void }[] = [];
   if (filters.kind !== "all") {
     activeChips.push({
@@ -474,12 +485,6 @@ export default function HomeScreen() {
       </View>
 
       <CollapsibleHeader progress={headerScroll.progress}>
-        <View style={styles.greetingWrap}>
-          <Text style={styles.greeting} numberOfLines={1}>
-            {greeting.lead}
-            <Text style={styles.greetingName}>{greeting.name}</Text>
-          </Text>
-        </View>
         {activeChips.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeChips}>
             {activeChips.map((chip) => (
@@ -542,32 +547,67 @@ export default function HomeScreen() {
           <>
             {plans.length > 0 && (
               <>
-                <View style={styles.sectionHeader}>
+                <Pressable
+                  style={({ pressed }) => [styles.plansToggle, pressed && { opacity: 0.85 }]}
+                  onPress={() => setPlansOpen((o) => !o)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: plansOpen }}
+                  accessibilityLabel={`Your plans, ${plans.length}`}
+                >
                   <View style={styles.sectionTitleRow}>
                     <Ionicons name="calendar" size={20} color={colors.accent} />
                     <Text style={styles.sectionTitle}>Your plans</Text>
-                  </View>
-                  <Pressable onPress={() => navigation.navigate("MyPlans")} hitSlop={8}>
-                    <Text style={styles.sectionLink}>See all ›</Text>
-                  </Pressable>
-                </View>
-                {plans.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    style={({ pressed }) => [styles.planRow, pressed && { opacity: 0.85 }]}
-                    onPress={() => openEventDetail(navigation, p)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${p.title}, ${startsInLabel(p.starts_at!)}`}
-                  >
-                    <View style={styles.planWhen}>
-                      <Text style={styles.planTime}>{timeLabel(p.starts_at!)}</Text>
-                      <Text style={styles.planCountdown}>{startsInLabel(p.starts_at!)}</Text>
+                    <View style={styles.plansCount}>
+                      <Text style={styles.plansCountText}>{plans.length}</Text>
                     </View>
-                    <Text style={styles.planTitle} numberOfLines={2}>
-                      {p.title}
-                    </Text>
-                  </Pressable>
-                ))}
+                  </View>
+                  <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.textMuted} />
+                </Pressable>
+                {plansOpen && (
+                  // One plan visible at a time; swipe left for the next, and the
+                  // last card is "See all" -> the full My Plans screen.
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={screenWidth - spacing.lg * 2 + spacing.md}
+                    decelerationRate="fast"
+                    contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
+                    style={{ marginBottom: spacing.sm }}
+                  >
+                    {plans.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        style={({ pressed }) => [styles.planCard, { width: screenWidth - spacing.lg * 2 }, pressed && { opacity: 0.85 }]}
+                        onPress={() => openEventDetail(navigation, p)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${p.title}, ${startsInLabel(p.starts_at!)}`}
+                      >
+                        <Text style={styles.planCountdown}>{startsInLabel(p.starts_at!)}</Text>
+                        <Text style={styles.planTitle} numberOfLines={2}>
+                          {p.title}
+                        </Text>
+                        <Text style={styles.planMeta} numberOfLines={1}>
+                          {whenLabel(p)}
+                          {p.location_label ? ` · ${p.location_label.split(",")[0]}` : ""}
+                        </Text>
+                      </Pressable>
+                    ))}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.planCard,
+                        styles.seeAllCard,
+                        { width: screenWidth - spacing.lg * 2 },
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={() => navigation.navigate("MyPlans")}
+                      accessibilityRole="button"
+                      accessibilityLabel="See all your plans"
+                    >
+                      <Ionicons name="arrow-forward-circle" size={32} color={colors.accent} />
+                      <Text style={styles.planTitle}>See all</Text>
+                    </Pressable>
+                  </ScrollView>
+                )}
                 <View style={{ height: spacing.lg }} />
               </>
             )}
