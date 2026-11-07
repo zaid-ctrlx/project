@@ -2,17 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Switch, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import ConfirmSheet from "../components/ConfirmSheet";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { fontSize, spacing } from "../theme";
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
+  const { mode, toggle } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -72,6 +74,14 @@ export default function SettingsScreen() {
           <Text style={styles.accountValue}>{user.email}</Text>
         </View>
       )}
+
+      <View style={[styles.row, styles.rowBordered, { justifyContent: "space-between" }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Ionicons name={mode === "dark" ? "moon-outline" : "sunny-outline"} size={20} color={colors.text} />
+          <Text style={styles.rowText}>Dark mode</Text>
+        </View>
+        <Switch value={mode === "dark"} onValueChange={toggle} trackColor={{ true: colors.primary }} />
+      </View>
 
       <Pressable
         onPress={() => navigation.navigate("MyPlans")}

@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
@@ -16,6 +16,8 @@ import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import FadeInUp from "../components/motion/FadeInUp";
+import PressableScale from "../components/motion/PressableScale";
 import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import {
@@ -32,16 +34,11 @@ import {
   saveFilters,
   SORT_LABELS,
 } from "../lib/feedFilters";
-import { startsInLabel } from "../lib/countdown";
+import { shortCountdown, startsInLabel } from "../lib/countdown";
 import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
-
-// Light/dark toggle icon: it shrinks away while ThemeContext's overlay fades in
-// (FADE_IN_MS = 150ms), the icon swaps when `mode` flips underneath it, then
-// it springs back in. (A rotateY flip left the new icon mirrored.)
-const ICON_OUT_MS = 150;
 
 // Home from the Huddle design: a Filters button (location + radius, sort,
 // date range — all combinable, see FiltersSheet) + bell, a one-line
@@ -52,8 +49,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user } = useAuth();
-  const { mode, colors, toggle } = useTheme();
-  const iconScale = useRef(new Animated.Value(1)).current;
+  const { mode, colors } = useTheme();
   const [events, setEvents] = useState<Event[]>([]);
   const [recs, setRecs] = useState<Event[]>([]);
   const [plans, setPlans] = useState<Event[]>([]);
@@ -77,7 +73,29 @@ export default function HomeScreen() {
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.sm,
     },
-    brand: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
+    brand: { fontSize: 24, fontWeight: "800", color: colors.text, letterSpacing: -0.8 },
+    searchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+    searchPill: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      height: 46,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+    },
+    searchText: { color: colors.textFaint, fontSize: fontSize.base, fontWeight: "500" },
+    filterBtn: { width: 46, height: 46, borderRadius: radius.lg, backgroundColor: colors.inverse, alignItems: "center", justifyContent: "center" },
+    kindChips: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+    kindChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    kindChipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
+    kindChipText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: "700" },
+    kindChipTextOn: { color: colors.inverseText },
+    avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+    avatarText: { color: colors.primaryText, fontSize: fontSize.sm, fontWeight: "800" },
     headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     filterButton: {
       flexDirection: "row",
@@ -184,39 +202,38 @@ export default function HomeScreen() {
     plansToggle: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
       marginHorizontal: spacing.lg,
       marginBottom: spacing.sm,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.lg,
+      borderRadius: 22,
+      backgroundColor: mode === "dark" ? colors.primary : colors.tabBar,
       overflow: "hidden",
     },
     plansTitleArea: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.sm,
+      gap: spacing.md,
       paddingVertical: spacing.md,
       paddingLeft: spacing.md,
     },
-    plansArrow: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.md,
-      borderLeftWidth: 1,
-      borderLeftColor: colors.border,
-    },
-    plansCount: {
-      minWidth: 22,
-      height: 22,
-      borderRadius: 11,
-      paddingHorizontal: 6,
-      backgroundColor: colors.accent,
+    plansRing: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      borderWidth: 3,
+      borderColor: colors.accent,
       alignItems: "center",
       justifyContent: "center",
     },
-    plansCountText: { color: colors.accentText, fontSize: 12, fontWeight: "800" },
+    plansRingText: { color: "#F5F3EF", fontSize: 12, fontWeight: "800" },
+    plansKicker: { color: "rgba(245,243,239,0.7)", fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
+    plansName: { color: "#F5F3EF", fontSize: fontSize.base, fontWeight: "800", marginTop: 2 },
+    plansArrow: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      alignSelf: "stretch",
+      justifyContent: "center",
+    },
     planCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
@@ -232,17 +249,25 @@ export default function HomeScreen() {
     planMeta: { color: colors.textMuted, fontSize: fontSize.sm },
     recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
     recCard: {
-      width: 220,
+      width: 164,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: radius.lg,
+      borderRadius: 22,
       padding: spacing.md,
       gap: spacing.xs,
     },
-    recReason: { color: colors.secondary, fontSize: 11, fontWeight: "700" },
-    recTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "700" },
-    recMeta: { color: colors.textMuted, fontSize: fontSize.sm },
+    recTile: { height: 60, borderRadius: radius.lg, alignItems: "center", justifyContent: "center", marginBottom: spacing.xs },
+    recReason: { alignSelf: "flex-start", color: colors.community, backgroundColor: colors.communitySoft, fontSize: 10, fontWeight: "800", paddingVertical: 3, paddingHorizontal: 8, borderRadius: radius.pill, overflow: "hidden" },
+    recTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "800", lineHeight: 18 },
+    recMeta: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+    hero: { marginHorizontal: spacing.lg, borderRadius: 28, overflow: "hidden", height: 232, marginBottom: spacing.xl },
+    heroFill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+    heroBody: { flex: 1, padding: spacing.lg, justifyContent: "space-between" },
+    heroPill: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.22)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+    heroPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    heroTitle: { color: "#fff", fontSize: 24, fontWeight: "800", letterSpacing: -0.6, lineHeight: 28 },
+    heroMeta: { color: "rgba(255,255,255,0.9)", fontSize: fontSize.sm, fontWeight: "600", marginTop: 4 },
   }));
 
   useEffect(() => {
@@ -290,15 +315,6 @@ export default function HomeScreen() {
     } catch {
       setEvents((list) => list.map((e) => (e.id === event.id ? { ...e, is_bookmarked: !next } : e)));
     }
-  }
-
-  function handleToggleTheme() {
-    iconScale.stopAnimation();
-    Animated.sequence([
-      Animated.timing(iconScale, { toValue: 0, duration: ICON_OUT_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      Animated.spring(iconScale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }),
-    ]).start();
-    toggle();
   }
 
   // Where distances are measured from: the filter's location if set,
@@ -468,35 +484,67 @@ export default function HomeScreen() {
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.header}>
-        <Text style={styles.brand}>Huddle</Text>
+        <Text style={styles.brand}>
+          huddle<Text style={{ color: colors.accent }}>.</Text>
+        </Text>
         <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => setSheetOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Filters"
-            style={({ pressed }) => [styles.filterButton, pressed && { opacity: 0.8 }]}
-          >
-            <Ionicons name="options-outline" size={16} color={colors.text} />
-            <Text style={styles.filterText}>Filters</Text>
-            {filterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{filterCount}</Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable onPress={handleToggleTheme} hitSlop={8} style={styles.iconButton}>
-            <Animated.View style={{ opacity: iconScale, transform: [{ scale: iconScale }] }}>
-              <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.textMuted} />
-            </Animated.View>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate("Notifications")} hitSlop={8} style={styles.iconButton}>
+          <Pressable onPress={() => navigation.navigate("Notifications")} hitSlop={8} style={styles.iconButton} accessibilityLabel="Notifications">
             <Ionicons name="notifications-outline" size={22} color={colors.text} />
             {unread > 0 && <View style={styles.badgeDot} />}
+          </Pressable>
+          <Pressable
+            onPress={() => (navigation as any).navigate("Tabs", { screen: "Profile" })}
+            hitSlop={6}
+            accessibilityLabel="Your profile"
+            style={styles.avatar}
+          >
+            {user?.avatar_url ? (
+              <Image source={{ uri: mediaUrl(user.avatar_url)! }} style={{ width: 40, height: 40 }} />
+            ) : (
+              <Text style={styles.avatarText}>{(user?.username ?? "?").slice(0, 2).toUpperCase()}</Text>
+            )}
           </Pressable>
         </View>
       </View>
 
+      <View style={styles.searchRow}>
+        <PressableScale
+          style={styles.searchPill}
+          pressedScale={0.98}
+          onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })}
+          accessibilityRole="search"
+          accessibilityLabel="Search events and communities"
+        >
+          <Ionicons name="search" size={18} color={colors.textFaint} />
+          <Text style={styles.searchText}>Search events & communities</Text>
+        </PressableScale>
+        <PressableScale style={styles.filterBtn} pressedScale={0.94} onPress={() => setSheetOpen(true)} accessibilityLabel="Filters">
+          <Ionicons name="options-outline" size={20} color={colors.inverseText} />
+          {filterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{filterCount}</Text>
+            </View>
+          )}
+        </PressableScale>
+      </View>
+
       <CollapsibleHeader progress={headerScroll.progress}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kindChips}>
+          {(["all", "event", "community"] as const).map((k) => {
+            const on = filters.kind === k;
+            return (
+              <Pressable
+                key={k}
+                onPress={() => applyFilters({ ...filters, kind: k })}
+                style={[styles.kindChip, on && styles.kindChipOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>{k === "all" ? "All" : KIND_FILTER_LABELS[k]}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         {activeChips.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeChips}>
             {activeChips.map((chip) => (
@@ -560,19 +608,24 @@ export default function HomeScreen() {
             {plans.length > 0 && (
               <>
                 <View style={styles.plansToggle}>
-                  {/* Left: the name - opens the full My Plans screen. */}
+                  {/* Left: next plan - opens the full My Plans screen. */}
                   <Pressable
-                    style={({ pressed }) => [styles.plansTitleArea, pressed && { opacity: 0.7 }]}
+                    style={({ pressed }) => [styles.plansTitleArea, pressed && { opacity: 0.8 }]}
                     onPress={() => navigation.navigate("MyPlans")}
                     accessibilityRole="button"
-                    accessibilityLabel={`Your plans, ${plans.length}. Open all plans`}
+                    accessibilityLabel={`Your plans, ${plans.length}. Next: ${plans[0].title}. Open all plans`}
                   >
-                    <Ionicons name="calendar" size={20} color={colors.accent} />
-                    <Text style={styles.sectionTitle}>Your plans</Text>
-                    <View style={styles.plansCount}>
-                      <Text style={styles.plansCountText}>{plans.length}</Text>
+                    <View style={styles.plansRing}>
+                      <Text style={styles.plansRingText}>{plans[0].starts_at ? shortCountdown(plans[0].starts_at) : ""}</Text>
                     </View>
-                    <Text style={styles.sectionLink}>See all ›</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.plansKicker}>
+                        YOUR PLANS · {plans.length} · SEE ALL ›
+                      </Text>
+                      <Text style={styles.plansName} numberOfLines={1}>
+                        {plans[0].title}
+                      </Text>
+                    </View>
                   </Pressable>
                   {/* Right: the arrow - drops the swipeable preview down/up. */}
                   <Pressable
@@ -582,7 +635,7 @@ export default function HomeScreen() {
                     accessibilityState={{ expanded: plansOpen }}
                     accessibilityLabel={plansOpen ? "Hide plan preview" : "Show plan preview"}
                   >
-                    <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={22} color={colors.textMuted} />
+                    <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={22} color="#F5F3EF" />
                   </Pressable>
                 </View>
                 {plansOpen && (
@@ -596,9 +649,9 @@ export default function HomeScreen() {
                     style={{ marginBottom: spacing.sm }}
                   >
                     {plans.map((p) => (
-                      <Pressable
+                      <PressableScale
                         key={p.id}
-                        style={({ pressed }) => [styles.planCard, { width: screenWidth - spacing.lg * 2 }, pressed && { opacity: 0.85 }]}
+                        style={[styles.planCard, { width: screenWidth - spacing.lg * 2 }]}
                         onPress={() => openEventDetail(navigation, p)}
                         accessibilityRole="button"
                         accessibilityLabel={`${p.title}, ${startsInLabel(p.starts_at!)}`}
@@ -611,7 +664,7 @@ export default function HomeScreen() {
                           {whenLabel(p)}
                           {p.location_label ? ` · ${p.location_label.split(",")[0]}` : ""}
                         </Text>
-                      </Pressable>
+                      </PressableScale>
                     ))}
                   </ScrollView>
                 )}
@@ -621,107 +674,79 @@ export default function HomeScreen() {
             {filterCount === 0 && recs.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>
-                  <View style={styles.sectionTitleRow}>
-                    <Ionicons name="sparkles" size={20} color={colors.accent} />
-                    <Text style={styles.sectionTitle}>Recommended for you</Text>
-                  </View>
+                  <Text style={styles.sectionTitle}>Picked for you</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recRow}>
-                  {recs.map((r) => (
-                    <Pressable
-                      key={r.id}
-                      style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.85 }]}
-                      onPress={() => openEventDetail(navigation, r)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${r.title}. ${r.recommendation_reason ?? ""}`}
-                    >
-                      {r.recommendation_reason ? <Text style={styles.recReason}>{r.recommendation_reason}</Text> : null}
-                      <Text style={styles.recTitle} numberOfLines={2}>
-                        {r.title}
-                      </Text>
-                      <Text style={styles.recMeta} numberOfLines={1}>
-                        {whenLabel(r)}
-                        {r.distance_km != null ? ` · ${formatDistance(r.distance_km)} away` : ""}
-                      </Text>
-                    </Pressable>
-                  ))}
+                  {recs.map((r) => {
+                    const rc = r.kind === "event" ? colors.event : colors.community;
+                    return (
+                      <PressableScale
+                        key={r.id}
+                        style={styles.recCard}
+                        onPress={() => openEventDetail(navigation, r)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${r.title}. ${r.recommendation_reason ?? ""}`}
+                      >
+                        <View style={[styles.recTile, { backgroundColor: r.kind === "event" ? colors.eventSoft : colors.communitySoft }]}>
+                          <Ionicons name={EVENT_KIND_ICONS[r.kind]} size={26} color={rc} />
+                        </View>
+                        {r.recommendation_reason ? <Text style={styles.recReason}>{r.recommendation_reason}</Text> : null}
+                        <Text style={styles.recTitle} numberOfLines={2}>
+                          {r.title}
+                        </Text>
+                        <Text style={styles.recMeta} numberOfLines={1}>
+                          {whenLabel(r)}
+                          {r.distance_km != null ? ` · ${formatDistance(r.distance_km)} away` : ""}
+                        </Text>
+                      </PressableScale>
+                    );
+                  })}
                 </ScrollView>
               </>
             )}
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="flame" size={20} color={colors.accent} />
-                <Text style={styles.sectionTitle}>{featuredHeading}</Text>
-              </View>
+              <Text style={styles.sectionTitle}>{featuredHeading}</Text>
               <Pressable onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })} hitSlop={8}>
                 <Text style={styles.sectionLink}>Explore ›</Text>
               </Pressable>
             </View>
 
-            <Pressable style={styles.feature} onPress={() => openEventDetail(navigation, featured)}>
-              <View style={[styles.featureMedia, { backgroundColor: fSoft }]}>
-                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, zIndex: 3, backgroundColor: fAccent }} />
-                {featured.cover_image_url ? (
-                  <Image source={{ uri: mediaUrl(featured.cover_image_url)! }} style={styles.featureImage} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.featureImage, { alignItems: "center", justifyContent: "center", paddingBottom: spacing.xl }]}>
-                    <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={56} color={fAccent} />
-                  </View>
-                )}
+            <FadeInUp>
+              <PressableScale style={styles.hero} pressedScale={0.98} onPress={() => openEventDetail(navigation, featured)}>
                 <LinearGradient
-                  colors={["transparent", colors.surface]}
-                  locations={[0.3, 1]}
-                  style={styles.featureImage}
-                  pointerEvents="none"
+                  colors={fIsEvent ? ["#FF9A66", "#C2410C"] : ["#9A8DFF", "#3B2F9E"]}
+                  start={{ x: 0.1, y: 0 }}
+                  end={{ x: 0.9, y: 1 }}
+                  style={styles.heroFill}
                 />
-                <View
-                  style={{
-                    position: "absolute",
-                    top: spacing.md,
-                    left: spacing.md,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                    borderWidth: 1,
-                    borderColor: fAccent,
-                    borderRadius: fRadius,
-                    backgroundColor: colors.scrim,
-                    paddingVertical: 4,
-                    paddingHorizontal: spacing.md,
-                  }}
-                >
-                  <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={13} color={fAccent} />
-                  <Text style={{ color: fAccent, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" }}>
-                    {EVENT_KIND_LABELS[featured.kind]}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.featureBody}>
-                <View style={[styles.featureWhen, { borderColor: fAccent, backgroundColor: fSoft, borderRadius: fRadius }]}>
-                  <Text style={[styles.featureWhenText, { color: fAccent }]}>{whenLabel(featured)}</Text>
-                </View>
-                <Text style={styles.featureTitle} numberOfLines={2}>
-                  {featured.title}
-                </Text>
-                {featured.location_label ? (
-                  <View style={styles.metaRow}>
-                    <Ionicons name="location" size={14} color={fAccent} />
-                    <Text style={styles.meta} numberOfLines={1}>
-                      {featured.location_label}
-                      {distances.has(featured.id) ? ` · ${formatDistance(distances.get(featured.id)!)}` : ""}
+                {featured.cover_image_url ? (
+                  <Image source={{ uri: mediaUrl(featured.cover_image_url)! }} style={styles.heroFill} resizeMode="cover" />
+                ) : (
+                  <Ionicons
+                    name={EVENT_KIND_ICONS[featured.kind]}
+                    size={150}
+                    color="rgba(255,255,255,0.22)"
+                    style={{ position: "absolute", right: -10, bottom: -20, transform: [{ rotate: "-10deg" }] }}
+                  />
+                )}
+                <LinearGradient colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.6)"]} locations={[0.25, 1]} style={styles.heroFill} pointerEvents="none" />
+                <View style={styles.heroBody}>
+                  <View style={styles.heroPill}>
+                    <Text style={styles.heroPillText}>{whenLabel(featured)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.heroTitle} numberOfLines={2}>
+                      {featured.title}
+                    </Text>
+                    <Text style={styles.heroMeta} numberOfLines={1}>
+                      {featured.location_label ? featured.location_label.split(",")[0] : EVENT_KIND_LABELS[featured.kind]}
+                      {distances.has(featured.id) ? ` · ${formatDistance(distances.get(featured.id)!)} away` : ""}
+                      {` · ${featured.kind === "event" ? `${featured.attendee_count} going` : `${featured.member_count} member${featured.member_count === 1 ? "" : "s"}`}`}
                     </Text>
                   </View>
-                ) : null}
-                <View style={styles.goingBar}>
-                  <Text style={[styles.going, { color: fIsEvent ? colors.success : colors.community }]}>
-                    {featured.kind === "event"
-                      ? `${featured.attendee_count} going`
-                      : `${featured.member_count} member${featured.member_count === 1 ? "" : "s"}`}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={16} color={colors.textMuted} />
                 </View>
-              </View>
-            </Pressable>
+              </PressableScale>
+            </FadeInUp>
 
             {rest.length > 0 && (
               <>
@@ -729,14 +754,15 @@ export default function HomeScreen() {
                   <Text style={styles.sectionTitle}>More for you</Text>
                 </View>
                 <View style={styles.feed}>
-                  {rest.map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      onPress={(e) => openEventDetail(navigation, e)}
-                      onToggleBookmark={toggleBookmark}
-                      distanceKm={distances.get(event.id) ?? null}
-                    />
+                  {rest.map((event, i) => (
+                    <FadeInUp key={event.id} index={i}>
+                      <EventCard
+                        event={event}
+                        onPress={(e) => openEventDetail(navigation, e)}
+                        onToggleBookmark={toggleBookmark}
+                        distanceKm={distances.get(event.id) ?? null}
+                      />
+                    </FadeInUp>
                   ))}
                 </View>
               </>

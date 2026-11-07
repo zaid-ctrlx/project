@@ -35,3 +35,12 @@ export function dayHeading(iso: string, now: Date = new Date()): string {
 export function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
+
+// Very short form for tight spots (e.g. a ring badge): "20m", "5h", "3d", "Now".
+export function shortCountdown(startsAtIso: string, now: number = Date.now()): string {
+  const diff = new Date(startsAtIso).getTime() - now;
+  if (diff <= 0) return "Now";
+  if (diff < HOUR) return `${Math.max(1, Math.round(diff / MINUTE))}m`;
+  if (diff < DAY) return `${Math.round(diff / HOUR)}h`;
+  return `${Math.floor(diff / DAY)}d`;
+}
