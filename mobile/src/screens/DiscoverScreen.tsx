@@ -62,7 +62,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   // Title header + filter pills hide on scroll-down and return on any
   // upward scroll (direction-based); the search bar stays pinned.
-  const headerScroll = useScrollAwareHeader();
+  const headerScroll = useScrollAwareHeader({ stayHiddenUntilTopDrag: true });
 
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -336,6 +336,7 @@ export default function DiscoverScreen() {
             keyExtractor={(item) => item.key}
             contentContainerStyle={styles.list}
             onScroll={headerScroll.onScroll("all")}
+            onScrollBeginDrag={headerScroll.onBeginDrag}
             scrollEventThrottle={16}
             renderItem={({ item }) => {
               if (item.kind === "section") return <Text style={styles.sectionHeader}>{item.label}</Text>;
@@ -372,6 +373,7 @@ export default function DiscoverScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             onScroll={headerScroll.onScroll(listId)}
+            onScrollBeginDrag={headerScroll.onBeginDrag}
             scrollEventThrottle={16}
             renderItem={({ item }) => (
               <EventCard
@@ -415,7 +417,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={setQuery} busy={loading} />
+      <SearchField placeholder="Search activities, communities, people" value={query} onChangeText={(text) => { headerScroll.show(); setQuery(text); }} busy={loading} />
 
       {!mapMode && (
         <CollapsibleHeader progress={headerScroll.progress}>
@@ -461,6 +463,7 @@ export default function DiscoverScreen() {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.list}
               onScroll={headerScroll.onScroll("people")}
+            onScrollBeginDrag={headerScroll.onBeginDrag}
               scrollEventThrottle={16}
               renderItem={({ item }) => renderPersonRow(item)}
               ListEmptyComponent={
