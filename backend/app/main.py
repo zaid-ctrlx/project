@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, connections, events, geocode, groups, interactions, messages, notifications, recommendations, tags, users
+from app.api.routes import auth, connections, events, geocode, groups, interactions, messages, notifications, recommendations, reports, tags, users
 from app.core.config import settings
 from app.core.reminders import reminder_loop
 
@@ -48,6 +48,7 @@ app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(connections.router, prefix=settings.API_V1_PREFIX)
 app.include_router(interactions.router, prefix=settings.API_V1_PREFIX)
 app.include_router(recommendations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(reports.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")

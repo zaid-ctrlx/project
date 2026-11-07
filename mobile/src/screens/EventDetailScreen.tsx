@@ -9,6 +9,7 @@ import { ApiError, mediaUrl } from "../api/client";
 import { bookmarkEvent, cancelRsvp, deleteEvent, Event, rsvpEvent, unbookmarkEvent } from "../api/events";
 import Button from "../components/Button";
 import ConfirmSheet from "../components/ConfirmSheet";
+import ReportPostLink from "../components/ReportPostLink";
 import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { FREQUENCY_LABELS } from "../constants/frequency";
@@ -230,6 +231,7 @@ export default function EventDetailScreen() {
         )}
 
         <Text style={styles.creator}>Organized by {event.creator.username}</Text>
+        {!isCreator && <ReportPostLink eventId={event.id} title={event.title} />}
 
         {isCreator && (
           <View style={styles.manageZone}>

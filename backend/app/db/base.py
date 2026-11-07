@@ -13,3 +13,4 @@ from app.models.email_otp import EmailOtp  # noqa: F401
 from app.models.connection import Connection  # noqa: F401
 from app.models.interaction import Interaction  # noqa: F401
 from app.models.event_reminder import EventReminder  # noqa: F401
+from app.models.report import Report  # noqa: F401
