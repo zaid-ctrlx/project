@@ -5,6 +5,16 @@ from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.api.deps import get_current_user
+from app.core.chat_utils import (
+    attach_reactions,
+    check_can_delete,
+    check_can_edit,
+    preview_text,
+    quote_fields,
+    set_reaction,
+    tombstone,
+    validate_body,
+)
 from app.core.notify import notify_user
 from app.core.security import decode_token, token_is_current
 from app.core.ws_manager import manager
@@ -12,9 +22,16 @@ from app.db.session import SessionLocal, get_db
 from app.models.block import UserBlock
 from app.models.event import Event
 from app.models.group import ChatGroup, GroupMember, GroupMessage
-from app.models.message import DmClear, DmMute, Message
+from app.models.message import DmClear, DmMute, Message, MessageReaction
 from app.models.user import User
-from app.schemas.message import ConversationOut, MessageCreate, MessageOut, MessageParticipantOut
+from app.schemas.message import (
+    ConversationOut,
+    MessageCreate,
+    MessageEdit,
+    MessageOut,
+    MessageParticipantOut,
+    ReactionSet,
+)
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -27,6 +44,98 @@ NOTIFICATION_PREVIEW_LEN = 120
 def _preview(text: str) -> str:
     text = text.strip()
     return text if len(text) <= NOTIFICATION_PREVIEW_LEN else text[:NOTIFICATION_PREVIEW_LEN].rstrip() + "…"
+
+
+def _apply_reply(db: Session, message: Message, payload: MessageCreate, current_user: User) -> None:
+    """Fills the reply fields from either an in-thread reply target or a
+    private reply to a group message. Both are checked server-side so the
+    quote can't be forged."""
+    if payload.reply_to_id is not None:
+        target = db.get(Message, payload.reply_to_id)
+        in_thread = target is not None and {target.sender_id, target.recipient_id} == {
+            current_user.id,
+            payload.recipient_id,
+        }
+        if not in_thread or target.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message to reply to not found")
+        message.reply_to_id = target.id
+        for key, value in quote_fields(target).items():
+            setattr(message, key, value)
+    elif payload.private_reply_group_message_id is not None:
+        target = db.get(GroupMessage, payload.private_reply_group_message_id)
+        if target is None or target.deleted_at is not None or target.sender_id != payload.recipient_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message to reply to not found")
+        is_member = db.execute(
+            select(GroupMember.id).where(GroupMember.group_id == target.group_id, GroupMember.user_id == current_user.id)
+        ).first()
+        if is_member is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message to reply to not found")
+        for key, value in quote_fields(target).items():
+            setattr(message, key, value)
+
+
+def _get_participant_message(db: Session, message_id: uuid.UUID, user_id: uuid.UUID) -> Message:
+    message = db.get(Message, message_id)
+    if message is None or user_id not in (message.sender_id, message.recipient_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    return message
+
+
+async def _push_update(db: Session, message: Message) -> MessageOut:
+    attach_reactions(db, MessageReaction, [message])
+    out = MessageOut.model_validate(message)
+    frame = {"type": "message_updated", "message": out.model_dump(mode="json")}
+    # Both participants get the frame: the other side to refresh, and the
+    # actor's other open sessions (a no-op for the one that made the change).
+    await manager.send_to_user(message.recipient_id, frame)
+    await manager.send_to_user(message.sender_id, frame)
+    return out
+
+
+@router.patch("/{message_id}", response_model=MessageOut)
+async def edit_message(
+    message_id: uuid.UUID,
+    payload: MessageEdit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    message = _get_participant_message(db, message_id, current_user.id)
+    check_can_edit(message, current_user.id)
+    message.body = payload.text
+    message.edited_at = func.now()
+    db.commit()
+    db.refresh(message)
+    return await _push_update(db, message)
+
+
+@router.delete("/{message_id}", response_model=MessageOut)
+async def delete_message(
+    message_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    message = _get_participant_message(db, message_id, current_user.id)
+    check_can_delete(message, current_user.id)
+    if message.deleted_at is None:
+        tombstone(message)
+        db.commit()
+        db.refresh(message)
+    return await _push_update(db, message)
+
+
+@router.put("/{message_id}/reaction", response_model=MessageOut)
+async def react_to_message(
+    message_id: uuid.UUID,
+    payload: ReactionSet,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    message = _get_participant_message(db, message_id, current_user.id)
+    if message.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This message was deleted")
+    set_reaction(db, MessageReaction, message.id, current_user.id, payload.emoji)
+    db.refresh(message)
+    return await _push_update(db, message)
 
 
 @router.post("", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
@@ -56,10 +165,19 @@ async def send_message(
     if blocked is not None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can't message this user")
 
-    message = Message(sender_id=current_user.id, recipient_id=payload.recipient_id, body=payload.text)
+    validate_body(payload.kind, payload.text)
+    message = Message(
+        sender_id=current_user.id,
+        recipient_id=payload.recipient_id,
+        body=payload.text,
+        kind=payload.kind,
+        forwarded=payload.forwarded,
+    )
+    _apply_reply(db, message, payload, current_user)
     db.add(message)
     db.commit()
     db.refresh(message)
+    message.reactions = []
 
     # Best-effort live push. If the recipient isn't connected, they just see
     # it on next fetch — no offline push notification (separate future work).
@@ -85,7 +203,7 @@ async def send_message(
             user_id=payload.recipient_id,
             type="dm_message",
             title=current_user.username,
-            body=_preview(payload.text),
+            body=_preview(preview_text(payload.kind, None, payload.text)),
             data={"sender_id": str(current_user.id)},
         )
     return message
@@ -114,6 +232,8 @@ def _dm_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
             Message.sender_id,
             Message.recipient_id,
             Message.body,
+            Message.kind,
+            Message.deleted_at,
             Message.created_at,
             counterpart_id,
             func.row_number()
@@ -159,7 +279,7 @@ def _dm_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
             ConversationOut(
                 type="dm",
                 other_user=MessageParticipantOut.model_validate(row.User),
-                last_message=row.body,
+                last_message=preview_text(row.kind, row.deleted_at, row.body),
                 last_message_at=row.created_at,
                 last_sender_id=row.sender_id,
                 unread_count=unread_counts.get(row.User.id, 0),
@@ -204,6 +324,8 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
             GroupMessage.group_id,
             GroupMessage.sender_id,
             GroupMessage.body,
+            GroupMessage.kind,
+            GroupMessage.deleted_at,
             GroupMessage.created_at,
             func.row_number()
             .over(partition_by=GroupMessage.group_id, order_by=GroupMessage.created_at.desc())
@@ -265,7 +387,7 @@ def _group_conversations(db: Session, me: uuid.UUID) -> list[ConversationOut]:
                 group_avatar_url=group.avatar_url,
                 is_community=group.id in community_group_ids,
                 member_count=member_counts.get(group.id, 0),
-                last_message=latest.body if latest else "",
+                last_message=preview_text(latest.kind, latest.deleted_at, latest.body) if latest else "",
                 # No messages yet: sort by group creation so a brand-new,
                 # still-empty group still shows up (at the top, typically).
                 last_message_at=latest.created_at if latest else group.created_at,
@@ -325,7 +447,9 @@ def get_thread(
         .limit(limit)
         .offset(offset)
     )
-    return db.scalars(stmt).all()
+    messages = list(db.scalars(stmt).all())
+    attach_reactions(db, MessageReaction, messages)
+    return messages
 
 
 @router.post("/with/{user_id}/read", status_code=status.HTTP_204_NO_CONTENT)
