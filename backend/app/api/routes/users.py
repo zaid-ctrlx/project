@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.routes.connections import connection_status, count_connections, remove_connection
 from app.core.config import settings
+from app.core.geo import coarsen_location
 from app.core.images import verify_image
 from app.core.security import verify_password
 from app.db.session import get_db
@@ -201,8 +202,10 @@ def update_profile(
     current_user.bio = payload.bio
     current_user.gender = payload.gender
     if payload.location_lat is not None and payload.location_lng is not None:
-        current_user.location_lat = payload.location_lat
-        current_user.location_lng = payload.location_lng
+        # Stored coarsely (~1 km) on purpose - see app/core/geo.py.
+        current_user.location_lat, current_user.location_lng = coarsen_location(
+            payload.location_lat, payload.location_lng
+        )
         current_user.location_label = payload.location_label
     current_user.onboarding_completed = True
 
