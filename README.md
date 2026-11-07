@@ -176,6 +176,19 @@ relative to the day it is run; run it with `--remove` first to refresh.
 **Android map.** Standalone Android builds need a Google Maps key in
 `mobile/app.json`; Expo Go and web work without one.
 
+## My Plans and reminders
+
+`GET /api/v1/events/plans?scope=upcoming|past` returns the events the user is
+going to (RSVP) or hosting. The app shows them as **My Plans** (Settings) and a
+"Your plans" strip on Home, grouped by day with a "starts in" countdown.
+
+Reminders (`backend/app/core/reminders.py`): a background loop started with the
+API checks every minute and sends an in-app notification plus an Expo push to
+everyone going and to the host — a **24h** reminder when 6–24 hours remain and
+a **6h** reminder when under 6 hours remain. The `event_reminders` table is a
+ledger with a unique (event, user, kind) row, so each reminder is sent exactly
+once even across restarts. Reminders only fire while the backend is running.
+
 ## Recommender
 
 A hybrid ranker for events and communities, in `backend/app/recsys/`:
@@ -206,9 +219,11 @@ RMSE/MAE for the SVD's predicted strength.
 connections, events and communities (create, join, approve, RSVP, bookmark),
 Home filters, Discover map, direct and group chat (including replies,
 forwarding, editing within 5 minutes, deleting, reactions and stickers),
-notifications, block/mute.
+notifications, block/mute, a personal agenda (My Plans) and event reminders.
 
 **Not built yet:**
+- Reminders: fixed 24h/6h offsets (not user-configurable); tapping a push
+  notification does not yet deep-link (open the in-app Notifications list).
 - Recommender: only validated on synthetic data so far; needs tuning and
   re-evaluation once real interaction data exists. Discover still shows an
   unranked list. Retraining is a 10-minute in-process cache, not a scheduled job.
