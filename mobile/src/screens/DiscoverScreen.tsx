@@ -36,6 +36,28 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "community", label: "Communities" },
 ];
 
+type TabsHandle = { set: (index: number) => void };
+
+// The segmented control keeps its own selected index. Discover only talks to it
+// through this handle, so switching tabs never re-renders the (heavy) lists.
+const DiscoverTabs = React.memo(
+  React.forwardRef<TabsHandle, { onSelect: (index: number) => void }>(function DiscoverTabs({ onSelect }, ref) {
+    const [index, setIndex] = useState(0);
+    React.useImperativeHandle(ref, () => ({ set: setIndex }), []);
+    return (
+      <SlidingSegment
+        options={TABS}
+        value={TABS[index].key}
+        onChange={(k) => {
+          const i = TABS.findIndex((t) => t.key === k);
+          setIndex(i);
+          onSelect(i);
+        }}
+      />
+    );
+  })
+);
+
 function patchEventList(list: Event[], id: string, patch: Partial<Event>): Event[] {
   return list.map((e) => (e.id === id ? { ...e, ...patch } : e));
 }
@@ -66,7 +88,8 @@ export default function DiscoverScreen() {
   const headerScroll = useScrollAwareHeader({ stayHiddenUntilTopDrag: true });
 
   const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
+  const activeRef = useRef(0);
+  const tabsRef = useRef<TabsHandle>(null);
   const [pageWidth, setPageWidth] = useState(Dimensions.get("window").width - spacing.xl * 2);
 
   const [allEvents, setAllEvents] = useState<Event[]>([]);
@@ -85,7 +108,6 @@ export default function DiscoverScreen() {
   const [mapViewBusy, setMapViewBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const scrollX = useRef(new Animated.Value(0)).current;
   const pagerRef = useRef<ScrollViewInstance>(null);
 
   const { styles, colors } = useThemedStyles((colors) => ({
@@ -272,16 +294,20 @@ export default function DiscoverScreen() {
     }
   }
 
-  function goToTab(index: number) {
-    headerScroll.show();
-    setActiveIndex(index);
-    pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
-  }
+  const goToTab = useCallback(
+    (index: number) => {
+      activeRef.current = index;
+      headerScroll.show();
+      pagerRef.current?.scrollTo({ x: index * pageWidth, animated: true });
+    },
+    [headerScroll, pageWidth]
+  );
 
   function onScrollEnd(offsetX: number) {
     const index = Math.round(offsetX / pageWidth);
-    if (index !== activeIndex) {
-      setActiveIndex(index);
+    if (index !== activeRef.current) {
+      activeRef.current = index;
+      tabsRef.current?.set(index); // swiped: move the highlight to match
       headerScroll.show();
     }
   }
@@ -424,11 +450,7 @@ export default function DiscoverScreen() {
         <CollapsibleHeader progress={headerScroll.progress}>
         <View style={styles.chipsWrap}>
           <View style={{ paddingHorizontal: spacing.lg }}>
-            <SlidingSegment
-              options={TABS}
-              value={TABS[activeIndex].key}
-              onChange={(k) => goToTab(TABS.findIndex((t) => t.key === k))}
-            />
+            <DiscoverTabs ref={tabsRef} onSelect={goToTab} />
           </View>
         </View>
         </CollapsibleHeader>
@@ -445,8 +467,6 @@ export default function DiscoverScreen() {
         showsHorizontalScrollIndicator={false}
         style={styles.pager}
         onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
-        scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => onScrollEnd(e.nativeEvent.contentOffset.x)}
       >
         {allResultsPage()}
