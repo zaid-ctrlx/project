@@ -16,6 +16,7 @@ from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import ChatGroup, GroupMember
 from app.models.join_request import JoinRequest
 from app.models.user import User
+from app.recsys.logging import log_interaction
 from app.schemas.event import (
     EVENT_KIND_OPTIONS,
     JOIN_POLICY_OPTIONS,
@@ -620,6 +621,7 @@ def bookmark_event(
     if already is None:
         db.execute(event_bookmarks.insert().values(event_id=event_id, user_id=current_user.id))
         db.commit()
+        log_interaction(db, current_user.id, event_id, "bookmark")
 
 
 @router.delete("/{event_id}/bookmark", status_code=status.HTTP_204_NO_CONTENT)
@@ -695,6 +697,7 @@ async def join_community(
         else:
             db.add(GroupMember(group_id=event.group_id, user_id=current_user.id, role="member"))
             db.commit()
+            log_interaction(db, current_user.id, event.id, "join")
 
     db.refresh(event)
     _set_event_flags(db, event, current_user.id)
@@ -848,6 +851,7 @@ def rsvp_event(
     if already is None:
         db.execute(event_rsvps.insert().values(event_id=event_id, user_id=current_user.id))
         db.commit()
+        log_interaction(db, current_user.id, event_id, "rsvp")
 
     _set_event_flags(db, event, current_user.id)
     return event
