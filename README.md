@@ -261,6 +261,6 @@ notifications, block/mute, a personal agenda (My Plans) and event reminders.
 - Recommender: only validated on synthetic data so far; needs tuning and
   re-evaluation once real interaction data exists. Discover still shows an
   unranked list. Retraining is a 10-minute in-process cache, not a scheduled job.
-- Map: web marker clustering, kind/category/date/distance filters.
+- Map: kind/category/date/distance filters (pins are individual by design, no clustering).
 - Rate limiting is in-memory, per process.
 - Automated tests beyond the recommender/reminder unit tests (no API or UI tests).
