@@ -2,13 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, SectionList, Text, View } from "react-native";
+import { Pressable, RefreshControl, SectionList, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
+
+import FadeInUp from "../components/motion/FadeInUp";
+import PressableScale from "../components/motion/PressableScale";
+import Skeleton from "../components/motion/Skeleton";
+import SlidingSegment from "../components/SlidingSegment";
 
 import { Event, listMyPlans } from "../api/events";
 import { useAuth } from "../context/AuthContext";
 import { useThemedStyles } from "../hooks/useThemedStyles";
-import { dayHeading, startsInLabel, timeLabel } from "../lib/countdown";
+import { dayHeading, shortCountdown, startsInLabel, timeLabel } from "../lib/countdown";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
@@ -39,18 +44,7 @@ export default function MyPlansScreen() {
     },
     headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
     headerSpacer: { width: 26 },
-    tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
-    tab: {
-      paddingVertical: 8,
-      paddingHorizontal: spacing.lg,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    tabActive: { backgroundColor: colors.inverse, borderColor: colors.inverse },
-    tabText: { color: colors.text, fontSize: fontSize.sm, fontWeight: "700" },
-    tabTextActive: { color: colors.inverseText },
+    tabs: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
     list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
     sectionHeader: {
       color: colors.textMuted,
@@ -68,25 +62,19 @@ export default function MyPlansScreen() {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: radius.lg,
-      padding: spacing.md,
+      borderRadius: 20,
       marginBottom: spacing.sm,
+      overflow: "hidden",
     },
-    timeCol: { width: 64, alignItems: "center", justifyContent: "center", gap: 2 },
+    edge: { width: 5 },
+    timeCol: { width: 58, alignItems: "center", justifyContent: "center", paddingVertical: spacing.md },
     time: { color: colors.text, fontSize: fontSize.sm, fontWeight: "800" },
-    countdown: { color: colors.accent, fontSize: 11, fontWeight: "700", textAlign: "center" },
-    body: { flex: 1, gap: 3 },
-    title: { color: colors.text, fontSize: fontSize.base, fontWeight: "700" },
-    meta: { color: colors.textMuted, fontSize: fontSize.sm },
-    badge: {
-      alignSelf: "flex-start",
-      borderRadius: radius.pill,
-      paddingVertical: 2,
-      paddingHorizontal: spacing.sm,
-      backgroundColor: colors.successSoft,
-      marginTop: 2,
-    },
-    badgeText: { color: colors.success, fontSize: 11, fontWeight: "800" },
+    body: { flex: 1, gap: 3, paddingVertical: spacing.md, paddingRight: spacing.md },
+    titleRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+    title: { flex: 1, color: colors.text, fontSize: fontSize.base, fontWeight: "800" },
+    chip: { borderRadius: radius.pill, paddingVertical: 3, paddingHorizontal: 9, backgroundColor: colors.accentSoft },
+    chipText: { color: colors.event, fontSize: 11, fontWeight: "800" },
+    meta: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: "600" },
     empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: "700" },
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
@@ -139,15 +127,24 @@ export default function MyPlansScreen() {
       </View>
 
       <View style={styles.tabs}>
-        {(["upcoming", "past"] as Scope[]).map((s) => (
-          <Pressable key={s} onPress={() => setScope(s)} style={[styles.tab, scope === s && styles.tabActive]}>
-            <Text style={[styles.tabText, scope === s && styles.tabTextActive]}>{s === "upcoming" ? "Upcoming" : "Past"}</Text>
-          </Pressable>
-        ))}
+        <SlidingSegment
+          options={[
+            { key: "upcoming", label: "Upcoming" },
+            { key: "past", label: "Past" },
+          ]}
+          value={scope}
+          onChange={setScope}
+        />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
+        <View style={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingTop: spacing.md }}>
+          <Skeleton height={14} width={90} radius={7} />
+          <Skeleton height={78} radius={20} />
+          <Skeleton height={78} radius={20} />
+          <Skeleton height={14} width={110} radius={7} style={{ marginTop: spacing.md }} />
+          <Skeleton height={78} radius={20} />
+        </View>
       ) : (
         <SectionList
           sections={sections}
@@ -166,33 +163,41 @@ export default function MyPlansScreen() {
             />
           }
           renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const hosting = item.creator.id === user?.id;
+            const edge = item.kind === "community" ? colors.community : colors.event;
             return (
-              <Pressable
-                style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
-                onPress={() => openEventDetail(navigation, item)}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.title}, ${hosting ? "hosting" : "going"}`}
-              >
-                <View style={styles.timeCol}>
-                  <Text style={styles.time}>{timeLabel(item.starts_at!)}</Text>
-                  {scope === "upcoming" ? <Text style={styles.countdown}>{startsInLabel(item.starts_at!)}</Text> : null}
-                </View>
-                <View style={styles.body}>
-                  <Text style={styles.title} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  {item.location_label ? (
-                    <Text style={styles.meta} numberOfLines={1}>
-                      {item.location_label}
-                    </Text>
-                  ) : null}
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{hosting ? "Hosting" : "Going"}</Text>
+              <FadeInUp index={index}>
+                <PressableScale
+                  style={styles.card}
+                  pressedScale={0.98}
+                  onPress={() => openEventDetail(navigation, item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.title}, ${hosting ? "hosting" : "going"}`}
+                >
+                  <View style={[styles.edge, { backgroundColor: edge }]} />
+                  <View style={styles.timeCol}>
+                    <Text style={styles.time}>{timeLabel(item.starts_at!)}</Text>
                   </View>
-                </View>
-              </Pressable>
+                  <View style={styles.body}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.title} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      {scope === "upcoming" ? (
+                        <View style={styles.chip}>
+                          <Text style={styles.chipText}>{shortCountdown(item.starts_at!)}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.meta} numberOfLines={1}>
+                      {hosting ? "Hosting" : "Going"}
+                      {item.location_label ? ` · ${item.location_label.split(",")[0]}` : ""}
+                      {scope === "upcoming" ? ` · ${startsInLabel(item.starts_at!)}` : ""}
+                    </Text>
+                  </View>
+                </PressableScale>
+              </FadeInUp>
             );
           }}
           ListEmptyComponent={
