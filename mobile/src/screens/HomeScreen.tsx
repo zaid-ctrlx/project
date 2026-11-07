@@ -7,7 +7,7 @@ import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, 
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, getRecommendations, listEvents, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
 import CollapsibleHeader from "../components/CollapsibleHeader";
 import EventCard from "../components/EventCard";
@@ -44,9 +44,9 @@ const ICON_OUT_MS = 150;
 
 // Home from the Huddle design: a Filters button (location + radius, sort,
 // date range — all combinable, see FiltersSheet) + bell, a one-line
-// time-of-day greeting, a featured card and the rest of the feed. Data is the real events list; a personalised
-// recommendation ranking is still to come (see project notes) — until then
-// this surfaces upcoming events soonest-first.
+// time-of-day greeting, a "Recommended for you" row (hybrid recommender,
+// GET /recommendations — hidden while filters are active), a featured card and
+// the rest of the feed (the real events list, soonest-first by default).
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -54,6 +54,7 @@ export default function HomeScreen() {
   const { mode, colors, toggle } = useTheme();
   const iconScale = useRef(new Animated.Value(1)).current;
   const [events, setEvents] = useState<Event[]>([]);
+  const [recs, setRecs] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +180,19 @@ export default function HomeScreen() {
     empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: "700" },
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
+    recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+    recCard: {
+      width: 220,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    recReason: { color: colors.secondary, fontSize: 11, fontWeight: "700" },
+    recTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "700" },
+    recMeta: { color: colors.textMuted, fontSize: fontSize.sm },
   }));
 
   useEffect(() => {
@@ -193,8 +207,14 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, count] = await Promise.all([listEvents(), getUnreadCount().catch(() => ({ unread_count: 0 }))]);
+      const [list, count, recList] = await Promise.all([
+        listEvents(),
+        getUnreadCount().catch(() => ({ unread_count: 0 })),
+        // Recommendations are an enhancement: if they fail the feed still loads.
+        getRecommendations(8).catch(() => [] as Event[]),
+      ]);
       setEvents(list);
+      setRecs(recList);
       setUnread(count.unread_count);
     } catch {
       setError("Couldn’t load activities. Pull down to try again.");
@@ -500,6 +520,35 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
+            {filterCount === 0 && recs.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionTitleRow}>
+                    <Ionicons name="sparkles" size={20} color={colors.accent} />
+                    <Text style={styles.sectionTitle}>Recommended for you</Text>
+                  </View>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recRow}>
+                  {recs.map((r) => (
+                    <Pressable
+                      key={r.id}
+                      style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.85 }]}
+                      onPress={() => openEventDetail(navigation, r)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${r.title}. ${r.recommendation_reason ?? ""}`}
+                    >
+                      {r.recommendation_reason ? <Text style={styles.recReason}>{r.recommendation_reason}</Text> : null}
+                      <Text style={styles.recTitle} numberOfLines={2}>
+                        {r.title}
+                      </Text>
+                      <Text style={styles.recMeta} numberOfLines={1}>
+                        {whenLabel(r)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            )}
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="flame" size={20} color={colors.accent} />

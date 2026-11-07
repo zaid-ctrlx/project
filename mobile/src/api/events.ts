@@ -87,6 +87,8 @@ export type Event = {
   // admin (only non-zero for the community's admins).
   has_requested: boolean;
   pending_request_count: number;
+  // Set only on items from GET /recommendations ("why this was suggested").
+  recommendation_reason?: string | null;
   created_at: string;
 };
 
@@ -132,6 +134,18 @@ export function listEvents(filters?: EventListFilters): Promise<Event[]> {
 // list it was opened from, so this isn't used elsewhere.
 export function getEvent(id: string): Promise<Event> {
   return api.authed(`/events/${id}`);
+}
+
+// Hybrid-ranked events/communities for the current user, best first, each with
+// a recommendation_reason (see backend app/recsys).
+export function getRecommendations(limit = 10): Promise<Event[]> {
+  return api.authed(`/recommendations?limit=${limit}`);
+}
+
+// Fire-and-forget implicit-feedback signal for the recommender: the user opened
+// this event/community. Never throws — a failed log must not affect navigation.
+export function logView(eventId: string): void {
+  api.authed("/interactions", { method: "POST", body: JSON.stringify({ event_id: eventId, kind: "view" }) }).catch(() => {});
 }
 
 export function listBookmarkedEvents(): Promise<Event[]> {
