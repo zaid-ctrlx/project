@@ -157,6 +157,8 @@ class EventOut(BaseModel):
     # community's admins (0 for everyone else).
     has_requested: bool = False
     pending_request_count: int = 0
+    # Set only by GET /recommendations (why this was suggested); null elsewhere.
+    recommendation_reason: str | None = None
     created_at: datetime
 
 

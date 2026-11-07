@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, connections, events, geocode, groups, messages, notifications, tags, users
+from app.api.routes import auth, connections, events, geocode, groups, interactions, messages, notifications, recommendations, tags, users
 from app.core.config import settings
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -33,6 +33,8 @@ app.include_router(messages.router, prefix=settings.API_V1_PREFIX)
 app.include_router(groups.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(connections.router, prefix=settings.API_V1_PREFIX)
+app.include_router(interactions.router, prefix=settings.API_V1_PREFIX)
+app.include_router(recommendations.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")
