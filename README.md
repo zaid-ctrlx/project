@@ -189,6 +189,31 @@ a **6h** reminder when under 6 hours remain. The `event_reminders` table is a
 ledger with a unique (event, user, kind) row, so each reminder is sent exactly
 once even across restarts. Reminders only fire while the backend is running.
 
+## Push notifications, privacy and reports
+
+- **Push taps.** Every push carries the notification `type` and ids, and a tap
+  opens the same screen as tapping it in the in-app list (one shared router,
+  `mobile/src/navigation/routeNotification.ts`), including when the tap
+  launches the app from closed. **This only runs in a development/release
+  build, not Expo Go** (Expo Go removed push support, and importing
+  `expo-notifications` there crashes Android), so in Expo Go the code is a
+  no-op. To use it: create an EAS project (`eas init`, which writes
+  `extra.eas.projectId` into `app.json`), set up FCM credentials for Android,
+  and build with `eas build --profile development`.
+- **Token storage.** Access/refresh tokens are kept in the OS keystore
+  (`expo-secure-store`). Sessions from older builds are migrated automatically
+  and the plaintext copy is deleted. (Web dev builds fall back to
+  localStorage.)
+- **Location precision.** A user's own location is rounded to 2 decimals
+  (~1 km) when saved (`app/core/geo.py`); migration `b4d5e6f7a8c0` rounded
+  existing rows. Event/community venue coordinates are public by design and
+  are not rounded.
+- **Reports.** Users can report a profile (⋯ menu) or an event/community
+  ("Report this post"): `POST /api/v1/reports`, fixed reasons plus an optional
+  note, one report per reporter per target, 10 per hour per user, private from
+  the reported party. There is no admin UI; review with
+  `python -m scripts.list_reports` (and `--resolve <id>`) from `backend/`.
+
 ## Recommender
 
 A hybrid ranker for events and communities, in `backend/app/recsys/`:
@@ -228,13 +253,14 @@ forwarding, editing within 5 minutes, deleting, reactions and stickers),
 notifications, block/mute, a personal agenda (My Plans) and event reminders.
 
 **Not built yet:**
-- Reminders: fixed 24h/6h offsets (not user-configurable); tapping a push
-  notification does not yet deep-link (open the in-app Notifications list).
+- Reminders: fixed 24h/6h offsets (not user-configurable).
+- Push needs a development build plus an EAS project id and FCM credentials;
+  it has not been tested on a device yet.
+- Reports are stored and listed by a script; no in-app moderation tools, and
+  reported content is not hidden automatically.
 - Recommender: only validated on synthetic data so far; needs tuning and
   re-evaluation once real interaction data exists. Discover still shows an
   unranked list. Retraining is a 10-minute in-process cache, not a scheduled job.
 - Map: web marker clustering, kind/category/date/distance filters.
-- Tokens are kept in plain AsyncStorage (should move to `expo-secure-store`).
-- Locations are stored at full precision (round before showing other users').
 - Rate limiting is in-memory, per process.
 - Automated tests beyond the recommender/reminder unit tests (no API or UI tests).

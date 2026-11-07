@@ -143,11 +143,12 @@ How to read it honestly:
 - Not used: messages, profile text, contacts, or anyone's personal details.
 - Other users' data is used only in aggregate (counts, similarity) - one
   user's behaviour is never shown to another.
-- Locations are stored at full precision but only the *distance to events* is
-  returned to the same user; location is not exposed to others by this feature.
+- A user's location is rounded to ~1 km (2 decimal places) when saved, and only
+  the *distance to events* is returned to that same user; location is not
+  exposed to others by this feature.
 - Account deletion cascades and removes that user's interactions.
 - Still to do: show the user an explicit "your activity improves
-  recommendations" notice with an opt-out, and round stored locations.
+  recommendations" notice with an opt-out.
 
 ## 7. Likely viva questions
 
@@ -184,5 +185,6 @@ and add an A/B comparison of click-through and RSVP rate.
 people, and never exposes one user's behaviour to another. Recommendations can
 still lead to real-world meetups, so safety rests on the app's existing controls
 (blocking, community join approval) plus the privacy notes above. Posts by
-anyone the user blocked, or who blocked them, are never recommended. Honest
-gap: there is no user-reporting feature yet - worth stating as future work.
+anyone the user blocked, or who blocked them, are never recommended. Users can
+report a profile or a post (private, stored for review). Honest gap: there is no
+admin dashboard and reported content is not auto-hidden - state that as future work.
