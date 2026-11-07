@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import and_, delete, exists, func, or_, select
@@ -311,6 +312,29 @@ def _load_event_rows(db: Session, stmt, current_user: User) -> list[Event]:
         events.append(event)
     _attach_request_info(db, events, current_user.id)
     return events
+
+
+@router.get("/plans", response_model=list[EventOut])
+def list_my_plans(
+    scope: Literal["upcoming", "past"] = Query(default="upcoming"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    """The current user's agenda: events they RSVP'd to ("I'm going") plus
+    events they are hosting. "upcoming" = not started yet, soonest first;
+    "past" = already started, most recent first (capped at 50). Communities
+    have no date, so they never appear here."""
+    now = datetime.now(timezone.utc)
+    mine = or_(
+        Event.id.in_(select(event_rsvps.c.event_id).where(event_rsvps.c.user_id == current_user.id)),
+        Event.creator_id == current_user.id,
+    )
+    stmt = select(Event).options(selectinload(Event.creator)).where(Event.kind == "event", Event.starts_at.is_not(None), mine)
+    if scope == "upcoming":
+        stmt = stmt.where(Event.starts_at >= now).order_by(Event.starts_at.asc()).limit(100)
+    else:
+        stmt = stmt.where(Event.starts_at < now).order_by(Event.starts_at.desc()).limit(50)
+    return _load_event_rows(db, stmt, current_user)
 
 
 def _own_profile_only(user_id: uuid.UUID, current_user: User) -> None:
