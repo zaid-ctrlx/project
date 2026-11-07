@@ -14,6 +14,7 @@ import {
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { getEvent } from "../api/events";
 import type { AppStackParamList } from "../navigation/AppStack";
+import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, spacing } from "../theme";
 
 const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
@@ -25,6 +26,7 @@ const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   join_rejected: "close-circle-outline",
   connection_request: "person-add-outline",
   connection_accepted: "people-circle-outline",
+  event_reminder: "alarm-outline",
 };
 
 function timeAgo(iso: string): string {
@@ -157,6 +159,12 @@ export default function NotificationsScreen() {
         break;
       case "connection_accepted":
         navigation.navigate("UserProfile", { userId: notification.data.user_id });
+        break;
+      case "event_reminder":
+        // Open the event itself; if it was deleted meanwhile, do nothing.
+        getEvent(notification.data.event_id)
+          .then((event) => openEventDetail(navigation, event))
+          .catch(() => {});
         break;
       case "join_approved":
       case "join_rejected":

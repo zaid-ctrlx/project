@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
 import BlockedUsersScreen from "../screens/BlockedUsersScreen";
 import BookmarksScreen from "../screens/BookmarksScreen";
+import MyPlansScreen from "../screens/MyPlansScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
 import CommunityProfileScreen from "../screens/CommunityProfileScreen";
@@ -51,6 +52,8 @@ export type AppStackParamList = {
   // the current user created. There's no more Events tab for this to live
   // under (see MainTabs).
   MyPosts: undefined;
+  // Pushed from Settings ("My Plans" row) and Home's plans strip: events the user is going to or hosting.
+  MyPlans: undefined;
   Chat: {
     userId: string;
     username: string;
@@ -130,6 +133,7 @@ export default function AppStack() {
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
       <Stack.Screen name="MyPosts" component={MyPostsScreen} />
+      <Stack.Screen name="MyPlans" component={MyPlansScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="DmInfo" component={DmInfoScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />

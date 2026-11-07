@@ -12,7 +12,9 @@ export type NotificationType =
   // Mutual connections: the addressee gets connection_request, the requester
   // gets connection_accepted. Both carry data.user_id (the other person).
   | "connection_request"
-  | "connection_accepted";
+  | "connection_accepted"
+  // 24h / 6h before an event you're going to (or host); data.event_id.
+  | "event_reminder";
 
 export type AppNotification = {
   id: string;

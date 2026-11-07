@@ -7,7 +7,7 @@ import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, 
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, getRecommendations, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, getRecommendations, listEvents, listMyPlans, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
 import CollapsibleHeader from "../components/CollapsibleHeader";
 import EventCard from "../components/EventCard";
@@ -32,6 +32,7 @@ import {
   saveFilters,
   SORT_LABELS,
 } from "../lib/feedFilters";
+import { startsInLabel, timeLabel } from "../lib/countdown";
 import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
@@ -55,6 +56,7 @@ export default function HomeScreen() {
   const iconScale = useRef(new Animated.Value(1)).current;
   const [events, setEvents] = useState<Event[]>([]);
   const [recs, setRecs] = useState<Event[]>([]);
+  const [plans, setPlans] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +182,22 @@ export default function HomeScreen() {
     empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: "700" },
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
+    planRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.md,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    planWhen: { width: 70, alignItems: "center" },
+    planTime: { color: colors.text, fontSize: fontSize.sm, fontWeight: "800" },
+    planCountdown: { color: colors.accent, fontSize: 11, fontWeight: "700", textAlign: "center" },
+    planTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "700", flex: 1 },
     recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
     recCard: {
       width: 220,
@@ -207,12 +225,14 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, count, recList] = await Promise.all([
+      const [list, count, recList, planList] = await Promise.all([
         listEvents(),
         getUnreadCount().catch(() => ({ unread_count: 0 })),
         // Recommendations are an enhancement: if they fail the feed still loads.
         getRecommendations(8).catch(() => [] as Event[]),
+        listMyPlans("upcoming").catch(() => [] as Event[]),
       ]);
+      setPlans(planList.slice(0, 3));
       setEvents(list);
       setRecs(recList);
       setUnread(count.unread_count);
@@ -520,6 +540,37 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
+            {plans.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionTitleRow}>
+                    <Ionicons name="calendar" size={20} color={colors.accent} />
+                    <Text style={styles.sectionTitle}>Your plans</Text>
+                  </View>
+                  <Pressable onPress={() => navigation.navigate("MyPlans")} hitSlop={8}>
+                    <Text style={styles.sectionLink}>See all ›</Text>
+                  </Pressable>
+                </View>
+                {plans.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    style={({ pressed }) => [styles.planRow, pressed && { opacity: 0.85 }]}
+                    onPress={() => openEventDetail(navigation, p)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${p.title}, ${startsInLabel(p.starts_at!)}`}
+                  >
+                    <View style={styles.planWhen}>
+                      <Text style={styles.planTime}>{timeLabel(p.starts_at!)}</Text>
+                      <Text style={styles.planCountdown}>{startsInLabel(p.starts_at!)}</Text>
+                    </View>
+                    <Text style={styles.planTitle} numberOfLines={2}>
+                      {p.title}
+                    </Text>
+                  </Pressable>
+                ))}
+                <View style={{ height: spacing.lg }} />
+              </>
+            )}
             {filterCount === 0 && recs.length > 0 && (
               <>
                 <View style={styles.sectionHeader}>

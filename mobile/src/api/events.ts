@@ -148,6 +148,12 @@ export function logView(eventId: string): void {
   api.authed("/interactions", { method: "POST", body: JSON.stringify({ event_id: eventId, kind: "view" }) }).catch(() => {});
 }
 
+// The user's agenda: events they RSVP'd to plus events they host. "upcoming"
+// is soonest-first, "past" most-recent-first.
+export function listMyPlans(scope: "upcoming" | "past" = "upcoming"): Promise<Event[]> {
+  return api.authed(`/events/plans?scope=${scope}`);
+}
+
 export function listBookmarkedEvents(): Promise<Event[]> {
   return api.authed("/events/bookmarks");
 }

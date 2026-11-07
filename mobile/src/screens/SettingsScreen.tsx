@@ -74,6 +74,14 @@ export default function SettingsScreen() {
       )}
 
       <Pressable
+        onPress={() => navigation.navigate("MyPlans")}
+        style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
+      >
+        <Ionicons name="calendar-outline" size={20} color={colors.text} />
+        <Text style={styles.rowText}>My Plans</Text>
+      </Pressable>
+
+      <Pressable
         onPress={() => navigation.navigate("MyPosts")}
         style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
       >
