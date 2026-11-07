@@ -50,6 +50,15 @@ if (!resolved) {
 
 export const API_URL: string = resolved;
 
+// "localhost" on a physical phone points at the phone itself, so every request
+// would fail with an opaque network error. Say why instead.
+if (Platform.OS !== "web" && /\/\/(localhost|127\.0\.0\.1)[:/]/.test(API_URL)) {
+  console.warn(
+    `[api] Using ${API_URL}, which a physical device can't reach. ` +
+      "Could not auto-detect the dev host - set EXPO_PUBLIC_API_URL to your PC's LAN IP or tunnel URL."
+  );
+}
+
 // API_URL includes the "/api/v1" prefix; strip it to get the origin that
 // relative paths returned by the API (e.g. avatar_url) are served from.
 const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
