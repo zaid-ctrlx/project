@@ -161,6 +161,13 @@ reset codes are printed in the backend (uvicorn) terminal. For real email, set
 App Password). If a user is set without a password, nothing is sent and the
 code is printed under an `ERROR` line.
 
+**Bulk test data (optional).** `python -m scripts.seed_dataset` (from `backend/`,
+after `seed_tags`) adds 60 fake people, 55 events/communities and a history of
+views, bookmarks, RSVPs and joins across five Karnataka cities, so the feed,
+search and recommender can be tried without real users. Log in as
+`seed.user001@seed.huddle.example` / `SeedPass123` (any `seed.userNNN`), and
+undo it with `python -m scripts.seed_dataset --remove`.
+
 **Demo data (optional).** `python -m scripts.seed_demo` (from `backend/`) adds
 four posts owned by a demo host account — an event and a community each in
 Mangaluru and Bengaluru — for trying the Home filters and the map. Dates are
