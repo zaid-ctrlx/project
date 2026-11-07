@@ -13,6 +13,7 @@ NOTIFICATION_TYPES = Literal[
     "join_rejected",
     "connection_request",
     "connection_accepted",
+    "event_reminder",
 ]
 
 

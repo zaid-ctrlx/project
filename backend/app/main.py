@@ -1,4 +1,6 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +8,19 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, connections, events, geocode, groups, interactions, messages, notifications, recommendations, tags, users
 from app.core.config import settings
+from app.core.reminders import reminder_loop
 
-app = FastAPI(title=settings.PROJECT_NAME)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Background scheduler for the 24h / 6h event reminders.
+    task = asyncio.create_task(reminder_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 # Serves uploaded files (avatars, etc.) back out as plain static URLs.
 os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
