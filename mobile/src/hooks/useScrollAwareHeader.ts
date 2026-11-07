@@ -4,6 +4,8 @@ import { Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react
 // Distance (px) the finger has to keep moving in one direction before the
 // header flips state — filters out jitter and tiny accidental drags.
 const DIRECTION_THRESHOLD = 14;
+// Revealing again should feel instant: a short flick upward is enough.
+const REVEAL_THRESHOLD = 6;
 const ANIMATION_MS = 200;
 
 // Each <CollapsibleHeader> reports its measured height here, keyed by the
@@ -96,8 +98,10 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
         if (visibleRef.current && contentSize.height - layoutMeasurement.height < totalHeaderHeight(progress) + 80) {
           return;
         }
-        // Ignore the rubber-band at the bottom edge.
-        if (y + layoutMeasurement.height >= contentSize.height) return;
+        // Ignore the rubber-band past the bottom edge (y beyond the last
+        // scrollable position). Sitting exactly at the bottom is not
+        // overscroll, so a real scroll-up from there must still count.
+        if (y + layoutMeasurement.height > contentSize.height + 1) return;
         if (delta === 0) return;
 
         // Accumulate movement in a single direction; reset when it flips.
@@ -105,7 +109,7 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
         accum.current += delta;
 
         if (accum.current > DIRECTION_THRESHOLD) animateTo(false);
-        else if (accum.current < -DIRECTION_THRESHOLD) animateTo(true);
+        else if (accum.current < -REVEAL_THRESHOLD) animateTo(true);
       },
     [animateTo, show, progress]
   );

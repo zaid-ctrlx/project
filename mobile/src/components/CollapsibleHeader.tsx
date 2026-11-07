@@ -23,9 +23,20 @@ export default function CollapsibleHeader({ progress, children }: Props) {
     return () => reportHeaderHeight(progress, key, null);
   }, [progress, key, height]);
 
+  // Track how expanded the header is so a measurement taken while it is
+  // collapsing/collapsed can never overwrite the stored full height (a too-small
+  // stored height would make the header re-open to the wrong size, or not at all).
+  const fullyShown = useRef(true);
+  useEffect(() => {
+    const id = progress.addListener(({ value }) => {
+      fullyShown.current = value >= 0.99;
+    });
+    return () => progress.removeListener(id);
+  }, [progress]);
+
   function onLayout(e: LayoutChangeEvent) {
     const h = e.nativeEvent.layout.height;
-    if (h > 0 && Math.abs(h - height) > 0.5) setHeight(h);
+    if (h > 0 && Math.abs(h - height) > 0.5 && (fullyShown.current || height === 0)) setHeight(h);
   }
 
   return (
