@@ -8,8 +8,9 @@ communities near them.
 
 The final-year-project goal is a **recommendation engine** that ranks what
 each person sees from their interests, location and past activity. The app
-around it (accounts, events, communities, chat, map) is built and working; the
-recommender itself is not built yet — see [Status](#status). The full proposal
+around it (accounts, events, communities, chat, map) is built and working, and
+a first hybrid recommender is in place — see [Recommender](#recommender) and
+[Status](#status). The full proposal
 (architecture, ML approach, evaluation plan, timeline) is in
 `FYP_Proposal_Revised.md`.
 
@@ -62,8 +63,8 @@ response. Anything that changes schema goes through an Alembic migration.
 `kind` (`event` = something at a time and place; `community` = an ongoing
 group). Events can be bookmarked and RSVP'd to; a community gets a linked chat
 group that members join automatically. Join policy is either open or needs
-admin approval. Interest tags and location on each post are what the
-recommender will rank on.
+admin approval. The activity type and location on each post, with the
+user's interest tags and location, are what the recommender ranks on.
 
 **Chat and notifications.** Direct messages and group/community chats are
 saved through normal REST calls, then pushed live to anyone connected on their
@@ -99,8 +100,9 @@ backend/
                      notify + push, websocket manager, rate limiting,
                      image validation, chat helpers
     db/              session + model registry for Alembic
+    recsys/          hybrid recommender (content, SVD, hybrid, synthetic data, metrics)
   alembic/versions/  migration history
-  scripts/           seed_tags.py, seed_demo.py
+  scripts/           seed_tags.py, seed_demo.py, evaluate_recommender.py
 mobile/
   App.tsx            providers (auth, theme, messaging) + root navigator
   src/
@@ -167,6 +169,30 @@ relative to the day it is run; run it with `--remove` first to refresh.
 **Android map.** Standalone Android builds need a Google Maps key in
 `mobile/app.json`; Expo Go and web work without one.
 
+## Recommender
+
+A hybrid ranker for events and communities, in `backend/app/recsys/`:
+
+- **Content-based** (`content.py`): cosine similarity between the user's
+  interest tags and the event's activity type (shared vocabulary in
+  `taxonomy.py`), blended with distance, how soon the event is, and popularity.
+- **Collaborative** (`cf.py`): truncated SVD over the user–event matrix built
+  from implicit feedback — views, bookmarks, RSVPs and joins, weighted by
+  strength (`config.py`).
+- **Hybrid** (`hybrid.py`): users with fewer than 5 interactions get
+  content-based results only; the collaborative weight then ramps up to 0.7 by
+  25 interactions (the cold-start rule).
+- **Data**: the `interactions` table. Bookmark, RSVP and join are logged by the
+  server; the app reports views (`POST /interactions`). Existing bookmarks and
+  RSVPs are backfilled when the model is fitted.
+- **API/UI**: `GET /api/v1/recommendations` returns ranked events with a
+  `recommendation_reason`; Home shows them as "Recommended for you".
+
+Offline evaluation (`python -m scripts.evaluate_recommender`, from `backend/`)
+generates synthetic users and events, splits interactions by time, and compares
+popularity, content-only, SVD-only and hybrid on Precision/Recall/NDCG@K, plus
+RMSE/MAE for the SVD's predicted strength.
+
 ## Status
 
 **Built:** accounts and email verification, onboarding, profiles and
@@ -176,9 +202,9 @@ forwarding, editing within 5 minutes, deleting, reactions and stickers),
 notifications, block/mute.
 
 **Not built yet:**
-- The recommendation engine and interaction logging. Home and Discover
-  currently show filterable lists, not ranked recommendations — this is the
-  core remaining piece of the project.
+- Recommender: only validated on synthetic data so far; needs tuning and
+  re-evaluation once real interaction data exists. Discover still shows an
+  unranked list. Retraining is a 10-minute in-process cache, not a scheduled job.
 - Map: web marker clustering, kind/category/date/distance filters.
 - Tokens are kept in plain AsyncStorage (should move to `expo-secure-store`).
 - Locations are stored at full precision (round before showing other users').
