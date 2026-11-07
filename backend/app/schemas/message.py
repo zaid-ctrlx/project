@@ -14,20 +14,60 @@ class MessageParticipantOut(BaseModel):
     avatar_url: str | None
 
 
-class MessageCreate(BaseModel):
-    recipient_id: uuid.UUID
+MessageKind = Literal["text", "sticker"]
+
+
+class ReactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: uuid.UUID
+    emoji: str
+
+
+class ReactionSet(BaseModel):
+    # null removes my reaction.
+    emoji: str | None = Field(default=None, min_length=1, max_length=16)
+
+
+class MessageEdit(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
-class MessageOut(BaseModel):
+class MessageCreate(BaseModel):
+    recipient_id: uuid.UUID
+    # For kind="sticker" this is the sticker id, not display text.
+    text: str = Field(min_length=1, max_length=2000)
+    kind: MessageKind = "text"
+    forwarded: bool = False
+    # In-thread reply to a message in this same DM.
+    reply_to_id: uuid.UUID | None = None
+    # "Reply privately": a message in a group chat the sender shares with the
+    # recipient and which the recipient wrote.
+    private_reply_group_message_id: uuid.UUID | None = None
+
+
+class QuoteFields(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    reply_to_id: uuid.UUID | None = None
+    quote_text: str | None = None
+    quote_sender_id: uuid.UUID | None = None
+    quote_kind: str | None = None
+
+
+class MessageOut(QuoteFields):
     id: uuid.UUID
     sender_id: uuid.UUID
     recipient_id: uuid.UUID
     body: str
     created_at: datetime
     read_at: datetime | None
+    kind: str = "text"
+    edited_at: datetime | None = None
+    deleted_at: datetime | None = None
+    forwarded: bool = False
+    # Not a mapped column - set by attach_reactions (app/core/chat_utils.py).
+    reactions: list[ReactionOut] = []
 
 
 class ConversationOut(BaseModel):
