@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,6 +28,37 @@ class Message(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "text" or "sticker" (for a sticker, body holds the sticker id).
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="text", server_default="text")
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Delete-for-everyone keeps the row as a tombstone (body cleared).
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    forwarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    # Reply context: reply_to_id is set for an in-thread reply; the quote_*
+    # snapshot is set for any reply, including a private reply to a group
+    # message (which has no reply_to_id since that row lives in another table).
+    reply_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+    )
+    quote_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quote_sender_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    quote_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+
+class MessageReaction(Base):
+    """One emoji reaction per (message, user); reacting again replaces it."""
+
+    __tablename__ = "message_reactions"
+    __table_args__ = (UniqueConstraint("message_id", "user_id", name="uq_message_reactions_message_user"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    emoji: Mapped[str] = mapped_column(String(16), nullable=False)
 
 
 class DmClear(Base):

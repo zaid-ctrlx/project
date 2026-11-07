@@ -4,8 +4,8 @@
 from app.db.base_class import Base  # noqa: F401
 from app.models.user import Tag, User  # noqa: F401
 from app.models.event import Event  # noqa: F401
-from app.models.message import DmClear, DmMute, Message  # noqa: F401
-from app.models.group import ChatGroup, GroupMember, GroupMessage  # noqa: F401
+from app.models.message import DmClear, DmMute, Message, MessageReaction  # noqa: F401
+from app.models.group import ChatGroup, GroupMember, GroupMessage, GroupMessageReaction  # noqa: F401
 from app.models.block import UserBlock  # noqa: F401
 from app.models.notification import Notification, PushToken  # noqa: F401
 from app.models.join_request import JoinRequest  # noqa: F401
