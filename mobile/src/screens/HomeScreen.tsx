@@ -187,12 +187,25 @@ export default function HomeScreen() {
       justifyContent: "space-between",
       marginHorizontal: spacing.lg,
       marginBottom: spacing.sm,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.md,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: radius.lg,
+      overflow: "hidden",
+    },
+    plansTitleArea: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingLeft: spacing.md,
+    },
+    plansArrow: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      borderLeftWidth: 1,
+      borderLeftColor: colors.border,
     },
     plansCount: {
       minWidth: 22,
@@ -217,7 +230,6 @@ export default function HomeScreen() {
     planCountdown: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "700" },
     planTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: "700" },
     planMeta: { color: colors.textMuted, fontSize: fontSize.sm },
-    seeAllCard: { alignItems: "center", gap: spacing.xs },
     recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
     recCard: {
       width: 220,
@@ -547,25 +559,34 @@ export default function HomeScreen() {
           <>
             {plans.length > 0 && (
               <>
-                <Pressable
-                  style={({ pressed }) => [styles.plansToggle, pressed && { opacity: 0.85 }]}
-                  onPress={() => setPlansOpen((o) => !o)}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: plansOpen }}
-                  accessibilityLabel={`Your plans, ${plans.length}`}
-                >
-                  <View style={styles.sectionTitleRow}>
+                <View style={styles.plansToggle}>
+                  {/* Left: the name - opens the full My Plans screen. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.plansTitleArea, pressed && { opacity: 0.7 }]}
+                    onPress={() => navigation.navigate("MyPlans")}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Your plans, ${plans.length}. Open all plans`}
+                  >
                     <Ionicons name="calendar" size={20} color={colors.accent} />
                     <Text style={styles.sectionTitle}>Your plans</Text>
                     <View style={styles.plansCount}>
                       <Text style={styles.plansCountText}>{plans.length}</Text>
                     </View>
-                  </View>
-                  <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.textMuted} />
-                </Pressable>
+                    <Text style={styles.sectionLink}>See all ›</Text>
+                  </Pressable>
+                  {/* Right: the arrow - drops the swipeable preview down/up. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.plansArrow, pressed && { opacity: 0.7 }]}
+                    onPress={() => setPlansOpen((o) => !o)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: plansOpen }}
+                    accessibilityLabel={plansOpen ? "Hide plan preview" : "Show plan preview"}
+                  >
+                    <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={22} color={colors.textMuted} />
+                  </Pressable>
+                </View>
                 {plansOpen && (
-                  // One plan visible at a time; swipe left for the next, and the
-                  // last card is "See all" -> the full My Plans screen.
+                  // One plan visible at a time; swipe left for the next.
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -592,20 +613,6 @@ export default function HomeScreen() {
                         </Text>
                       </Pressable>
                     ))}
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.planCard,
-                        styles.seeAllCard,
-                        { width: screenWidth - spacing.lg * 2 },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                      onPress={() => navigation.navigate("MyPlans")}
-                      accessibilityRole="button"
-                      accessibilityLabel="See all your plans"
-                    >
-                      <Ionicons name="arrow-forward-circle" size={32} color={colors.accent} />
-                      <Text style={styles.planTitle}>See all</Text>
-                    </Pressable>
                   </ScrollView>
                 )}
                 <View style={{ height: spacing.lg }} />
