@@ -11,7 +11,8 @@ from app.recsys.taxonomy import ACTIVITY_TAGS, TAG_INDEX, TAG_SLUGS
 from app.recsys.types import EventFeat, UserFeat
 
 
-def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle (straight-line) distance in km - not road distance."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi, dl = p2 - p1, math.radians(lng2 - lng1)
     a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
@@ -51,17 +52,18 @@ def content_scores(
     events: list[EventFeat],
     popularity: np.ndarray,
     now: datetime | None = None,
+    weights: dict[str, float] | None = None,
 ) -> np.ndarray:
     """Score per event. `popularity` is a pre-normalised [0,1] array.
     Pass now=None to ignore the time component (offline evaluation)."""
-    w = CONTENT_WEIGHTS
+    w = weights or CONTENT_WEIGHTS
     tag = tag_similarity(user, events)
 
     dist = np.full(len(events), 0.5)  # neutral when location unknown / online
     if user.lat is not None and user.lng is not None:
         for i, e in enumerate(events):
             if not e.is_online and e.lat is not None and e.lng is not None:
-                dist[i] = math.exp(-_haversine_km(user.lat, user.lng, e.lat, e.lng) / DISTANCE_SCALE_KM)
+                dist[i] = math.exp(-haversine_km(user.lat, user.lng, e.lat, e.lng) / DISTANCE_SCALE_KM)
 
     time = np.full(len(events), 0.7)  # communities: always "current"
     if now is not None:

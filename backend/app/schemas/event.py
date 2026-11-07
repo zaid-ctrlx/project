@@ -159,6 +159,8 @@ class EventOut(BaseModel):
     pending_request_count: int = 0
     # Set only by GET /recommendations (why this was suggested); null elsewhere.
     recommendation_reason: str | None = None
+    # Straight-line km from the viewer's saved location; set only by GET /recommendations.
+    distance_km: float | None = None
     created_at: datetime
 
 

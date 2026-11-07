@@ -10,13 +10,14 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.block import UserBlock
 from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import GroupMember
 from app.models.interaction import Interaction
 from app.models.user import Tag, User, user_tags
 from app.recsys import cf as cfmod
 from app.recsys.config import MAX_CF_WEIGHT
-from app.recsys.content import content_scores, tag_similarity
+from app.recsys.content import content_scores, haversine_km, tag_similarity
 from app.recsys.hybrid import blend, cf_weight, minmax
 from app.recsys.taxonomy import ACTIVITY_TAGS, TAG_NAMES
 from app.recsys.types import EventFeat, Interact, UserFeat
@@ -99,7 +100,18 @@ def invalidate() -> None:
     _cache = None
 
 
-def _reason(user: UserFeat, event: EventFeat, cf_part: float, tag_sim: float) -> str:
+def distance_km(user: UserFeat, event: EventFeat) -> float | None:
+    """Straight-line km from the user's saved location to the event, or None
+    when it can't be known (no user location, online event, no coordinates).
+    Never guessed: callers show nothing rather than an invented distance."""
+    if user.lat is None or user.lng is None or event.is_online or event.lat is None or event.lng is None:
+        return None
+    return haversine_km(user.lat, user.lng, event.lat, event.lng)
+
+
+def _reason(user: UserFeat, event: EventFeat, cf_part: float, tag_sim: float, now: datetime) -> str:
+    """Why this was recommended - only claims that are actually true for this
+    item. (Distance is reported separately as a number, never as a phrase.)"""
     if tag_sim > 0:
         weights = ACTIVITY_TAGS.get(event.activity_type or "", {})
         matched = [s for s in user.tags if s in weights]
@@ -108,11 +120,14 @@ def _reason(user: UserFeat, event: EventFeat, cf_part: float, tag_sim: float) ->
             return f"Matches your interest in {TAG_NAMES.get(best, best)}"
     if cf_part > 0.6:
         return "Popular with people who like similar things"
-    return "Happening near you"
+    if event.starts_at is None:
+        return "Active community"
+    days = (event.starts_at - now).total_seconds() / 86400
+    return "Happening this week" if days <= 7 else "Upcoming event"
 
 
-def recommend(db: Session, user: User, limit: int = 20) -> list[tuple[uuid.UUID, str]]:
-    """Ranked (event_id, reason) for `user`, best first."""
+def recommend(db: Session, user: User, limit: int = 20) -> list[tuple[uuid.UUID, str, float | None]]:
+    """Ranked (event_id, reason, distance_km) for `user`, best first."""
     fitted = _fit(db)
     uid = str(user.id)
     now = datetime.now(timezone.utc)
@@ -130,7 +145,12 @@ def recommend(db: Session, user: User, limit: int = 20) -> list[tuple[uuid.UUID,
         )
     }
 
-    rows = db.scalars(select(Event).where(Event.creator_id != user.id)).all()
+    # Blocking works in both directions everywhere else in the app, so never
+    # suggest a post from someone the user blocked or who blocked the user.
+    blocked: set[uuid.UUID] = set(
+        db.scalars(select(UserBlock.blocked_id).where(UserBlock.blocker_id == user.id))
+    ) | set(db.scalars(select(UserBlock.blocker_id).where(UserBlock.blocked_id == user.id)))
+    rows = db.scalars(select(Event).where(Event.creator_id != user.id, Event.creator_id.not_in(blocked))).all()
     cands = [
         e for e in rows if str(e.id) not in skip and (e.kind == "community" or (e.starts_at and e.starts_at >= now))
     ]
@@ -153,4 +173,9 @@ def recommend(db: Session, user: User, limit: int = 20) -> list[tuple[uuid.UUID,
     sim = tag_similarity(ufeat, feats)
     cf_norm = minmax(cf)
     order = np.argsort(-final)[:limit]
-    return [(cands[j].id, _reason(ufeat, feats[j], float(cf_norm[j]) if cf_weight(n) > 0 else 0.0, float(sim[j]))) for j in order]
+    out: list[tuple[uuid.UUID, str, float | None]] = []
+    for j in order:
+        cf_part = float(cf_norm[j]) if cf_weight(n) > 0 else 0.0
+        d = distance_km(ufeat, feats[j])
+        out.append((cands[j].id, _reason(ufeat, feats[j], cf_part, float(sim[j]), now), None if d is None else round(d, 1)))
+    return out

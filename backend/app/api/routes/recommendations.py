@@ -26,13 +26,13 @@ def get_recommendations(
     ranked = service.recommend(db, current_user, limit)
     if not ranked:
         return []
-    reasons = dict(ranked)
-    stmt = select(Event).options(selectinload(Event.creator)).where(Event.id.in_(reasons.keys()))
+    stmt = select(Event).options(selectinload(Event.creator)).where(Event.id.in_([r[0] for r in ranked]))
     by_id = {e.id: e for e in _load_event_rows(db, stmt, current_user)}
     out: list[Event] = []
-    for event_id, reason in ranked:
+    for event_id, reason, dist in ranked:
         event = by_id.get(event_id)
         if event is not None:
             event.recommendation_reason = reason
+            event.distance_km = dist
             out.append(event)
     return out

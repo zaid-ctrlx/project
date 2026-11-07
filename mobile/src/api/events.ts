@@ -89,6 +89,8 @@ export type Event = {
   pending_request_count: number;
   // Set only on items from GET /recommendations ("why this was suggested").
   recommendation_reason?: string | null;
+  // Straight-line km from your saved location (null if unknown); GET /recommendations only.
+  distance_km?: number | null;
   created_at: string;
 };
 

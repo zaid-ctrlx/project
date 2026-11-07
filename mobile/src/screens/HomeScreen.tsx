@@ -594,6 +594,7 @@ export default function HomeScreen() {
                       </Text>
                       <Text style={styles.recMeta} numberOfLines={1}>
                         {whenLabel(r)}
+                        {r.distance_km != null ? ` · ${formatDistance(r.distance_km)} away` : ""}
                       </Text>
                     </Pressable>
                   ))}
