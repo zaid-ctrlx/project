@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
+import type { ScrollViewInstance } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
@@ -63,6 +64,7 @@ export default function HomeScreen() {
   // Filter chips hide on scroll-down and return on any upward scroll.
   const headerScroll = useScrollAwareHeader();
   const [unread, setUnread] = useState(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const { styles } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
@@ -306,6 +308,19 @@ export default function HomeScreen() {
       load();
     }, [load])
   );
+
+  // Tapping the Home tab while already on Home: jump back to the top, bring the
+  // filter chips back, and refresh the feed (same as pull-to-refresh).
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener("tabPress", () => {
+      if (!navigation.isFocused()) return;
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      headerScroll.show();
+      setRefreshing(true);
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, headerScroll, load]);
 
   async function toggleBookmark(event: Event) {
     const next = !event.is_bookmarked;
@@ -562,6 +577,7 @@ export default function HomeScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        ref={scrollRef}
         onScroll={headerScroll.onScroll("home")}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
