@@ -6,13 +6,23 @@ from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
+from app.core.chat_utils import (
+    attach_reactions,
+    check_can_delete,
+    check_can_edit,
+    preview_text,
+    quote_fields,
+    set_reaction,
+    tombstone,
+    validate_body,
+)
 from app.core.config import settings
 from app.core.images import verify_image
 from app.core.notify import notify_user
 from app.core.ws_manager import manager
 from app.db.session import get_db
 from app.models.event import Event
-from app.models.group import ChatGroup, GroupMember, GroupMessage
+from app.models.group import ChatGroup, GroupMember, GroupMessage, GroupMessageReaction
 from app.models.user import User
 from app.schemas.group import (
     AddGroupMemberPayload,
@@ -22,6 +32,7 @@ from app.schemas.group import (
     GroupMessageOut,
     MuteGroupPayload,
 )
+from app.schemas.message import MessageEdit, ReactionSet
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -257,7 +268,9 @@ def get_group_thread(
         .limit(limit)
         .offset(offset)
     )
-    return db.scalars(stmt).all()
+    messages = list(db.scalars(stmt).all())
+    attach_reactions(db, GroupMessageReaction, messages)
+    return messages
 
 
 @router.post("/{group_id}/messages", response_model=GroupMessageOut, status_code=status.HTTP_201_CREATED)
@@ -269,10 +282,25 @@ async def send_group_message(
 ) -> GroupMessage:
     _get_membership(db, group_id, current_user.id)
 
-    message = GroupMessage(group_id=group_id, sender_id=current_user.id, body=payload.text)
+    validate_body(payload.kind, payload.text)
+    message = GroupMessage(
+        group_id=group_id,
+        sender_id=current_user.id,
+        body=payload.text,
+        kind=payload.kind,
+        forwarded=payload.forwarded,
+    )
+    if payload.reply_to_id is not None:
+        target = db.get(GroupMessage, payload.reply_to_id)
+        if target is None or target.group_id != group_id or target.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message to reply to not found")
+        message.reply_to_id = target.id
+        for key, value in quote_fields(target).items():
+            setattr(message, key, value)
     db.add(message)
     db.commit()
     db.refresh(message)
+    message.reactions = []
     # Non-mapped attribute — see GroupMessageOut.sender_username's
     # docstring. Set once here so it flows into both the WS payload below
     # and this endpoint's own response (response_model=GroupMessageOut
@@ -304,11 +332,79 @@ async def send_group_message(
             user_id=member_id,
             type="group_message",
             title=f"{current_user.username} in {group.name}",
-            body=_preview(payload.text),
+            body=_preview(preview_text(payload.kind, None, payload.text)),
             data={"group_id": str(group_id), "sender_id": str(current_user.id)},
         )
 
     return message
+
+
+def _get_group_message(db: Session, group_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID) -> GroupMessage:
+    _get_membership(db, group_id, user_id)
+    message = db.get(GroupMessage, message_id)
+    if message is None or message.group_id != group_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+    return message
+
+
+async def _push_group_update(db: Session, message: GroupMessage, sender_username: str | None) -> GroupMessageOut:
+    attach_reactions(db, GroupMessageReaction, [message])
+    message.sender_username = sender_username
+    out = GroupMessageOut.model_validate(message)
+    frame = {"type": "group_message_updated", "message": out.model_dump(mode="json")}
+    member_ids = db.scalars(select(GroupMember.user_id).where(GroupMember.group_id == message.group_id)).all()
+    for member_id in member_ids:
+        await manager.send_to_user(member_id, frame)
+    return out
+
+
+@router.patch("/{group_id}/messages/{message_id}", response_model=GroupMessageOut)
+async def edit_group_message(
+    group_id: uuid.UUID,
+    message_id: uuid.UUID,
+    payload: MessageEdit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GroupMessageOut:
+    message = _get_group_message(db, group_id, message_id, current_user.id)
+    check_can_edit(message, current_user.id)
+    message.body = payload.text
+    message.edited_at = func.now()
+    db.commit()
+    db.refresh(message)
+    return await _push_group_update(db, message, current_user.username)
+
+
+@router.delete("/{group_id}/messages/{message_id}", response_model=GroupMessageOut)
+async def delete_group_message(
+    group_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GroupMessageOut:
+    message = _get_group_message(db, group_id, message_id, current_user.id)
+    check_can_delete(message, current_user.id)
+    if message.deleted_at is None:
+        tombstone(message)
+        db.commit()
+        db.refresh(message)
+    return await _push_group_update(db, message, current_user.username)
+
+
+@router.put("/{group_id}/messages/{message_id}/reaction", response_model=GroupMessageOut)
+async def react_to_group_message(
+    group_id: uuid.UUID,
+    message_id: uuid.UUID,
+    payload: ReactionSet,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GroupMessageOut:
+    message = _get_group_message(db, group_id, message_id, current_user.id)
+    if message.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This message was deleted")
+    set_reaction(db, GroupMessageReaction, message.id, current_user.id, payload.emoji)
+    db.refresh(message)
+    return await _push_group_update(db, message, None)
 
 
 @router.patch("/{group_id}/mute", response_model=ChatGroupOut)
