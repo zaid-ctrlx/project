@@ -5,6 +5,7 @@ import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
+import { acceptConnection, listConnectionRequests, removeConnection } from "../api/connections";
 import {
   AppNotification,
   listNotifications,
@@ -14,7 +15,7 @@ import {
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { routeNotification } from "../navigation/routeNotification";
-import { fontSize, spacing } from "../theme";
+import { fontSize, radius, spacing } from "../theme";
 
 const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   dm_message: "chatbubble-outline",
@@ -59,6 +60,12 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Requester ids whose request is still waiting on me. Accept/Decline only
+  // show for these, so an old notification can never "decline" someone you've
+  // already connected with (declining removes the connection).
+  const [pendingFrom, setPendingFrom] = useState<Set<string>>(new Set());
+  const [answered, setAnswered] = useState<Record<string, "accepted" | "declined">>({});
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -103,12 +110,21 @@ export default function NotificationsScreen() {
     emptyTitle: { fontSize: fontSize.lg, fontWeight: "600", color: colors.text },
     emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center", maxWidth: 260 },
     error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.xl },
+    reqActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+    reqAccept: { flex: 1, alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.pill, paddingVertical: spacing.sm },
+    reqAcceptText: { color: colors.primaryText, fontSize: fontSize.sm, fontWeight: "700" },
+    reqDecline: { flex: 1, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: spacing.sm },
+    reqDeclineText: { color: colors.text, fontSize: fontSize.sm, fontWeight: "600" },
+    reqResult: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600", marginTop: spacing.xs },
   }));
 
   const load = useCallback(async () => {
     setError(null);
     try {
       setNotifications(await listNotifications());
+      listConnectionRequests()
+        .then((list) => setPendingFrom(new Set(list.map((u) => u.id))))
+        .catch(() => {});
     } catch {
       setError("Couldn't load your notifications.");
     } finally {
@@ -131,6 +147,29 @@ export default function NotificationsScreen() {
     }
 
     routeNotification(navigation, notification.type, notification.data, notification.title);
+  }
+
+  async function answerRequest(notification: AppNotification, accept: boolean) {
+    const requesterId = notification.data.user_id;
+    if (!requesterId || answeringId) return;
+    setAnsweringId(notification.id);
+    try {
+      await (accept ? acceptConnection(requesterId) : removeConnection(requesterId));
+      setAnswered((prev) => ({ ...prev, [notification.id]: accept ? "accepted" : "declined" }));
+      setPendingFrom((prev) => {
+        const next = new Set(prev);
+        next.delete(requesterId);
+        return next;
+      });
+      if (!notification.read_at) {
+        setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n)));
+        markNotificationReadApi(notification.id).catch(() => {});
+      }
+    } catch {
+      load(); // request may have been withdrawn - refresh what is still pending
+    } finally {
+      setAnsweringId(null);
+    }
   }
 
   async function onMarkAllRead() {
@@ -179,6 +218,18 @@ export default function NotificationsScreen() {
                   {item.body}
                 </Text>
                 <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
+                {item.type === "connection_request" && answered[item.id] ? (
+                  <Text style={styles.reqResult}>{answered[item.id] === "accepted" ? "You're now connected" : "Request declined"}</Text>
+                ) : item.type === "connection_request" && pendingFrom.has(item.data.user_id) ? (
+                  <View style={styles.reqActions}>
+                    <Pressable style={styles.reqDecline} onPress={() => answerRequest(item, false)} disabled={answeringId === item.id}>
+                      <Text style={styles.reqDeclineText}>Decline</Text>
+                    </Pressable>
+                    <Pressable style={styles.reqAccept} onPress={() => answerRequest(item, true)} disabled={answeringId === item.id}>
+                      <Text style={styles.reqAcceptText}>{answeringId === item.id ? "..." : "Accept"}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             </Pressable>
           )}
