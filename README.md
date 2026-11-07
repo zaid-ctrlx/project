@@ -200,18 +200,24 @@ A hybrid ranker for events and communities, in `backend/app/recsys/`:
   from implicit feedback — views, bookmarks, RSVPs and joins, weighted by
   strength (`config.py`).
 - **Hybrid** (`hybrid.py`): users with fewer than 5 interactions get
-  content-based results only; the collaborative weight then ramps up to 0.7 by
-  25 interactions (the cold-start rule).
+  content-based results only; the collaborative weight then ramps up to 0.9 by
+  10 interactions (the cold-start rule). The SVD size and these numbers were
+  chosen on separate validation data (`scripts/tune_recommender.py`).
 - **Data**: the `interactions` table. Bookmark, RSVP and join are logged by the
   server; the app reports views (`POST /interactions`). Existing bookmarks and
   RSVPs are backfilled when the model is fitted.
 - **API/UI**: `GET /api/v1/recommendations` returns ranked events with a
-  `recommendation_reason`; Home shows them as "Recommended for you".
+  truthful `recommendation_reason` and the real straight-line `distance_km`
+  (omitted when unknown); Home shows them as "Recommended for you".
 
 Offline evaluation (`python -m scripts.evaluate_recommender`, from `backend/`)
 generates synthetic users and events, splits interactions by time, and compares
-popularity, content-only, SVD-only and hybrid on Precision/Recall/NDCG@K, plus
-RMSE/MAE for the SVD's predicted strength.
+popularity, content-only, SVD-only and hybrid on Precision/Recall/NDCG@K (mean
+± std over 10 random datasets, with scenarios for unreliable interest tags),
+plus RMSE/MAE for the SVD's predicted strength. How it works, the results and
+likely viva questions are in [docs/RECOMMENDER.md](docs/RECOMMENDER.md).
+Unit tests: `pip install -r requirements-dev.txt && python -m pytest tests`
+(from `backend/`).
 
 ## Status
 
@@ -231,4 +237,4 @@ notifications, block/mute, a personal agenda (My Plans) and event reminders.
 - Tokens are kept in plain AsyncStorage (should move to `expo-secure-store`).
 - Locations are stored at full precision (round before showing other users').
 - Rate limiting is in-memory, per process.
-- Automated tests.
+- Automated tests beyond the recommender/reminder unit tests (no API or UI tests).
