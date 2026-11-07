@@ -10,6 +10,11 @@ type IncomingGroupHandler = (message: GroupMessage) => void;
 type MessagingState = {
   subscribe: (handler: IncomingHandler) => () => void;
   subscribeGroup: (handler: IncomingGroupHandler) => () => void;
+  // Live edits / deletes / reactions on messages that already exist - kept
+  // separate from subscribe/subscribeGroup so an updated message is never
+  // mistaken for a new one (which would prepend it and bump the unread badge).
+  subscribeUpdate: (handler: IncomingHandler) => () => void;
+  subscribeGroupUpdate: (handler: IncomingGroupHandler) => () => void;
   setActiveThreadUserId: (userId: string | null) => void;
   isThreadActive: (userId: string) => boolean;
   setActiveGroupId: (groupId: string | null) => void;
@@ -35,6 +40,8 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const listenersRef = useRef<Set<IncomingHandler>>(new Set());
   const groupListenersRef = useRef<Set<IncomingGroupHandler>>(new Set());
+  const updateListenersRef = useRef<Set<IncomingHandler>>(new Set());
+  const groupUpdateListenersRef = useRef<Set<IncomingGroupHandler>>(new Set());
   const activeThreadUserIdRef = useRef<string | null>(null);
   const activeGroupIdRef = useRef<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -90,6 +97,10 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
             if (activeGroupIdRef.current !== message.group_id) {
               setUnreadTotal((prev) => prev + 1);
             }
+          } else if (payload?.type === "message_updated" && payload.message) {
+            updateListenersRef.current.forEach((handler) => handler(payload.message as Message));
+          } else if (payload?.type === "group_message_updated" && payload.message) {
+            groupUpdateListenersRef.current.forEach((handler) => handler(payload.message as GroupMessage));
           }
           // The server also pushes a "notification" frame type (new DM/group
           // message, added to a group — see backend app/core/notify.py) that
@@ -129,6 +140,16 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     return () => groupListenersRef.current.delete(handler);
   }, []);
 
+  const subscribeUpdate = useCallback((handler: IncomingHandler) => {
+    updateListenersRef.current.add(handler);
+    return () => updateListenersRef.current.delete(handler);
+  }, []);
+
+  const subscribeGroupUpdate = useCallback((handler: IncomingGroupHandler) => {
+    groupUpdateListenersRef.current.add(handler);
+    return () => groupUpdateListenersRef.current.delete(handler);
+  }, []);
+
   const setActiveThreadUserId = useCallback((userId: string | null) => {
     activeThreadUserIdRef.current = userId;
   }, []);
@@ -165,6 +186,8 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
       value={{
         subscribe,
         subscribeGroup,
+        subscribeUpdate,
+        subscribeGroupUpdate,
         setActiveThreadUserId,
         isThreadActive,
         setActiveGroupId,
