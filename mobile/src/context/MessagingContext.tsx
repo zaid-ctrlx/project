@@ -45,11 +45,26 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
   const activeThreadUserIdRef = useRef<string | null>(null);
   const activeGroupIdRef = useRef<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const [unreadTotal, setUnreadTotal] = useState(0);
+  // Which conversations (a person or a group) have something unread. The tab
+  // badge shows how many conversations, not how many messages: 5 texts from one
+  // person is still just 1.
+  const [unreadKeys, setUnreadKeys] = useState<Set<string>>(() => new Set());
+  const unreadTotal = unreadKeys.size;
+  const addUnread = useCallback((key: string) => setUnreadKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key))), []);
+  const clearUnread = useCallback(
+    (key: string) =>
+      setUnreadKeys((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      }),
+    []
+  );
 
   useEffect(() => {
     if (!user) {
-      setUnreadTotal(0);
+      setUnreadKeys(new Set());
       return;
     }
 
@@ -65,7 +80,13 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     listConversations()
       .then((conversations) => {
         if (!cancelled) {
-          setUnreadTotal(conversations.reduce((sum, c) => sum + c.unread_count, 0));
+          setUnreadKeys(
+            new Set(
+              conversations
+                .filter((c) => c.unread_count > 0)
+                .map((c) => (c.type === "dm" ? `dm:${c.other_user.id}` : `group:${c.group_id}`))
+            )
+          );
         }
       })
       .catch(() => {
@@ -89,13 +110,13 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
             const message = payload.message as Message;
             listenersRef.current.forEach((handler) => handler(message));
             if (activeThreadUserIdRef.current !== message.sender_id) {
-              setUnreadTotal((prev) => prev + 1);
+              addUnread(`dm:${message.sender_id}`);
             }
           } else if (payload?.type === "group_message" && payload.message) {
             const message = payload.message as GroupMessage;
             groupListenersRef.current.forEach((handler) => handler(message));
             if (activeGroupIdRef.current !== message.group_id) {
-              setUnreadTotal((prev) => prev + 1);
+              addUnread(`group:${message.group_id}`);
             }
           } else if (payload?.type === "message_updated" && payload.message) {
             updateListenersRef.current.forEach((handler) => handler(payload.message as Message));
@@ -162,24 +183,26 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
 
   const isGroupActive = useCallback((groupId: string) => activeGroupIdRef.current === groupId, []);
 
-  const markRead = useCallback(async (userId: string, count: number) => {
-    setUnreadTotal((prev) => Math.max(0, prev - count));
+  // `count` is no longer needed (the badge counts conversations) but is kept so
+  // existing callers don't change.
+  const markRead = useCallback(async (userId: string, _count: number) => {
+    clearUnread(`dm:${userId}`);
     try {
       await markThreadRead(userId);
     } catch {
       // Best-effort — a failed mark-as-read just means it's retried next
       // time the thread is opened; not worth reverting the local badge for.
     }
-  }, []);
+  }, [clearUnread]);
 
-  const markGroupRead = useCallback(async (groupId: string, count: number) => {
-    setUnreadTotal((prev) => Math.max(0, prev - count));
+  const markGroupRead = useCallback(async (groupId: string, _count: number) => {
+    clearUnread(`group:${groupId}`);
     try {
       await markGroupReadApi(groupId);
     } catch {
       // Same best-effort tradeoff as markRead above.
     }
-  }, []);
+  }, [clearUnread]);
 
   return (
     <MessagingContext.Provider
