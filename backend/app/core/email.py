@@ -14,11 +14,18 @@ logger = logging.getLogger("uvicorn.error")
 
 
 def send_email(to: str, subject: str, body: str) -> None:
-    # A host without a password (e.g. halfway through setting up Gmail) would
-    # only fail at login, so treat it as "not configured" and keep printing
-    # codes to the console rather than silently losing them.
-    if not settings.SMTP_HOST or (settings.SMTP_USER and not settings.SMTP_PASSWORD):
+    if not settings.SMTP_HOST:
         logger.warning("[DEV EMAIL - SMTP not configured]\nTo: %s\nSubject: %s\n%s", to, subject, body)
+        return
+
+    # A user without a password (e.g. halfway through setting up Gmail) would
+    # only fail at login. Fall back to the console, but say loudly why - this
+    # must not look like a normal dev setup if it happens in production.
+    if settings.SMTP_USER and not settings.SMTP_PASSWORD:
+        logger.error(
+            "SMTP_USER is set but SMTP_PASSWORD is empty - email NOT sent, printing instead.\n"
+            "To: %s\nSubject: %s\n%s", to, subject, body,
+        )
         return
 
     msg = EmailMessage()
