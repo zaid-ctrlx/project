@@ -45,15 +45,17 @@ ${opts.dark ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness
   // Pin size follows zoom: small enough to tell pins apart when zoomed out,
   // full size when zoomed in.
   function pinW(){var z=map.getZoom();return z<=7?20:z<=10?26:z<=13?32:38;}
-  function pinIcon(type){
-    var w=pinW(),h=Math.round(w*1.3),c=COLORS[type]||'#7565F5';
+  var sel=null;
+  function pinIcon(type,big){
+    var w=Math.round(pinW()*(big?1.35:1)),h=Math.round(w*1.3),c=COLORS[type]||'#7565F5';
     var inner=type==='event'?'<rect x="8.2" y="8" width="7.6" height="7.6" rx="1.6" fill="#fff"/>':'<circle cx="12" cy="11.8" r="4" fill="#fff"/>';
     var svg='<svg viewBox="0 0 24 31" xmlns="http://www.w3.org/2000/svg"><path d="M12 30C12 30 2 19.5 2 11.5a10 10 0 0 1 20 0C22 19.5 12 30 12 30z" fill="'+c+'" stroke="#fff" stroke-width="2"/>'+inner+'</svg>';
     return L.divIcon({html:'<div class="pin" style="width:'+w+'px;height:'+h+'px">'+svg+'</div>',className:'',iconSize:[w,h],iconAnchor:[w/2,h]});
   }
-  map.on('zoomend',function(){markers.forEach(function(m){m.setIcon(pinIcon(m._type));});});
+  map.on('zoomend',function(){markers.forEach(function(m){m.setIcon(pinIcon(m._type,m===sel));});});
+  map.on('click',function(){if(sel){sel.setIcon(pinIcon(sel._type,false));sel.setZIndexOffset(0);sel=null;}});
   function setItems(items){
-    layer.clearLayers();markers=[];
+    layer.clearLayers();markers=[];sel=null;
     // Posts at the same venue get fanned out on a ~35 m ring so none hides another.
     var groups={};
     (items||[]).forEach(function(it){var k=it.latitude.toFixed(5)+','+it.longitude.toFixed(5);(groups[k]=groups[k]||[]).push(it);});
@@ -64,7 +66,7 @@ ${opts.dark ? ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness
         if(n>1){var a=2*Math.PI*i/n,r=0.00032;lat+=r*Math.sin(a);lng+=r*Math.cos(a)/Math.cos(lat*Math.PI/180);}
         var m=L.marker([lat,lng],{icon:pinIcon(it.type),riseOnHover:true});
         m._type=it.type;
-        m.on('click',function(){post({type:'select',id:it.id});});
+        m.on('click',function(){if(sel&&sel!==m){sel.setIcon(pinIcon(sel._type,false));sel.setZIndexOffset(0);}sel=m;m.setIcon(pinIcon(m._type,true));m.setZIndexOffset(1000);post({type:'select',id:it.id});});
         layer.addLayer(m);markers.push(m);
       });
     });

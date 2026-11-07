@@ -36,11 +36,15 @@ export default function MapPreviewSheet({ item, onClose, onView, busy }: Props) 
     backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" },
     sheet: {
       backgroundColor: colors.background,
-      borderTopLeftRadius: radius.md,
-      borderTopRightRadius: radius.md,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
       padding: spacing.xl,
+      paddingTop: spacing.md,
       gap: spacing.sm,
     },
+    grab: { alignSelf: "center", width: 38, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: spacing.sm },
+    headRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    tile: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
     typeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     typeBadge: {
       flexDirection: "row",
@@ -51,20 +55,21 @@ export default function MapPreviewSheet({ item, onClose, onView, busy }: Props) 
       borderRadius: radius.pill,
     },
     typeBadgeText: { fontSize: fontSize.sm, fontWeight: "700", color: "#ffffff" },
-    name: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+    name: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text, letterSpacing: -0.3 },
     metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     metaText: { fontSize: fontSize.base, color: colors.textMuted, flexShrink: 1 },
     description: { fontSize: fontSize.base, color: colors.text, marginTop: spacing.xs },
-    actions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.md, marginTop: spacing.md },
+    actions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.md },
     cancelText: { fontSize: fontSize.md, color: colors.textMuted, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
     viewButton: {
-      backgroundColor: colors.primary,
-      borderRadius: radius.sm,
-      paddingVertical: spacing.sm,
+      flex: 1,
+      alignItems: "center",
+      borderRadius: radius.lg,
+      paddingVertical: 14,
       paddingHorizontal: spacing.lg,
     },
     viewButtonPressed: { opacity: 0.85 },
-    viewButtonText: { fontSize: fontSize.md, fontWeight: "600", color: colors.primaryText },
+    viewButtonText: { fontSize: fontSize.md, fontWeight: "800", color: "#ffffff" },
   }));
 
   return (
@@ -72,14 +77,22 @@ export default function MapPreviewSheet({ item, onClose, onView, busy }: Props) 
       <Pressable style={styles.backdrop} onPress={onClose}>
         {item && (
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.typeRow}>
-              <View style={[styles.typeBadge, { backgroundColor: MAP_MARKER_COLORS[item.type] }]}>
-                <Ionicons name={MAP_MARKER_ICONS[item.type]} size={12} color="#ffffff" />
-                <Text style={styles.typeBadgeText}>{EVENT_KIND_LABELS[item.type]}</Text>
+            <View style={styles.grab} />
+            <View style={styles.headRow}>
+              <View style={[styles.tile, { backgroundColor: MAP_MARKER_COLORS[item.type] + "26" }]}>
+                <Ionicons name={MAP_MARKER_ICONS[item.type]} size={26} color={MAP_MARKER_COLORS[item.type]} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={styles.typeRow}>
+                  <View style={[styles.typeBadge, { backgroundColor: MAP_MARKER_COLORS[item.type] }]}>
+                    <Text style={styles.typeBadgeText}>{EVENT_KIND_LABELS[item.type]}</Text>
+                  </View>
+                </View>
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.name}
+                </Text>
               </View>
             </View>
-
-            <Text style={styles.name}>{item.name}</Text>
 
             {item.start_date && (
               <View style={styles.metaRow}>
@@ -128,7 +141,7 @@ export default function MapPreviewSheet({ item, onClose, onView, busy }: Props) 
               <Pressable
                 onPress={() => onView(item)}
                 disabled={busy}
-                style={({ pressed }) => [styles.viewButton, pressed && styles.viewButtonPressed]}
+                style={({ pressed }) => [styles.viewButton, { backgroundColor: MAP_MARKER_COLORS[item.type] }, pressed && styles.viewButtonPressed]}
               >
                 <Text style={styles.viewButtonText}>
                   {busy ? "Opening..." : item.type === "event" ? "View Event" : "View Community"}

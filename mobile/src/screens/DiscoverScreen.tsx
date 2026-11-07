@@ -13,6 +13,7 @@ import { searchUsers, UserSearchResult } from "../api/profile";
 import EventCard from "../components/EventCard";
 import DiscoverMapView from "../components/DiscoverMapView";
 import CollapsibleHeader from "../components/CollapsibleHeader";
+import SlidingSegment from "../components/SlidingSegment";
 import SearchField from "../components/SearchField";
 import { EVENT_KIND_LABELS } from "../constants/eventKind";
 import { useThemedStyles } from "../hooks/useThemedStyles";
@@ -422,17 +423,13 @@ export default function DiscoverScreen() {
       {!mapMode && (
         <CollapsibleHeader progress={headerScroll.progress}>
         <View style={styles.chipsWrap}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {TABS.map((tab, index) => (
-              <Pressable
-                key={tab.key}
-                onPress={() => goToTab(index)}
-                style={[styles.chip, activeIndex === index && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, activeIndex === index && styles.chipTextActive]}>{tab.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <View style={{ paddingHorizontal: spacing.lg }}>
+            <SlidingSegment
+              options={TABS}
+              value={TABS[activeIndex].key}
+              onChange={(k) => goToTab(TABS.findIndex((t) => t.key === k))}
+            />
+          </View>
         </View>
         </CollapsibleHeader>
       )}
