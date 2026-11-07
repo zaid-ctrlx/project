@@ -51,7 +51,14 @@ export type AppStackParamList = {
   // the current user created. There's no more Events tab for this to live
   // under (see MainTabs).
   MyPosts: undefined;
-  Chat: { userId: string; username: string; avatarUrl: string | null };
+  Chat: {
+    userId: string;
+    username: string;
+    avatarUrl: string | null;
+    // Set by "Reply privately" in a group chat: the first message sent here
+    // quotes that group message (the server checks it is real).
+    privateReply?: { groupMessageId: string; text: string; name: string };
+  };
   // Pushed by tapping the other person's name/avatar in ChatScreen's
   // header — WhatsApp-style "Contact info" for a DM (View profile/Mute/
   // Search/Clear chat/Block), replacing what used to be a direct jump to
