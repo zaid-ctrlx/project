@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 import * as authApi from "../api/auth";
 import { clearTokens, getAccessToken, saveTokens } from "../api/storage";
+import { unregisterPush } from "../lib/pushNotifications";
 
 type AuthState = {
   user: authApi.User | null;
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function handleLogout() {
+    await unregisterPush(); // needs the still-valid token, so before clearing it
     await clearTokens();
     setUser(null);
   }

@@ -3,6 +3,7 @@ import React from "react";
 
 import { Event, EventKind } from "../api/events";
 import { useTheme } from "../context/ThemeContext";
+import { usePushNotifications } from "../lib/pushNotifications";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
 import BlockedUsersScreen from "../screens/BlockedUsersScreen";
 import BookmarksScreen from "../screens/BookmarksScreen";
@@ -124,6 +125,7 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export default function AppStack() {
   const { colors } = useTheme();
+  usePushNotifications();
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="Tabs" component={MainTabs} />

@@ -44,4 +44,7 @@ async def notify_user(
     )
 
     tokens = db.scalars(select(PushToken.token).where(PushToken.user_id == user_id)).all()
-    await send_expo_push(list(tokens), title=title, body=body, data=data or {})
+    # The push payload also carries the notification type and id so a tap on
+    # the OS notification can be routed exactly like a tap in the in-app list.
+    push_data = {**(data or {}), "type": type, "notification_id": str(notification.id)}
+    await send_expo_push(list(tokens), title=title, body=body, data=push_data)
