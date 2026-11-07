@@ -30,6 +30,7 @@ def generate(
     days: int = 120,
     seed: int = 7,
     noise: float = 0.15,
+    tag_noise: float = 0.0,
     start: datetime | None = None,
 ) -> tuple[list[UserFeat], list[EventFeat], list[Interact]]:
     rng = random.Random(seed)
@@ -60,6 +61,12 @@ def generate(
         c = rng.randrange(len(CLUSTERS))
         city = CITIES[rng.randrange(len(CITIES))]
         acts = rng.sample(CLUSTERS[c], k=min(2, len(CLUSTERS[c])))
+        if rng.random() < tag_noise:
+            # Declared interests that do NOT reflect real behaviour (users
+            # pick tags carelessly) - the case where collaborative filtering
+            # should help, because behaviour is more honest than the profile.
+            other = rng.choice(CLUSTERS)
+            acts = rng.sample(other, k=min(2, len(other)))
         tags = {_primary_tag(a) for a in acts}
         if rng.random() < noise:  # a stray interest outside the cluster
             tags.add(_primary_tag(rng.choice(rng.choice(CLUSTERS))))

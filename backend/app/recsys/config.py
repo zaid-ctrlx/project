@@ -16,11 +16,12 @@ MAX_STRENGTH = 6.0
 # user gets content-based only; the collaborative weight then ramps linearly to
 # MAX_CF_WEIGHT by FULL_BLEND_AT interactions.
 COLD_START_MIN = 5
-FULL_BLEND_AT = 25
-MAX_CF_WEIGHT = 0.7
+FULL_BLEND_AT = 10  # chosen on validation seeds by scripts/tune_recommender.py (was 25)
+MAX_CF_WEIGHT = 0.9  # chosen on validation seeds by scripts/tune_recommender.py; capped <1 so content keeps a voice
 
-# SVD latent factors (capped at the matrix size at fit time).
-SVD_FACTORS = 16
+# SVD latent factors (capped at the matrix size at fit time). 3-6 were tied on
+# validation data; 5 chosen (matches the 5 interest groups in the synthetic data).
+SVD_FACTORS = 5
 
 # Content score mix: interest-tag match, distance, recency/upcoming, popularity.
 CONTENT_WEIGHTS = {"tags": 0.55, "distance": 0.20, "time": 0.15, "popularity": 0.10}
