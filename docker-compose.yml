@@ -1,7 +1,3 @@
-# Pinned so the containers/volume keep the same names no matter what the
-# project folder is called (the folder name is the default otherwise).
-name: project
-
 services:
   db:
     image: postgres:16-alpine
@@ -16,10 +12,7 @@ services:
       # network should be able to reach Postgres.
       - "127.0.0.1:5432:5432"
     volumes:
-      # Own volume: the older "project_db_data" volume holds a database from a
-      # different schema branch (missing connections/email_otps/join_requests),
-      # so this copy starts clean. The old volume is left untouched.
-      - college_db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
       interval: 5s
@@ -27,4 +20,4 @@ services:
       retries: 5
 
 volumes:
-  college_db_data:
+  db_data:
