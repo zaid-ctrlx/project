@@ -1,5 +1,5 @@
 import { api } from "./client";
-import { MessageParticipant } from "./messages";
+import { MessageExtras, MessageParticipant } from "./messages";
 import { PickedAvatar } from "./profile";
 
 export type GroupRole = "admin" | "member";
@@ -24,7 +24,7 @@ export type ChatGroup = {
   is_community: boolean;
 };
 
-export type GroupMessage = {
+export type GroupMessage = MessageExtras & {
   id: string;
   group_id: string;
   sender_id: string;
@@ -87,8 +87,35 @@ export function getGroupThread(groupId: string, limit = 30, offset = 0): Promise
   return api.authed(`/groups/${groupId}/messages?limit=${limit}&offset=${offset}`);
 }
 
-export function sendGroupMessage(groupId: string, text: string): Promise<GroupMessage> {
-  return api.authed(`/groups/${groupId}/messages`, { method: "POST", body: JSON.stringify({ text }) });
+export function sendGroupMessage(
+  groupId: string,
+  text: string,
+  opts: { kind?: "text" | "sticker"; forwarded?: boolean; replyToId?: string } = {}
+): Promise<GroupMessage> {
+  return api.authed(`/groups/${groupId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      text,
+      kind: opts.kind ?? "text",
+      forwarded: opts.forwarded ?? false,
+      reply_to_id: opts.replyToId ?? null,
+    }),
+  });
+}
+
+export function editGroupMessage(groupId: string, messageId: string, text: string): Promise<GroupMessage> {
+  return api.authed(`/groups/${groupId}/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) });
+}
+
+export function deleteGroupMessage(groupId: string, messageId: string): Promise<GroupMessage> {
+  return api.authed(`/groups/${groupId}/messages/${messageId}`, { method: "DELETE" });
+}
+
+export function reactToGroupMessage(groupId: string, messageId: string, emoji: string | null): Promise<GroupMessage> {
+  return api.authed(`/groups/${groupId}/messages/${messageId}/reaction`, {
+    method: "PUT",
+    body: JSON.stringify({ emoji }),
+  });
 }
 
 export function markGroupRead(groupId: string): Promise<void> {

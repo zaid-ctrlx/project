@@ -8,7 +8,29 @@ export type MessageParticipant = {
   avatar_url: string | null;
 };
 
-export type Message = {
+export type MessageKind = "text" | "sticker";
+
+export type Reaction = { user_id: string; emoji: string };
+
+// Fields shared by DM and group messages (backend QuoteFields + the message
+// feature columns). For kind="sticker", `body` is the sticker id.
+export type MessageExtras = {
+  kind: MessageKind;
+  edited_at: string | null;
+  // Delete-for-everyone leaves a tombstone: body is "" and this is set.
+  deleted_at: string | null;
+  forwarded: boolean;
+  reactions: Reaction[];
+  // Reply context. reply_to_id is only set for an in-thread reply (it is
+  // null for a private reply to a group message); the quote_* snapshot is
+  // set for every reply.
+  reply_to_id: string | null;
+  quote_text: string | null;
+  quote_sender_id: string | null;
+  quote_kind: string | null;
+};
+
+export type Message = MessageExtras & {
   id: string;
   sender_id: string;
   recipient_id: string;
@@ -16,6 +38,14 @@ export type Message = {
   created_at: string; // ISO 8601
   read_at: string | null;
 };
+
+// Messages can only be edited for this long after sending - the server
+// enforces it too (backend EDIT_WINDOW); this just hides the option.
+export const EDIT_WINDOW_MS = 5 * 60 * 1000;
+
+export function canEditMessage(m: { kind: MessageKind; created_at: string; deleted_at: string | null }): boolean {
+  return m.kind === "text" && !m.deleted_at && Date.now() - new Date(m.created_at).getTime() <= EDIT_WINDOW_MS;
+}
 
 // GET /messages/conversations returns DMs and group chats merged into one
 // newest-first list (see backend's ConversationOut) — `type` discriminates
@@ -53,11 +83,40 @@ export type GroupConversation = {
 
 export type ConversationSummary = DmConversation | GroupConversation;
 
-export function sendMessage(recipientId: string, text: string): Promise<Message> {
+export type SendOptions = {
+  kind?: MessageKind;
+  forwarded?: boolean;
+  replyToId?: string;
+  // "Reply privately": id of a group message written by the recipient.
+  privateReplyGroupMessageId?: string;
+};
+
+export function sendMessage(recipientId: string, text: string, opts: SendOptions = {}): Promise<Message> {
   return api.authed("/messages", {
     method: "POST",
-    body: JSON.stringify({ recipient_id: recipientId, text }),
+    body: JSON.stringify({
+      recipient_id: recipientId,
+      text,
+      kind: opts.kind ?? "text",
+      forwarded: opts.forwarded ?? false,
+      reply_to_id: opts.replyToId ?? null,
+      private_reply_group_message_id: opts.privateReplyGroupMessageId ?? null,
+    }),
   });
+}
+
+export function editMessage(messageId: string, text: string): Promise<Message> {
+  return api.authed(`/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ text }) });
+}
+
+// Delete for everyone (sender only) - the row stays as a tombstone.
+export function deleteMessage(messageId: string): Promise<Message> {
+  return api.authed(`/messages/${messageId}`, { method: "DELETE" });
+}
+
+// One reaction per user per message; null removes mine.
+export function reactToMessage(messageId: string, emoji: string | null): Promise<Message> {
+  return api.authed(`/messages/${messageId}/reaction`, { method: "PUT", body: JSON.stringify({ emoji }) });
 }
 
 export function listConversations(): Promise<ConversationSummary[]> {
