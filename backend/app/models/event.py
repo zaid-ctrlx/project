@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Table, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Table, Text, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -91,6 +91,8 @@ class Event(Base):
     # validated at the Pydantic layer instead (see JOIN_POLICY_OPTIONS in
     # app/schemas/event.py).
     join_policy: Mapped[str] = mapped_column(String(30), nullable=False, server_default="anyone")
+    # Organiser's choice: show a "Message organiser" button on this post.
+    allow_dms: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true(), default=True)
 
     # Events only: single fixed-vocabulary category. Used to have three
     # siblings (community_vibe/skill_level/event_style) for a fuller tag

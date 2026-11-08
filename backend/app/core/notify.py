@@ -32,6 +32,7 @@ async def notify_user(
     title: str,
     body: str,
     data: dict | None = None,
+    push: bool = True,
 ) -> None:
     notification = Notification(user_id=user_id, type=type, title=title, body=body, data=data or {})
     db.add(notification)
@@ -43,5 +44,12 @@ async def notify_user(
         {"type": "notification", "notification": NotificationOut.model_validate(notification).model_dump(mode="json")},
     )
 
+    if not push:
+        # Still saved in-app and sent live over the socket; only the OS
+        # push (which can't be taken back later) is skipped.
+        return
     tokens = db.scalars(select(PushToken.token).where(PushToken.user_id == user_id)).all()
-    await send_expo_push(list(tokens), title=title, body=body, data=data or {})
+    # The push payload also carries the notification type and id so a tap on
+    # the OS notification can be routed exactly like a tap in the in-app list.
+    push_data = {**(data or {}), "type": type, "notification_id": str(notification.id)}
+    await send_expo_push(list(tokens), title=title, body=body, data=push_data)

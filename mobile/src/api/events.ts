@@ -66,6 +66,7 @@ export type Event = {
   location_label: string | null; // forced to "Online" server-side when is_online
   creator: EventCreator;
   join_policy: JoinPolicy; // communities only — always "anyone" for "event"
+  allow_dms: boolean; // organiser lets people message them 1-on-1 from this post
   activity_type: ActivityType | null; // events only — always null for "community"
   // Communities only — the linked ChatGroup id (see backend
   // app/models/event.py's Event.group_id). Null for kind="event". Feed
@@ -87,6 +88,10 @@ export type Event = {
   // admin (only non-zero for the community's admins).
   has_requested: boolean;
   pending_request_count: number;
+  // Set only on items from GET /recommendations ("why this was suggested").
+  recommendation_reason?: string | null;
+  // Straight-line km from your saved location (null if unknown); GET /recommendations only.
+  distance_km?: number | null;
   created_at: string;
 };
 
@@ -101,6 +106,7 @@ export type EventCreatePayload = {
   location_lng: number | null;
   location_label: string | null;
   join_policy: JoinPolicy;
+  allow_dms: boolean;
   activity_type: ActivityType | null;
 };
 
@@ -132,6 +138,24 @@ export function listEvents(filters?: EventListFilters): Promise<Event[]> {
 // list it was opened from, so this isn't used elsewhere.
 export function getEvent(id: string): Promise<Event> {
   return api.authed(`/events/${id}`);
+}
+
+// Hybrid-ranked events/communities for the current user, best first, each with
+// a recommendation_reason (see backend app/recsys).
+export function getRecommendations(limit = 10): Promise<Event[]> {
+  return api.authed(`/recommendations?limit=${limit}`);
+}
+
+// Fire-and-forget implicit-feedback signal for the recommender: the user opened
+// this event/community. Never throws — a failed log must not affect navigation.
+export function logView(eventId: string): void {
+  api.authed("/interactions", { method: "POST", body: JSON.stringify({ event_id: eventId, kind: "view" }) }).catch(() => {});
+}
+
+// The user's agenda: events they RSVP'd to plus events they host. "upcoming"
+// is soonest-first, "past" most-recent-first.
+export function listMyPlans(scope: "upcoming" | "past" = "upcoming"): Promise<Event[]> {
+  return api.authed(`/events/plans?scope=${scope}`);
 }
 
 export function listBookmarkedEvents(): Promise<Event[]> {

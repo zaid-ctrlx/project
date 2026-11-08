@@ -3,7 +3,7 @@ import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native";
 
 import { ApiError, mediaUrl } from "../api/client";
 import {
@@ -89,6 +89,8 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
       : JOIN_POLICY_LABELS.anyone
   );
 
+  const [allowDms, setAllowDms] = useState<boolean>(initialEvent?.allow_dms ?? true);
+
   // --- Shared: physical location (event when not online, always for community) ---
   const [location, setLocation] = useState<LocationValue | null>(
     initialEvent?.location_lat != null && initialEvent?.location_lng != null && initialEvent?.location_label
@@ -111,6 +113,9 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
     },
     firstSectionTitle: { marginTop: 0 },
     error: { color: colors.danger, fontSize: fontSize.base },
+    dmRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    dmTitle: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
+    dmHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
 
     // Cover image
     coverWrap: { alignItems: "center" },
@@ -290,6 +295,7 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
         location_label: isOnlineEvent ? null : location!.label,
         join_policy:
           effectiveKind === "community" ? (JOIN_POLICY.byLabel[joinPolicyLabel] as JoinPolicy) : "anyone" as JoinPolicy,
+        allow_dms: allowDms,
         activity_type:
           effectiveKind === "event" && categoryLabel ? (ACTIVITY_TYPE.byLabel[categoryLabel] as ActivityType) : null,
       };
@@ -448,6 +454,14 @@ export default function EventForm({ initialEvent, kind, submitLabel, onSaved }: 
           />
         </>
       )}
+
+      <View style={styles.dmRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.dmTitle}>Allow messages to organiser</Text>
+          <Text style={styles.dmHint}>Shows a "Message organiser" button so people can chat with you 1-on-1.</Text>
+        </View>
+        <Switch value={allowDms} onValueChange={setAllowDms} trackColor={{ true: colors.primary }} />
+      </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
       <Button label={submitLabel} onPress={onSubmit} loading={saving} />

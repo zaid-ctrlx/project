@@ -24,9 +24,18 @@ QUOTE_MAX_LEN = 200
 DELETED_PREVIEW = "This message was deleted"
 
 
-def validate_body(kind: str, text: str) -> None:
+def validate_body(kind: str, text: str, db: Session | None = None) -> None:
     if kind == "sticker" and not STICKER_ID_RE.match(text):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sticker")
+    if kind == "event":
+        from app.models.event import Event  # local import: avoid a cycle
+
+        try:
+            event_id = uuid.UUID(text)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event") from None
+        if db is None or db.get(Event, event_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
 
 def preview_text(kind: str, deleted_at: datetime | None, body: str) -> str:
@@ -35,13 +44,15 @@ def preview_text(kind: str, deleted_at: datetime | None, body: str) -> str:
         return DELETED_PREVIEW
     if kind == "sticker":
         return "Sticker"
+    if kind == "event":
+        return "Shared an event"
     return body
 
 
 def quote_fields(message) -> dict:
     """Snapshot of a message for a reply's quoted strip. Taken at send time
     so the quote survives the original later being edited or deleted."""
-    text = "Sticker" if message.kind == "sticker" else message.body
+    text = {"sticker": "Sticker", "event": "Event"}.get(message.kind, message.body)
     return {
         "quote_text": text[:QUOTE_MAX_LEN],
         "quote_sender_id": message.sender_id,

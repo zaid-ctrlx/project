@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import and_, delete, exists, func, or_, select
@@ -16,6 +17,7 @@ from app.models.event import Event, event_bookmarks, event_rsvps
 from app.models.group import ChatGroup, GroupMember
 from app.models.join_request import JoinRequest
 from app.models.user import User
+from app.recsys.logging import log_interaction
 from app.schemas.event import (
     EVENT_KIND_OPTIONS,
     JOIN_POLICY_OPTIONS,
@@ -190,6 +192,7 @@ def create_event(
         location_lng=payload.location_lng,
         location_label=payload.location_label,
         join_policy=payload.join_policy,
+        allow_dms=payload.allow_dms,
         activity_type=payload.activity_type,
         creator_id=current_user.id,
     )
@@ -310,6 +313,29 @@ def _load_event_rows(db: Session, stmt, current_user: User) -> list[Event]:
         events.append(event)
     _attach_request_info(db, events, current_user.id)
     return events
+
+
+@router.get("/plans", response_model=list[EventOut])
+def list_my_plans(
+    scope: Literal["upcoming", "past"] = Query(default="upcoming"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Event]:
+    """The current user's agenda: events they RSVP'd to ("I'm going") plus
+    events they are hosting. "upcoming" = not started yet, soonest first;
+    "past" = already started, most recent first (capped at 50). Communities
+    have no date, so they never appear here."""
+    now = datetime.now(timezone.utc)
+    mine = or_(
+        Event.id.in_(select(event_rsvps.c.event_id).where(event_rsvps.c.user_id == current_user.id)),
+        Event.creator_id == current_user.id,
+    )
+    stmt = select(Event).options(selectinload(Event.creator)).where(Event.kind == "event", Event.starts_at.is_not(None), mine)
+    if scope == "upcoming":
+        stmt = stmt.where(Event.starts_at >= now).order_by(Event.starts_at.asc()).limit(100)
+    else:
+        stmt = stmt.where(Event.starts_at < now).order_by(Event.starts_at.desc()).limit(50)
+    return _load_event_rows(db, stmt, current_user)
 
 
 def _own_profile_only(user_id: uuid.UUID, current_user: User) -> None:
@@ -570,6 +596,7 @@ def update_event(
     event.location_lng = payload.location_lng
     event.location_label = payload.location_label
     event.join_policy = payload.join_policy
+    event.allow_dms = payload.allow_dms
     event.activity_type = payload.activity_type
     # cover_image_url and group_id are deliberately untouched here —
     # cover_image_url is set only via POST /events/{id}/cover, and group_id
@@ -620,6 +647,7 @@ def bookmark_event(
     if already is None:
         db.execute(event_bookmarks.insert().values(event_id=event_id, user_id=current_user.id))
         db.commit()
+        log_interaction(db, current_user.id, event_id, "bookmark")
 
 
 @router.delete("/{event_id}/bookmark", status_code=status.HTTP_204_NO_CONTENT)
@@ -695,6 +723,7 @@ async def join_community(
         else:
             db.add(GroupMember(group_id=event.group_id, user_id=current_user.id, role="member"))
             db.commit()
+            log_interaction(db, current_user.id, event.id, "join")
 
     db.refresh(event)
     _set_event_flags(db, event, current_user.id)
@@ -848,6 +877,7 @@ def rsvp_event(
     if already is None:
         db.execute(event_rsvps.insert().values(event_id=event_id, user_id=current_user.id))
         db.commit()
+        log_interaction(db, current_user.id, event_id, "rsvp")
 
     _set_event_flags(db, event, current_user.id)
     return event

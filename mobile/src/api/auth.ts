@@ -15,6 +15,7 @@ export type User = {
   avatar_url: string | null;
   is_active: boolean;
   is_verified: boolean;
+  is_admin?: boolean;
   onboarding_completed: boolean;
   location_lat: number | null;
   location_lng: number | null;

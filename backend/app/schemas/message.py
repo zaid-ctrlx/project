@@ -14,7 +14,9 @@ class MessageParticipantOut(BaseModel):
     avatar_url: str | None
 
 
-MessageKind = Literal["text", "sticker"]
+# "event" is a shared event/community card (body = the event id). DMs only.
+MessageKind = Literal["text", "sticker", "event"]
+GroupMessageKind = Literal["text", "sticker"]
 
 
 class ReactionOut(BaseModel):

@@ -5,6 +5,7 @@ import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
+import { acceptConnection, listConnectionRequests, removeConnection } from "../api/connections";
 import {
   AppNotification,
   listNotifications,
@@ -12,9 +13,9 @@ import {
   markNotificationRead as markNotificationReadApi,
 } from "../api/notifications";
 import { useThemedStyles } from "../hooks/useThemedStyles";
-import { getEvent } from "../api/events";
 import type { AppStackParamList } from "../navigation/AppStack";
-import { fontSize, spacing } from "../theme";
+import { routeNotification } from "../navigation/routeNotification";
+import { fontSize, radius, spacing } from "../theme";
 
 const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   dm_message: "chatbubble-outline",
@@ -25,6 +26,7 @@ const ICONS: Record<AppNotification["type"], keyof typeof Ionicons.glyphMap> = {
   join_rejected: "close-circle-outline",
   connection_request: "person-add-outline",
   connection_accepted: "people-circle-outline",
+  event_reminder: "alarm-outline",
 };
 
 function timeAgo(iso: string): string {
@@ -58,6 +60,12 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Requester ids whose request is still waiting on me. Accept/Decline only
+  // show for these, so an old notification can never "decline" someone you've
+  // already connected with (declining removes the connection).
+  const [pendingFrom, setPendingFrom] = useState<Set<string>>(new Set());
+  const [answered, setAnswered] = useState<Record<string, "accepted" | "declined">>({});
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
   const { styles, colors } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
     header: {
@@ -102,12 +110,21 @@ export default function NotificationsScreen() {
     emptyTitle: { fontSize: fontSize.lg, fontWeight: "600", color: colors.text },
     emptyBody: { fontSize: fontSize.base, color: colors.textMuted, textAlign: "center", maxWidth: 260 },
     error: { color: colors.danger, fontSize: fontSize.base, textAlign: "center", marginTop: spacing.xl },
+    reqActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+    reqAccept: { flex: 1, alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.pill, paddingVertical: spacing.sm },
+    reqAcceptText: { color: colors.primaryText, fontSize: fontSize.sm, fontWeight: "700" },
+    reqDecline: { flex: 1, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: spacing.sm },
+    reqDeclineText: { color: colors.text, fontSize: fontSize.sm, fontWeight: "600" },
+    reqResult: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: "600", marginTop: spacing.xs },
   }));
 
   const load = useCallback(async () => {
     setError(null);
     try {
       setNotifications(await listNotifications());
+      listConnectionRequests()
+        .then((list) => setPendingFrom(new Set(list.map((u) => u.id))))
+        .catch(() => {});
     } catch {
       setError("Couldn't load your notifications.");
     } finally {
@@ -129,43 +146,29 @@ export default function NotificationsScreen() {
       markNotificationReadApi(notification.id).catch(() => {});
     }
 
-    switch (notification.type) {
-      case "dm_message":
-        // No avatar carried in the notification payload — ChatScreen falls
-        // back to an initial-letter placeholder, same as anywhere else in
-        // this app a user is shown without one.
-        navigation.navigate("Chat", {
-          userId: notification.data.sender_id,
-          username: notification.title,
-          avatarUrl: null,
-        });
-        break;
-      case "group_message":
-        // groupName/memberCount are best-effort placeholders — GroupChatScreen
-        // fetches the real group detail itself on mount and updates its
-        // header once that resolves (see its own comments).
-        navigation.navigate("GroupChat", { groupId: notification.data.group_id, groupName: "Group", memberCount: 0 });
-        break;
-      case "added_to_group":
-        navigation.navigate("GroupInfo", { groupId: notification.data.group_id });
-        break;
-      case "join_request":
-        navigation.navigate("JoinRequests", { eventId: notification.data.event_id, eventTitle: "Join requests" });
-        break;
-      case "connection_request":
-        navigation.navigate("Connections", { initialTab: "requests" });
-        break;
-      case "connection_accepted":
-        navigation.navigate("UserProfile", { userId: notification.data.user_id });
-        break;
-      case "join_approved":
-      case "join_rejected":
-        // Open the community itself (now joinable / joined) -- needs the full
-        // event, so fetch it first; if it was deleted meanwhile, do nothing.
-        getEvent(notification.data.event_id)
-          .then((event) => navigation.navigate("CommunityProfile", { event }))
-          .catch(() => {});
-        break;
+    routeNotification(navigation, notification.type, notification.data, notification.title);
+  }
+
+  async function answerRequest(notification: AppNotification, accept: boolean) {
+    const requesterId = notification.data.user_id;
+    if (!requesterId || answeringId) return;
+    setAnsweringId(notification.id);
+    try {
+      await (accept ? acceptConnection(requesterId) : removeConnection(requesterId));
+      setAnswered((prev) => ({ ...prev, [notification.id]: accept ? "accepted" : "declined" }));
+      setPendingFrom((prev) => {
+        const next = new Set(prev);
+        next.delete(requesterId);
+        return next;
+      });
+      if (!notification.read_at) {
+        setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n)));
+        markNotificationReadApi(notification.id).catch(() => {});
+      }
+    } catch {
+      load(); // request may have been withdrawn - refresh what is still pending
+    } finally {
+      setAnsweringId(null);
     }
   }
 
@@ -215,6 +218,18 @@ export default function NotificationsScreen() {
                   {item.body}
                 </Text>
                 <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
+                {item.type === "connection_request" && answered[item.id] ? (
+                  <Text style={styles.reqResult}>{answered[item.id] === "accepted" ? "You're now connected" : "Request declined"}</Text>
+                ) : item.type === "connection_request" && pendingFrom.has(item.data.user_id) ? (
+                  <View style={styles.reqActions}>
+                    <Pressable style={styles.reqDecline} onPress={() => answerRequest(item, false)} disabled={answeringId === item.id}>
+                      <Text style={styles.reqDeclineText}>Decline</Text>
+                    </Pressable>
+                    <Pressable style={styles.reqAccept} onPress={() => answerRequest(item, true)} disabled={answeringId === item.id}>
+                      <Text style={styles.reqAcceptText}>{answeringId === item.id ? "..." : "Accept"}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             </Pressable>
           )}

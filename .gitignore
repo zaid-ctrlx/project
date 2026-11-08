@@ -18,3 +18,7 @@ npm-debug.*
 Thumbs.db
 .vscode/
 .idea/
+
+# --- Uploaded user content (avatars, covers): never commit ---
+backend/media/*
+!backend/media/.gitkeep

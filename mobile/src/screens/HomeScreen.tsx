@@ -2,12 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
+import type { ScrollViewInstance } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useSafeInsets as useSafeAreaInsets } from "../hooks/useSafeInsets";
 
 import { mediaUrl } from "../api/client";
-import { bookmarkEvent, Event, listEvents, unbookmarkEvent } from "../api/events";
+import { bookmarkEvent, Event, getRecommendations, listEvents, listMyPlans, unbookmarkEvent } from "../api/events";
 import { getUnreadCount } from "../api/notifications";
 import CollapsibleHeader from "../components/CollapsibleHeader";
 import EventCard from "../components/EventCard";
@@ -16,6 +17,8 @@ import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import FadeInUp from "../components/motion/FadeInUp";
+import PressableScale from "../components/motion/PressableScale";
 import { useScrollAwareHeader } from "../hooks/useScrollAwareHeader";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import {
@@ -32,36 +35,36 @@ import {
   saveFilters,
   SORT_LABELS,
 } from "../lib/feedFilters";
+import { shortCountdown, startsInLabel } from "../lib/countdown";
 import { distanceKm as kmBetween, formatDistance } from "../lib/geo";
 import type { AppStackParamList } from "../navigation/AppStack";
 import { openEventDetail } from "../navigation/openEventDetail";
 import { fontSize, radius, spacing } from "../theme";
 
-// Light/dark toggle icon: it shrinks away while ThemeContext's overlay fades in
-// (FADE_IN_MS = 150ms), the icon swaps when `mode` flips underneath it, then
-// it springs back in. (A rotateY flip left the new icon mirrored.)
-const ICON_OUT_MS = 150;
-
 // Home from the Huddle design: a Filters button (location + radius, sort,
 // date range — all combinable, see FiltersSheet) + bell, a one-line
-// time-of-day greeting, a featured card and the rest of the feed. Data is the real events list; a personalised
-// recommendation ranking is still to come (see project notes) — until then
-// this surfaces upcoming events soonest-first.
+// "Your plans" dropdown, a "Recommended for you" row (hybrid recommender,
+// GET /recommendations — hidden while filters are active), a featured card and
+// the rest of the feed (the real events list, soonest-first by default).
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const { user } = useAuth();
-  const { mode, colors, toggle } = useTheme();
-  const iconScale = useRef(new Animated.Value(1)).current;
+  const { mode, colors } = useTheme();
   const [events, setEvents] = useState<Event[]>([]);
+  const [recs, setRecs] = useState<Event[]>([]);
+  const [plans, setPlans] = useState<Event[]>([]);
+  const [plansOpen, setPlansOpen] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [filters, setFilters] = useState<FeedFilters>(DEFAULT_FILTERS);
-  // Greeting hides on scroll-down and returns on any upward scroll.
+  // Filter chips hide on scroll-down and return on any upward scroll.
   const headerScroll = useScrollAwareHeader();
   const [unread, setUnread] = useState(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const { styles } = useThemedStyles((colors) => ({
     wrapper: { flex: 1, backgroundColor: colors.background },
@@ -72,7 +75,29 @@ export default function HomeScreen() {
       paddingHorizontal: spacing.lg,
       paddingBottom: spacing.sm,
     },
-    brand: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
+    brand: { fontSize: 24, fontWeight: "800", color: colors.text, letterSpacing: -0.8 },
+    searchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
+    searchPill: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      height: 46,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+    },
+    searchText: { color: colors.textFaint, fontSize: fontSize.base, fontWeight: "500" },
+    filterBtn: { width: 46, height: 46, borderRadius: radius.lg, backgroundColor: colors.inverse, alignItems: "center", justifyContent: "center" },
+    kindChips: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+    kindChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    kindChipOn: { backgroundColor: colors.inverse, borderColor: colors.inverse },
+    kindChipText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: "700" },
+    kindChipTextOn: { color: colors.inverseText },
+    avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+    avatarText: { color: colors.primaryText, fontSize: fontSize.sm, fontWeight: "800" },
     headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     filterButton: {
       flexDirection: "row",
@@ -126,9 +151,6 @@ export default function HomeScreen() {
       borderWidth: 2,
       borderColor: colors.background,
     },
-    greetingWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.md },
-    greeting: { fontSize: fontSize.lg, fontWeight: "600", color: colors.textMuted, letterSpacing: -0.2 },
-    greetingName: { color: colors.text, fontWeight: "800" },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -179,6 +201,75 @@ export default function HomeScreen() {
     empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
     emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: "700" },
     emptyBody: { color: colors.textMuted, fontSize: fontSize.base, textAlign: "center" },
+    plansToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+      borderRadius: 22,
+      backgroundColor: mode === "dark" ? colors.primary : colors.tabBar,
+      overflow: "hidden",
+    },
+    plansTitleArea: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      paddingLeft: spacing.md,
+    },
+    plansRing: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      borderWidth: 3,
+      borderColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    plansRingText: { color: "#F5F3EF", fontSize: 12, fontWeight: "800" },
+    plansKicker: { color: "rgba(245,243,239,0.7)", fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
+    plansName: { color: "#F5F3EF", fontSize: fontSize.base, fontWeight: "800", marginTop: 2 },
+    plansArrow: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      alignSelf: "stretch",
+      justifyContent: "center",
+    },
+    planCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      gap: spacing.xs,
+      justifyContent: "center",
+      minHeight: 96,
+    },
+    planCountdown: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "700" },
+    planTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: "700" },
+    planMeta: { color: colors.textMuted, fontSize: fontSize.sm },
+    recRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+    recCard: {
+      width: 164,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 22,
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    recTile: { height: 60, borderRadius: radius.lg, alignItems: "center", justifyContent: "center", marginBottom: spacing.xs },
+    recReason: { alignSelf: "flex-start", color: colors.community, backgroundColor: colors.communitySoft, fontSize: 10, fontWeight: "800", paddingVertical: 3, paddingHorizontal: 8, borderRadius: radius.pill, overflow: "hidden" },
+    recTitle: { color: colors.text, fontSize: fontSize.base, fontWeight: "800", lineHeight: 18 },
+    recMeta: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+    hero: { marginHorizontal: spacing.lg, borderRadius: 28, overflow: "hidden", height: 232, marginBottom: spacing.xl },
+    heroFill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+    heroBody: { flex: 1, padding: spacing.lg, justifyContent: "space-between" },
+    heroPill: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.22)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill },
+    heroPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    heroTitle: { color: "#fff", fontSize: 24, fontWeight: "800", letterSpacing: -0.6, lineHeight: 28 },
+    heroMeta: { color: "rgba(255,255,255,0.9)", fontSize: fontSize.sm, fontWeight: "600", marginTop: 4 },
   }));
 
   useEffect(() => {
@@ -193,8 +284,16 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, count] = await Promise.all([listEvents(), getUnreadCount().catch(() => ({ unread_count: 0 }))]);
+      const [list, count, recList, planList] = await Promise.all([
+        listEvents(),
+        getUnreadCount().catch(() => ({ unread_count: 0 })),
+        // Recommendations are an enhancement: if they fail the feed still loads.
+        getRecommendations(8).catch(() => [] as Event[]),
+        listMyPlans("upcoming").catch(() => [] as Event[]),
+      ]);
+      setPlans(planList.slice(0, 8));
       setEvents(list);
+      setRecs(recList);
       setUnread(count.unread_count);
     } catch {
       setError("Couldn’t load activities. Pull down to try again.");
@@ -210,6 +309,19 @@ export default function HomeScreen() {
     }, [load])
   );
 
+  // Tapping the Home tab while already on Home: jump back to the top, bring the
+  // filter chips back, and refresh the feed (same as pull-to-refresh).
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener("tabPress", () => {
+      if (!navigation.isFocused()) return;
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      headerScroll.show();
+      setRefreshing(true);
+      load();
+    });
+    return unsubscribe;
+  }, [navigation, headerScroll, load]);
+
   async function toggleBookmark(event: Event) {
     const next = !event.is_bookmarked;
     setEvents((list) => list.map((e) => (e.id === event.id ? { ...e, is_bookmarked: next } : e)));
@@ -218,15 +330,6 @@ export default function HomeScreen() {
     } catch {
       setEvents((list) => list.map((e) => (e.id === event.id ? { ...e, is_bookmarked: !next } : e)));
     }
-  }
-
-  function handleToggleTheme() {
-    iconScale.stopAnimation();
-    Animated.sequence([
-      Animated.timing(iconScale, { toValue: 0, duration: ICON_OUT_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      Animated.spring(iconScale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }),
-    ]).start();
-    toggle();
   }
 
   // Where distances are measured from: the filter's location if set,
@@ -309,15 +412,6 @@ export default function HomeScreen() {
   const featured = ordered.find((e) => e.kind === "event") ?? ordered[0];
   const rest = ordered.filter((e) => e.id !== featured?.id);
 
-  // Minimal time-of-day greeting (night owls get their own line).
-  const greeting = (() => {
-    const hour = new Date().getHours();
-    const name = user?.username ?? "";
-    if (hour >= 22 || hour < 5) return { lead: "Hello, ", name: "night owl" };
-    if (hour < 12) return { lead: "Good morning, ", name };
-    if (hour < 17) return { lead: "Good afternoon, ", name };
-    return { lead: "Good evening, ", name };
-  })();
   const filterCount = activeFilterCount(filters);
   const shortOrigin = originLabel ? originLabel.split(",")[0] : null;
   const featuredHeading =
@@ -329,7 +423,7 @@ export default function HomeScreen() {
           ? "Communities"
           : "Happening soon";
 
-  // Removable chips summarising the active filters (shown under the greeting).
+  // Removable chips summarising the active filters (shown under the title row).
   const activeChips: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; clear: () => void }[] = [];
   if (filters.kind !== "all") {
     activeChips.push({
@@ -405,41 +499,67 @@ export default function HomeScreen() {
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.header}>
-        <Text style={styles.brand}>Huddle</Text>
+        <Text style={styles.brand}>
+          huddle<Text style={{ color: colors.accent }}>.</Text>
+        </Text>
         <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => setSheetOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Filters"
-            style={({ pressed }) => [styles.filterButton, pressed && { opacity: 0.8 }]}
-          >
-            <Ionicons name="options-outline" size={16} color={colors.text} />
-            <Text style={styles.filterText}>Filters</Text>
-            {filterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{filterCount}</Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable onPress={handleToggleTheme} hitSlop={8} style={styles.iconButton}>
-            <Animated.View style={{ opacity: iconScale, transform: [{ scale: iconScale }] }}>
-              <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.textMuted} />
-            </Animated.View>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate("Notifications")} hitSlop={8} style={styles.iconButton}>
+          <Pressable onPress={() => navigation.navigate("Notifications")} hitSlop={8} style={styles.iconButton} accessibilityLabel="Notifications">
             <Ionicons name="notifications-outline" size={22} color={colors.text} />
             {unread > 0 && <View style={styles.badgeDot} />}
+          </Pressable>
+          <Pressable
+            onPress={() => (navigation as any).navigate("Tabs", { screen: "Profile" })}
+            hitSlop={6}
+            accessibilityLabel="Your profile"
+            style={styles.avatar}
+          >
+            {user?.avatar_url ? (
+              <Image source={{ uri: mediaUrl(user.avatar_url)! }} style={{ width: 40, height: 40 }} />
+            ) : (
+              <Text style={styles.avatarText}>{(user?.username ?? "?").slice(0, 2).toUpperCase()}</Text>
+            )}
           </Pressable>
         </View>
       </View>
 
+      <View style={styles.searchRow}>
+        <PressableScale
+          style={styles.searchPill}
+          pressedScale={0.98}
+          onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })}
+          accessibilityRole="search"
+          accessibilityLabel="Search events and communities"
+        >
+          <Ionicons name="search" size={18} color={colors.textFaint} />
+          <Text style={styles.searchText}>Search events & communities</Text>
+        </PressableScale>
+        <PressableScale style={styles.filterBtn} pressedScale={0.94} onPress={() => setSheetOpen(true)} accessibilityLabel="Filters">
+          <Ionicons name="options-outline" size={20} color={colors.inverseText} />
+          {filterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{filterCount}</Text>
+            </View>
+          )}
+        </PressableScale>
+      </View>
+
       <CollapsibleHeader progress={headerScroll.progress}>
-        <View style={styles.greetingWrap}>
-          <Text style={styles.greeting} numberOfLines={1}>
-            {greeting.lead}
-            <Text style={styles.greetingName}>{greeting.name}</Text>
-          </Text>
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kindChips}>
+          {(["all", "event", "community"] as const).map((k) => {
+            const on = filters.kind === k;
+            return (
+              <Pressable
+                key={k}
+                onPress={() => applyFilters({ ...filters, kind: k })}
+                style={[styles.kindChip, on && styles.kindChipOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[styles.kindChipText, on && styles.kindChipTextOn]}>{k === "all" ? "All" : KIND_FILTER_LABELS[k]}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         {activeChips.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeChips}>
             {activeChips.map((chip) => (
@@ -457,6 +577,7 @@ export default function HomeScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        ref={scrollRef}
         onScroll={headerScroll.onScroll("home")}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
@@ -500,80 +621,148 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
+            {plans.length > 0 && (
+              <>
+                <View style={styles.plansToggle}>
+                  {/* Left: next plan - opens the full My Plans screen. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.plansTitleArea, pressed && { opacity: 0.8 }]}
+                    onPress={() => navigation.navigate("MyPlans")}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Your plans, ${plans.length}. Next: ${plans[0].title}. Open all plans`}
+                  >
+                    <View style={styles.plansRing}>
+                      <Text style={styles.plansRingText}>{plans[0].starts_at ? shortCountdown(plans[0].starts_at) : ""}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.plansKicker}>
+                        YOUR PLANS · {plans.length} · SEE ALL ›
+                      </Text>
+                      <Text style={styles.plansName} numberOfLines={1}>
+                        {plans[0].title}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {/* Right: the arrow - drops the swipeable preview down/up. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.plansArrow, pressed && { opacity: 0.7 }]}
+                    onPress={() => setPlansOpen((o) => !o)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: plansOpen }}
+                    accessibilityLabel={plansOpen ? "Hide plan preview" : "Show plan preview"}
+                  >
+                    <Ionicons name={plansOpen ? "chevron-up" : "chevron-down"} size={22} color="#F5F3EF" />
+                  </Pressable>
+                </View>
+                {plansOpen && (
+                  // One plan visible at a time; swipe left for the next.
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={screenWidth - spacing.lg * 2 + spacing.md}
+                    decelerationRate="fast"
+                    contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
+                    style={{ marginBottom: spacing.sm }}
+                  >
+                    {plans.map((p) => (
+                      <PressableScale
+                        key={p.id}
+                        style={[styles.planCard, { width: screenWidth - spacing.lg * 2 }]}
+                        onPress={() => openEventDetail(navigation, p)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${p.title}, ${startsInLabel(p.starts_at!)}`}
+                      >
+                        <Text style={styles.planCountdown}>{startsInLabel(p.starts_at!)}</Text>
+                        <Text style={styles.planTitle} numberOfLines={2}>
+                          {p.title}
+                        </Text>
+                        <Text style={styles.planMeta} numberOfLines={1}>
+                          {whenLabel(p)}
+                          {p.location_label ? ` · ${p.location_label.split(",")[0]}` : ""}
+                        </Text>
+                      </PressableScale>
+                    ))}
+                  </ScrollView>
+                )}
+                <View style={{ height: spacing.lg }} />
+              </>
+            )}
+            {filterCount === 0 && recs.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Picked for you</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recRow}>
+                  {recs.map((r) => {
+                    const rc = r.kind === "event" ? colors.event : colors.community;
+                    return (
+                      <PressableScale
+                        key={r.id}
+                        style={styles.recCard}
+                        onPress={() => openEventDetail(navigation, r)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${r.title}. ${r.recommendation_reason ?? ""}`}
+                      >
+                        <View style={[styles.recTile, { backgroundColor: r.kind === "event" ? colors.eventSoft : colors.communitySoft }]}>
+                          <Ionicons name={EVENT_KIND_ICONS[r.kind]} size={26} color={rc} />
+                        </View>
+                        {r.recommendation_reason ? <Text style={styles.recReason}>{r.recommendation_reason}</Text> : null}
+                        <Text style={styles.recTitle} numberOfLines={2}>
+                          {r.title}
+                        </Text>
+                        <Text style={styles.recMeta} numberOfLines={1}>
+                          {whenLabel(r)}
+                          {r.distance_km != null ? ` · ${formatDistance(r.distance_km)} away` : ""}
+                        </Text>
+                      </PressableScale>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="flame" size={20} color={colors.accent} />
-                <Text style={styles.sectionTitle}>{featuredHeading}</Text>
-              </View>
+              <Text style={styles.sectionTitle}>{featuredHeading}</Text>
               <Pressable onPress={() => (navigation as any).navigate("Tabs", { screen: "Discover" })} hitSlop={8}>
                 <Text style={styles.sectionLink}>Explore ›</Text>
               </Pressable>
             </View>
 
-            <Pressable style={styles.feature} onPress={() => openEventDetail(navigation, featured)}>
-              <View style={[styles.featureMedia, { backgroundColor: fSoft }]}>
-                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, zIndex: 3, backgroundColor: fAccent }} />
-                {featured.cover_image_url ? (
-                  <Image source={{ uri: mediaUrl(featured.cover_image_url)! }} style={styles.featureImage} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.featureImage, { alignItems: "center", justifyContent: "center", paddingBottom: spacing.xl }]}>
-                    <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={56} color={fAccent} />
-                  </View>
-                )}
+            <FadeInUp>
+              <PressableScale style={styles.hero} pressedScale={0.98} onPress={() => openEventDetail(navigation, featured)}>
                 <LinearGradient
-                  colors={["transparent", colors.surface]}
-                  locations={[0.3, 1]}
-                  style={styles.featureImage}
-                  pointerEvents="none"
+                  colors={fIsEvent ? ["#FF9A66", "#C2410C"] : ["#9A8DFF", "#3B2F9E"]}
+                  start={{ x: 0.1, y: 0 }}
+                  end={{ x: 0.9, y: 1 }}
+                  style={styles.heroFill}
                 />
-                <View
-                  style={{
-                    position: "absolute",
-                    top: spacing.md,
-                    left: spacing.md,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                    borderWidth: 1,
-                    borderColor: fAccent,
-                    borderRadius: fRadius,
-                    backgroundColor: colors.scrim,
-                    paddingVertical: 4,
-                    paddingHorizontal: spacing.md,
-                  }}
-                >
-                  <Ionicons name={EVENT_KIND_ICONS[featured.kind]} size={13} color={fAccent} />
-                  <Text style={{ color: fAccent, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" }}>
-                    {EVENT_KIND_LABELS[featured.kind]}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.featureBody}>
-                <View style={[styles.featureWhen, { borderColor: fAccent, backgroundColor: fSoft, borderRadius: fRadius }]}>
-                  <Text style={[styles.featureWhenText, { color: fAccent }]}>{whenLabel(featured)}</Text>
-                </View>
-                <Text style={styles.featureTitle} numberOfLines={2}>
-                  {featured.title}
-                </Text>
-                {featured.location_label ? (
-                  <View style={styles.metaRow}>
-                    <Ionicons name="location" size={14} color={fAccent} />
-                    <Text style={styles.meta} numberOfLines={1}>
-                      {featured.location_label}
-                      {distances.has(featured.id) ? ` · ${formatDistance(distances.get(featured.id)!)}` : ""}
+                {featured.cover_image_url ? (
+                  <Image source={{ uri: mediaUrl(featured.cover_image_url)! }} style={styles.heroFill} resizeMode="cover" />
+                ) : (
+                  <Ionicons
+                    name={EVENT_KIND_ICONS[featured.kind]}
+                    size={150}
+                    color="rgba(255,255,255,0.22)"
+                    style={{ position: "absolute", right: -10, bottom: -20, transform: [{ rotate: "-10deg" }] }}
+                  />
+                )}
+                <LinearGradient colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.6)"]} locations={[0.25, 1]} style={styles.heroFill} pointerEvents="none" />
+                <View style={styles.heroBody}>
+                  <View style={styles.heroPill}>
+                    <Text style={styles.heroPillText}>{whenLabel(featured)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.heroTitle} numberOfLines={2}>
+                      {featured.title}
+                    </Text>
+                    <Text style={styles.heroMeta} numberOfLines={1}>
+                      {featured.location_label ? featured.location_label.split(",")[0] : EVENT_KIND_LABELS[featured.kind]}
+                      {distances.has(featured.id) ? ` · ${formatDistance(distances.get(featured.id)!)} away` : ""}
+                      {` · ${featured.kind === "event" ? `${featured.attendee_count} going` : `${featured.member_count} member${featured.member_count === 1 ? "" : "s"}`}`}
                     </Text>
                   </View>
-                ) : null}
-                <View style={styles.goingBar}>
-                  <Text style={[styles.going, { color: fIsEvent ? colors.success : colors.community }]}>
-                    {featured.kind === "event"
-                      ? `${featured.attendee_count} going`
-                      : `${featured.member_count} member${featured.member_count === 1 ? "" : "s"}`}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={16} color={colors.textMuted} />
                 </View>
-              </View>
-            </Pressable>
+              </PressableScale>
+            </FadeInUp>
 
             {rest.length > 0 && (
               <>
@@ -581,14 +770,15 @@ export default function HomeScreen() {
                   <Text style={styles.sectionTitle}>More for you</Text>
                 </View>
                 <View style={styles.feed}>
-                  {rest.map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      onPress={(e) => openEventDetail(navigation, e)}
-                      onToggleBookmark={toggleBookmark}
-                      distanceKm={distances.get(event.id) ?? null}
-                    />
+                  {rest.map((event, i) => (
+                    <FadeInUp key={event.id} index={i}>
+                      <EventCard
+                        event={event}
+                        onPress={(e) => openEventDetail(navigation, e)}
+                        onToggleBookmark={toggleBookmark}
+                        distanceKm={distances.get(event.id) ?? null}
+                      />
+                    </FadeInUp>
                   ))}
                 </View>
               </>

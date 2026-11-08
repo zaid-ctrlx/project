@@ -48,3 +48,16 @@ def enabled_region_labels() -> list[str]:
     """Human-readable names of the currently-enabled regions, e.g. for a
     validation error message ("location must be within: Karnataka")."""
     return [region["label"] for region in ENABLED_REGIONS.values()]
+
+
+# A user's own home location only feeds the "distance to events" term of the
+# recommender, so street-level precision is unnecessary. 2 decimal places is
+# ~1.1 km of latitude: a stored point can no longer identify a house, while
+# straight-line distances shown to the user change by at most ~1.5 km.
+# (Event/community venue coordinates are public by design and are NOT rounded.)
+USER_LOCATION_DECIMALS = 2
+
+
+def coarsen_location(lat: float, lng: float) -> tuple[float, float]:
+    """Round a user's coordinates to ~1 km before they are stored."""
+    return round(lat, USER_LOCATION_DECIMALS), round(lng, USER_LOCATION_DECIMALS)

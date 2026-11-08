@@ -35,6 +35,7 @@ class UserOut(BaseModel):
     avatar_url: str | None
     is_active: bool
     is_verified: bool
+    is_admin: bool = False
     onboarding_completed: bool
     location_lat: float | None
     location_lng: float | None

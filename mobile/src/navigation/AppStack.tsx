@@ -3,9 +3,12 @@ import React from "react";
 
 import { Event, EventKind } from "../api/events";
 import { useTheme } from "../context/ThemeContext";
+import { usePushNotifications } from "../lib/pushNotifications";
 import AddGroupMemberScreen from "../screens/AddGroupMemberScreen";
+import AdminReportsScreen from "../screens/AdminReportsScreen";
 import BlockedUsersScreen from "../screens/BlockedUsersScreen";
 import BookmarksScreen from "../screens/BookmarksScreen";
+import MyPlansScreen from "../screens/MyPlansScreen";
 import ChatScreen from "../screens/ChatScreen";
 import ContactInfoScreen from "../screens/ContactInfoScreen";
 import CommunityProfileScreen from "../screens/CommunityProfileScreen";
@@ -45,12 +48,15 @@ export type AppStackParamList = {
   Bookmarks: undefined;
   // Pushed from Settings ("Blocked profiles" row).
   BlockedUsers: undefined;
+  AdminReports: undefined;
   // Pushed from Settings ("Delete account" row).
   DeleteAccount: undefined;
   // Pushed from Settings ("My Posts" row) — everything (events + communities)
   // the current user created. There's no more Events tab for this to live
   // under (see MainTabs).
   MyPosts: undefined;
+  // Pushed from Settings ("My Plans" row) and Home's plans strip: events the user is going to or hosting.
+  MyPlans: undefined;
   Chat: {
     userId: string;
     username: string;
@@ -121,6 +127,7 @@ const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export default function AppStack() {
   const { colors } = useTheme();
+  usePushNotifications();
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="Tabs" component={MainTabs} />
@@ -128,8 +135,10 @@ export default function AppStack() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Bookmarks" component={BookmarksScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+      <Stack.Screen name="AdminReports" component={AdminReportsScreen} />
       <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
       <Stack.Screen name="MyPosts" component={MyPostsScreen} />
+      <Stack.Screen name="MyPlans" component={MyPlansScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="DmInfo" component={DmInfoScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />

@@ -74,7 +74,9 @@ export default function ConnectionsScreen() {
     identity: { flex: 1 },
     username: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
     fullName: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 1 },
-    actions: { flexDirection: "row", gap: spacing.sm },
+    rowWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingBottom: spacing.sm },
+    actions: { flexDirection: "row", gap: spacing.sm, paddingLeft: 44 + spacing.md, paddingBottom: spacing.xs },
+    actionBtn: { flex: 1, alignItems: "center" },
     accept: {
       backgroundColor: colors.primary,
       borderRadius: radius.pill,
@@ -132,40 +134,44 @@ export default function ConnectionsScreen() {
 
   function renderItem({ item }: { item: UserSearchResult }) {
     return (
-      <Pressable style={styles.row} onPress={() => navigation.navigate("UserProfile", { userId: item.id })}>
-        {item.avatar_url ? (
-          <Image source={{ uri: mediaUrl(item.avatar_url)! }} style={styles.avatarImage} />
-        ) : (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{item.username.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
-        <View style={styles.identity}>
-          <Text style={styles.username} numberOfLines={1}>
-            {item.username}
-          </Text>
-          {item.full_name ? (
-            <Text style={styles.fullName} numberOfLines={1}>
-              {item.full_name}
+      <View style={styles.rowWrap}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("UserProfile", { userId: item.id })}>
+          {item.avatar_url ? (
+            <Image source={{ uri: mediaUrl(item.avatar_url)! }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{item.username.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={styles.identity}>
+            <Text style={styles.username} numberOfLines={1}>
+              {item.username}
             </Text>
-          ) : null}
-        </View>
-        {tab === "sent" && (
-          <Pressable style={styles.decline} onPress={() => respond(item, false)} disabled={busyId === item.id}>
-            <Text style={styles.declineText}>Cancel</Text>
-          </Pressable>
-        )}
-        {tab === "requests" && (
-          <View style={styles.actions}>
+            {item.full_name ? (
+              <Text style={styles.fullName} numberOfLines={1}>
+                {item.full_name}
+              </Text>
+            ) : null}
+          </View>
+          {tab === "sent" && (
             <Pressable style={styles.decline} onPress={() => respond(item, false)} disabled={busyId === item.id}>
+              <Text style={styles.declineText}>Cancel</Text>
+            </Pressable>
+          )}
+        </Pressable>
+        {tab === "requests" && (
+          // Own full-width line under the name so the buttons can never be
+          // squeezed off-screen by a long username.
+          <View style={styles.actions}>
+            <Pressable style={[styles.decline, styles.actionBtn]} onPress={() => respond(item, false)} disabled={busyId === item.id}>
               <Text style={styles.declineText}>Decline</Text>
             </Pressable>
-            <Pressable style={styles.accept} onPress={() => respond(item, true)} disabled={busyId === item.id}>
-              <Text style={styles.acceptText}>Accept</Text>
+            <Pressable style={[styles.accept, styles.actionBtn]} onPress={() => respond(item, true)} disabled={busyId === item.id}>
+              <Text style={styles.acceptText}>{busyId === item.id ? "..." : "Accept"}</Text>
             </Pressable>
           </View>
         )}
-      </Pressable>
+      </View>
     );
   }
 

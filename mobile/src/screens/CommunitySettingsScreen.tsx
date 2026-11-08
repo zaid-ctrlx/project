@@ -95,6 +95,7 @@ export default function CommunitySettingsScreen() {
       location_lng: event.location_lng,
       location_label: event.location_label,
       join_policy: event.join_policy,
+      allow_dms: event.allow_dms,
       activity_type: null,
       ...patch,
     };

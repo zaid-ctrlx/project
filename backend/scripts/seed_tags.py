@@ -7,17 +7,11 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.db.session import SessionLocal
 from app.models.user import Tag
+from app.recsys.taxonomy import TAG_NAMES
 
-STARTER_TAGS = [
-    ("Cycling", "cycling"),
-    ("Gym & Fitness", "gym-fitness"),
-    ("Trekking & Hiking", "trekking-hiking"),
-    ("Photography", "photography"),
-    ("Study Groups", "study-groups"),
-    ("Music", "music"),
-    ("Sports", "sports"),
-    ("Gaming", "gaming"),
-]
+# One tag per slug in the recommender's vocabulary (app/recsys/taxonomy.py), so
+# every event activity type has a matching interest tag users can pick.
+STARTER_TAGS = [(name, slug) for slug, name in TAG_NAMES.items()]
 
 
 def seed_tags() -> None:

@@ -4,6 +4,8 @@ import { Animated, Easing, NativeScrollEvent, NativeSyntheticEvent } from "react
 // Distance (px) the finger has to keep moving in one direction before the
 // header flips state — filters out jitter and tiny accidental drags.
 const DIRECTION_THRESHOLD = 14;
+// Revealing again should feel instant: a short flick upward is enough.
+const REVEAL_THRESHOLD = 6;
 const ANIMATION_MS = 200;
 
 // Each <CollapsibleHeader> reports its measured height here, keyed by the
@@ -33,8 +35,19 @@ export type ScrollAwareHeader = {
   // (e.g. Discover's pager), so switching between them never produces a
   // bogus delta.
   onScroll: (listId?: string) => (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  // Pass to a scrollable's onScrollBeginDrag. Only does anything in
+  // { stayHiddenUntilTopDrag: true } mode (see below).
+  onBeginDrag: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   show: () => void;
   hide: () => void;
+};
+
+export type ScrollAwareHeaderOptions = {
+  // WhatsApp-style: once hidden by scrolling down, scrolling back up does NOT
+  // reveal the header, and neither does merely arriving at the top. It comes
+  // back only when the user starts a new drag while the list is at the top.
+  // Default (false): the header returns on any upward scroll.
+  stayHiddenUntilTopDrag?: boolean;
 };
 
 // Direction-based (not position-based) header visibility:
@@ -44,7 +57,8 @@ export type ScrollAwareHeader = {
 //  - lists too short to meaningfully scroll never hide it
 // Visibility animates between the two states instead of tracking the finger
 // pixel-for-pixel.
-export function useScrollAwareHeader(): ScrollAwareHeader {
+export function useScrollAwareHeader(options: ScrollAwareHeaderOptions = {}): ScrollAwareHeader {
+  const stayHidden = options.stayHiddenUntilTopDrag === true;
   const progress = useRef(new Animated.Value(1)).current;
   const visibleRef = useRef(true);
   const lastY = useRef<Record<string, number>>({});
@@ -79,9 +93,13 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
         lastY.current[listId] = y;
         const delta = y - prev;
 
-        // At/above the top (also covers iOS bounce): always visible.
+        // At/above the top (also covers iOS bounce). Normally always
+        // visible here; in stay-hidden mode a hidden header waits for the
+        // next drag (onBeginDrag) so reaching the top by momentum never pops
+        // it open.
         if (y <= 0) {
-          show();
+          if (stayHidden) accum.current = 0;
+          else show();
           return;
         }
         // Don't hide anything on lists that barely scroll — it would just
@@ -96,19 +114,38 @@ export function useScrollAwareHeader(): ScrollAwareHeader {
         if (visibleRef.current && contentSize.height - layoutMeasurement.height < totalHeaderHeight(progress) + 80) {
           return;
         }
-        // Ignore the rubber-band at the bottom edge.
-        if (y + layoutMeasurement.height >= contentSize.height) return;
+        // Ignore the rubber-band past the bottom edge (y beyond the last
+        // scrollable position). Sitting exactly at the bottom is not
+        // overscroll, so a real scroll-up from there must still count.
+        if (y + layoutMeasurement.height > contentSize.height + 1) return;
         if (delta === 0) return;
+
+        // Stay-hidden mode: only downward movement counts, scrolling back up
+        // never reveals the header.
+        if (stayHidden && delta < 0) {
+          accum.current = 0;
+          return;
+        }
 
         // Accumulate movement in a single direction; reset when it flips.
         if (Math.sign(delta) !== Math.sign(accum.current)) accum.current = 0;
         accum.current += delta;
 
         if (accum.current > DIRECTION_THRESHOLD) animateTo(false);
-        else if (accum.current < -DIRECTION_THRESHOLD) animateTo(true);
+        else if (accum.current < -REVEAL_THRESHOLD) animateTo(true);
       },
-    [animateTo, show, progress]
+    [animateTo, show, progress, stayHidden]
   );
 
-  return useMemo(() => ({ progress, onScroll, show, hide }), [progress, onScroll, show, hide]);
+  const onBeginDrag = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (stayHidden && !visibleRef.current && e.nativeEvent.contentOffset.y <= 0) show();
+    },
+    [show, stayHidden]
+  );
+
+  return useMemo(
+    () => ({ progress, onScroll, onBeginDrag, show, hide }),
+    [progress, onScroll, onBeginDrag, show, hide]
+  );
 }

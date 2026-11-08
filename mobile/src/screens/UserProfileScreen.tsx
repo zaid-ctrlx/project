@@ -10,6 +10,7 @@ import { acceptConnection, ConnectionStatus, removeConnection, sendConnectionReq
 import { blockUser, getUserProfile, getUserStats, PublicProfile, unblockUser, UserStats } from "../api/profile";
 import Button from "../components/Button";
 import ConfirmSheet from "../components/ConfirmSheet";
+import ReportSheet from "../components/ReportSheet";
 import OptionsMenu from "../components/OptionsMenu";
 import ProfileHeader from "../components/ProfileHeader";
 import ProfileTabs from "../components/ProfileTabs";
@@ -28,6 +29,7 @@ export default function UserProfileScreen() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [blockActionBusy, setBlockActionBusy] = useState(false);
   const [connectBusy, setConnectBusy] = useState(false);
   const [blockActionError, setBlockActionError] = useState<string | null>(null);
@@ -250,11 +252,19 @@ export default function UserProfileScreen() {
           <OptionsMenu
             visible={menuOpen}
             onClose={() => setMenuOpen(false)}
-            items={
+            items={[
               profile.is_blocked
-                ? [{ label: "Unblock", onPress: onUnblock }]
-                : [{ label: "Block", destructive: true, onPress: () => setBlockConfirmOpen(true) }]
-            }
+                ? { label: "Unblock", onPress: onUnblock }
+                : { label: "Block", destructive: true, onPress: () => setBlockConfirmOpen(true) },
+              { label: "Report", destructive: true, onPress: () => setReportOpen(true) },
+            ]}
+          />
+          <ReportSheet
+            visible={reportOpen}
+            onClose={() => setReportOpen(false)}
+            targetType="user"
+            targetId={profile.id}
+            targetName={profile.username}
           />
           <ConfirmSheet
             visible={blockConfirmOpen}

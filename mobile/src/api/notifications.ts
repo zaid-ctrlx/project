@@ -12,7 +12,9 @@ export type NotificationType =
   // Mutual connections: the addressee gets connection_request, the requester
   // gets connection_accepted. Both carry data.user_id (the other person).
   | "connection_request"
-  | "connection_accepted";
+  | "connection_accepted"
+  // 24h / 6h before an event you're going to (or host); data.event_id.
+  | "event_reminder";
 
 export type AppNotification = {
   id: string;
@@ -43,14 +45,9 @@ export function markAllNotificationsRead(): Promise<void> {
   return api.authed("/notifications/read-all", { method: "POST" });
 }
 
-// Not currently called from anywhere — the client-side expo-notifications
-// integration (permission request, getExpoPushTokenAsync, wiring these into
-// AuthContext's login/logout) was pulled out entirely: importing
-// expo-notifications at all crashes the app on Android in Expo Go with SDK
-// 57 ("Android Push notifications... was removed from Expo Go"), which is
-// what's still in use for dev — see the FYP build memory for the full
-// story. Kept here, matching the backend endpoints, for whenever this
-// project moves to a custom dev client and it's safe to wire back up.
+// Called from lib/pushNotifications.ts, which only runs outside Expo Go (a
+// development or release build): importing expo-notifications inside Expo Go
+// crashes Android, so that module loads it lazily and skips it there.
 // Re-registering the same token is a safe no-op server-side (upsert).
 export function registerPushToken(token: string): Promise<void> {
   return api.authed("/notifications/push-token", {

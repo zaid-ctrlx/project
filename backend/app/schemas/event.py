@@ -76,6 +76,8 @@ class EventCreate(BaseModel):
     location_label: str | None = Field(default=None, min_length=1, max_length=255)
     # Communities only — forced to "anyone" for kind="event".
     join_policy: JOIN_POLICY_OPTIONS = "anyone"
+    # Show a "Message organiser" button (1-on-1 chat) on this post.
+    allow_dms: bool = True
     # Events only — forced to None for kind="community".
     activity_type: ACTIVITY_TYPE_OPTIONS | None = None
 
@@ -136,6 +138,7 @@ class EventOut(BaseModel):
     location_label: str | None
     creator: EventCreatorOut
     join_policy: JOIN_POLICY_OPTIONS
+    allow_dms: bool = True
     activity_type: ACTIVITY_TYPE_OPTIONS | None
     # Communities only — the linked ChatGroup id (see Event.group_id). Null
     # for kind="event". Mobile uses this to open GroupChat once is_joined.
@@ -157,6 +160,10 @@ class EventOut(BaseModel):
     # community's admins (0 for everyone else).
     has_requested: bool = False
     pending_request_count: int = 0
+    # Set only by GET /recommendations (why this was suggested); null elsewhere.
+    recommendation_reason: str | None = None
+    # Straight-line km from the viewer's saved location; set only by GET /recommendations.
+    distance_km: float | None = None
     created_at: datetime
 
 

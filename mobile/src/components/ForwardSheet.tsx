@@ -10,6 +10,9 @@ import Button from "./Button";
 
 export type ForwardItem = { kind: MessageKind; body: string };
 
+// Event/community cards can only go to 1-on-1 chats, never groups.
+const isDmOnly = (item: ForwardItem | null) => item?.kind === "event";
+
 type Props = {
   visible: boolean;
   item: ForwardItem | null;
@@ -17,6 +20,7 @@ type Props = {
   // Called after the forward finishes (successfully or partly) so the screen
   // can show a note; `failed` is how many targets didn't go through.
   onDone: (sent: number, failed: number) => void;
+  title?: string;
 };
 
 function targetKey(c: ConversationSummary): string {
@@ -29,7 +33,7 @@ function targetName(c: ConversationSummary): string {
 
 // Pick one or more existing chats (DMs and groups) to forward a message to.
 // The forwarded copy is sent as a normal new message flagged `forwarded`.
-export default function ForwardSheet({ visible, item, onClose, onDone }: Props) {
+export default function ForwardSheet({ visible, item, onClose, onDone, title }: Props) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,13 +64,13 @@ export default function ForwardSheet({ visible, item, onClose, onDone }: Props) 
     setError(null);
     setLoading(true);
     listConversations()
-      .then((list) => !cancelled && setConversations(list))
+      .then((list) => !cancelled && setConversations(isDmOnly(item) ? list.filter((c) => c.type === "dm") : list))
       .catch(() => !cancelled && setError("Couldn't load your chats."))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [visible]);
+  }, [visible, item]);
 
   function toggle(key: string) {
     setSelected((prev) => {
@@ -84,8 +88,8 @@ export default function ForwardSheet({ visible, item, onClose, onDone }: Props) 
     const results = await Promise.allSettled(
       targets.map((c) =>
         c.type === "dm"
-          ? sendMessage(c.other_user.id, item.body, { kind: item.kind, forwarded: true })
-          : sendGroupMessage(c.group_id, item.body, { kind: item.kind, forwarded: true })
+          ? sendMessage(c.other_user.id, item.body, { kind: item.kind, forwarded: item.kind !== "event" })
+          : sendGroupMessage(c.group_id, item.body, { kind: item.kind as "text" | "sticker", forwarded: true })
       )
     );
     setSending(false);
@@ -98,7 +102,7 @@ export default function ForwardSheet({ visible, item, onClose, onDone }: Props) 
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.title}>Forward to...</Text>
+          <Text style={styles.title}>{title ?? "Forward to..."}</Text>
           {loading ? (
             <ActivityIndicator style={{ margin: spacing.xl }} />
           ) : error ? (

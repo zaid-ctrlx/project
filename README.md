@@ -8,8 +8,9 @@ communities near them.
 
 The final-year-project goal is a **recommendation engine** that ranks what
 each person sees from their interests, location and past activity. The app
-around it (accounts, events, communities, chat, map) is built and working; the
-recommender itself is not built yet — see [Status](#status). The full proposal
+around it (accounts, events, communities, chat, map) is built and working, and
+a first hybrid recommender is in place — see [Recommender](#recommender) and
+[Status](#status). The full proposal
 (architecture, ML approach, evaluation plan, timeline) is in
 `FYP_Proposal_Revised.md`.
 
@@ -62,8 +63,8 @@ response. Anything that changes schema goes through an Alembic migration.
 `kind` (`event` = something at a time and place; `community` = an ongoing
 group). Events can be bookmarked and RSVP'd to; a community gets a linked chat
 group that members join automatically. Join policy is either open or needs
-admin approval. Interest tags and location on each post are what the
-recommender will rank on.
+admin approval. The activity type and location on each post, with the
+user's interest tags and location, are what the recommender ranks on.
 
 **Chat and notifications.** Direct messages and group/community chats are
 saved through normal REST calls, then pushed live to anyone connected on their
@@ -99,8 +100,9 @@ backend/
                      notify + push, websocket manager, rate limiting,
                      image validation, chat helpers
     db/              session + model registry for Alembic
+    recsys/          hybrid recommender (content, SVD, hybrid, synthetic data, metrics)
   alembic/versions/  migration history
-  scripts/           seed_tags.py, seed_demo.py
+  scripts/           seed_tags.py, seed_demo.py, evaluate_recommender.py
 mobile/
   App.tsx            providers (auth, theme, messaging) + root navigator
   src/
@@ -159,6 +161,13 @@ reset codes are printed in the backend (uvicorn) terminal. For real email, set
 App Password). If a user is set without a password, nothing is sent and the
 code is printed under an `ERROR` line.
 
+**Bulk test data (optional).** `python -m scripts.seed_dataset` (from `backend/`,
+after `seed_tags`) adds 60 fake people, 55 events/communities and a history of
+views, bookmarks, RSVPs and joins across five Karnataka cities, so the feed,
+search and recommender can be tried without real users. Log in as
+`seed.user001@seed.huddle.example` / `SeedPass123` (any `seed.userNNN`), and
+undo it with `python -m scripts.seed_dataset --remove`.
+
 **Demo data (optional).** `python -m scripts.seed_demo` (from `backend/`) adds
 four posts owned by a demo host account — an event and a community each in
 Mangaluru and Bengaluru — for trying the Home filters and the map. Dates are
@@ -167,20 +176,91 @@ relative to the day it is run; run it with `--remove` first to refresh.
 **Android map.** Standalone Android builds need a Google Maps key in
 `mobile/app.json`; Expo Go and web work without one.
 
+## My Plans and reminders
+
+`GET /api/v1/events/plans?scope=upcoming|past` returns the events the user is
+going to (RSVP) or hosting. The app shows them as **My Plans** (Settings) and a
+"Your plans" strip on Home, grouped by day with a "starts in" countdown.
+
+Reminders (`backend/app/core/reminders.py`): a background loop started with the
+API checks every minute and sends an in-app notification plus an Expo push to
+everyone going and to the host — a **24h** reminder when 6–24 hours remain and
+a **6h** reminder when under 6 hours remain. The `event_reminders` table is a
+ledger with a unique (event, user, kind) row, so each reminder is sent exactly
+once even across restarts. Reminders only fire while the backend is running.
+
+## Push notifications, privacy and reports
+
+- **Push taps.** Every push carries the notification `type` and ids, and a tap
+  opens the same screen as tapping it in the in-app list (one shared router,
+  `mobile/src/navigation/routeNotification.ts`), including when the tap
+  launches the app from closed. **This only runs in a development/release
+  build, not Expo Go** (Expo Go removed push support, and importing
+  `expo-notifications` there crashes Android), so in Expo Go the code is a
+  no-op. To use it: create an EAS project (`eas init`, which writes
+  `extra.eas.projectId` into `app.json`), set up FCM credentials for Android,
+  and build with `eas build --profile development`.
+- **Token storage.** Access/refresh tokens are kept in the OS keystore
+  (`expo-secure-store`). Sessions from older builds are migrated automatically
+  and the plaintext copy is deleted. (Web dev builds fall back to
+  localStorage.)
+- **Location precision.** A user's own location is rounded to 2 decimals
+  (~1 km) when saved (`app/core/geo.py`); migration `b4d5e6f7a8c0` rounded
+  existing rows. Event/community venue coordinates are public by design and
+  are not rounded.
+- **Reports.** Users can report a profile (⋯ menu) or an event/community
+  ("Report this post"): `POST /api/v1/reports`, fixed reasons plus an optional
+  note, one report per reporter per target, 10 per hour per user, private from
+  the reported party. Moderators review them in a separate, admin-only section
+  of the app; the server refuses everyone else.
+
+## Recommender
+
+A hybrid ranker for events and communities, in `backend/app/recsys/`:
+
+- **Content-based** (`content.py`): cosine similarity between the user's
+  interest tags and the event's activity type (shared vocabulary in
+  `taxonomy.py`), blended with distance, how soon the event is, and popularity.
+- **Collaborative** (`cf.py`): truncated SVD over the user–event matrix built
+  from implicit feedback — views, bookmarks, RSVPs and joins, weighted by
+  strength (`config.py`).
+- **Hybrid** (`hybrid.py`): users with fewer than 5 interactions get
+  content-based results only; the collaborative weight then ramps up to 0.9 by
+  10 interactions (the cold-start rule). The SVD size and these numbers were
+  chosen on separate validation data (`scripts/tune_recommender.py`).
+- **Data**: the `interactions` table. Bookmark, RSVP and join are logged by the
+  server; the app reports views (`POST /interactions`). Existing bookmarks and
+  RSVPs are backfilled when the model is fitted.
+- **API/UI**: `GET /api/v1/recommendations` returns ranked events with a
+  truthful `recommendation_reason` and the real straight-line `distance_km`
+  (omitted when unknown); Home shows them as "Recommended for you".
+
+Offline evaluation (`python -m scripts.evaluate_recommender`, from `backend/`)
+generates synthetic users and events, splits interactions by time, and compares
+popularity, content-only, SVD-only and hybrid on Precision/Recall/NDCG@K (mean
+± std over 10 random datasets, with scenarios for unreliable interest tags),
+plus RMSE/MAE for the SVD's predicted strength. How it works, the results and
+likely viva questions are in [docs/RECOMMENDER.md](docs/RECOMMENDER.md).
+Unit tests: `pip install -r requirements-dev.txt && python -m pytest tests`
+(from `backend/`).
+
 ## Status
 
 **Built:** accounts and email verification, onboarding, profiles and
 connections, events and communities (create, join, approve, RSVP, bookmark),
 Home filters, Discover map, direct and group chat (including replies,
 forwarding, editing within 5 minutes, deleting, reactions and stickers),
-notifications, block/mute.
+notifications, block/mute, a personal agenda (My Plans) and event reminders.
 
 **Not built yet:**
-- The recommendation engine and interaction logging. Home and Discover
-  currently show filterable lists, not ranked recommendations — this is the
-  core remaining piece of the project.
-- Map: web marker clustering, kind/category/date/distance filters.
-- Tokens are kept in plain AsyncStorage (should move to `expo-secure-store`).
-- Locations are stored at full precision (round before showing other users').
+- Reminders: fixed 24h/6h offsets (not user-configurable).
+- Push needs a development build plus an EAS project id and FCM credentials;
+  it has not been tested on a device yet.
+- Reports are stored and listed by a script; no in-app moderation tools, and
+  reported content is not hidden automatically.
+- Recommender: only validated on synthetic data so far; needs tuning and
+  re-evaluation once real interaction data exists. Discover still shows an
+  unranked list. Retraining is a 10-minute in-process cache, not a scheduled job.
+- Map: kind/category/date/distance filters (pins are individual by design, no clustering).
 - Rate limiting is in-memory, per process.
-- Automated tests.
+- Automated tests beyond the recommender/reminder unit tests (no API or UI tests).
