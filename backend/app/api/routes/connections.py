@@ -1,3 +1,4 @@
+import time
 import uuid
 from typing import Literal
 
@@ -11,6 +12,7 @@ from app.core.notify import notify_user
 from app.db.session import get_db
 from app.models.block import UserBlock
 from app.models.connection import Connection
+from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.user import UserSearchResult
 
@@ -55,8 +57,46 @@ def count_connections(db: Session, user_id: uuid.UUID) -> int:
     ) or 0
 
 
+def clear_request_notification(db: Session, addressee_id: uuid.UUID, requester_id: uuid.UUID) -> None:
+    """Removes the "X wants to connect" notification the addressee got from this
+    requester (no commit). A request and its notification live and die together:
+    withdrawing the request makes the notification disappear, and there is never
+    more than one for the same pair."""
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == addressee_id,
+            Notification.type == "connection_request",
+            Notification.data["user_id"].as_string() == str(requester_id),
+        )
+    )
+
+
+# Repeated send/withdraw cycles still produce only ONE in-app notification at a
+# time (see above). To also stop them buzzing the phone each time, an OS push is
+# sent at most once per hour per (requester, addressee). Per-process memory, like
+# the login limiter: a server restart just resets the cooldown.
+PUSH_COOLDOWN_SECONDS = 3600
+_last_push: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
+
+
+def _should_push(requester_id: uuid.UUID, addressee_id: uuid.UUID) -> bool:
+    now = time.monotonic()
+    last = _last_push.get((requester_id, addressee_id))
+    if last is not None and now - last < PUSH_COOLDOWN_SECONDS:
+        return False
+    if len(_last_push) > 10_000:  # bound memory: drop expired entries
+        for k in [k for k, t in _last_push.items() if now - t >= PUSH_COOLDOWN_SECONDS]:
+            del _last_push[k]
+    _last_push[(requester_id, addressee_id)] = now
+    return True
+
+
 def remove_connection(db: Session, a: uuid.UUID, b: uuid.UUID) -> None:
-    """Deletes any row between the pair (no commit -- the caller commits)."""
+    """Deletes any row between the pair (no commit -- the caller commits). If it
+    was a still-pending request, the notification it created goes with it."""
+    row = _find(db, a, b)
+    if row is not None and row.status == "pending":
+        clear_request_notification(db, row.addressee_id, row.requester_id)
     db.execute(delete(Connection).where(_pair_filter(a, b)))
 
 
@@ -152,6 +192,7 @@ async def send_request(
         return ConnectionStatusOut(status=connection_status(db, current_user.id, user_id))
 
     db.add(Connection(requester_id=current_user.id, addressee_id=user_id, status="pending"))
+    clear_request_notification(db, user_id, current_user.id)  # never two for one pair
     db.commit()
     await notify_user(
         db,
@@ -160,6 +201,7 @@ async def send_request(
         title="Connection request",
         body=f"{current_user.username} wants to connect with you",
         data={"user_id": str(current_user.id)},
+        push=_should_push(current_user.id, user_id),
     )
     return ConnectionStatusOut(status="pending_out")
 

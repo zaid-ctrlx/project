@@ -192,6 +192,7 @@ def create_event(
         location_lng=payload.location_lng,
         location_label=payload.location_label,
         join_policy=payload.join_policy,
+        allow_dms=payload.allow_dms,
         activity_type=payload.activity_type,
         creator_id=current_user.id,
     )
@@ -595,6 +596,7 @@ def update_event(
     event.location_lng = payload.location_lng
     event.location_label = payload.location_label
     event.join_policy = payload.join_policy
+    event.allow_dms = payload.allow_dms
     event.activity_type = payload.activity_type
     # cover_image_url and group_id are deliberately untouched here —
     # cover_image_url is set only via POST /events/{id}/cover, and group_id

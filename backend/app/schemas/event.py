@@ -76,6 +76,8 @@ class EventCreate(BaseModel):
     location_label: str | None = Field(default=None, min_length=1, max_length=255)
     # Communities only — forced to "anyone" for kind="event".
     join_policy: JOIN_POLICY_OPTIONS = "anyone"
+    # Show a "Message organiser" button (1-on-1 chat) on this post.
+    allow_dms: bool = True
     # Events only — forced to None for kind="community".
     activity_type: ACTIVITY_TYPE_OPTIONS | None = None
 
@@ -136,6 +138,7 @@ class EventOut(BaseModel):
     location_label: str | None
     creator: EventCreatorOut
     join_policy: JOIN_POLICY_OPTIONS
+    allow_dms: bool = True
     activity_type: ACTIVITY_TYPE_OPTIONS | None
     # Communities only — the linked ChatGroup id (see Event.group_id). Null
     # for kind="event". Mobile uses this to open GroupChat once is_joined.

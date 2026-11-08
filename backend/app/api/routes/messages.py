@@ -165,7 +165,7 @@ async def send_message(
     if blocked is not None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can't message this user")
 
-    validate_body(payload.kind, payload.text)
+    validate_body(payload.kind, payload.text, db)
     message = Message(
         sender_id=current_user.id,
         recipient_id=payload.recipient_id,

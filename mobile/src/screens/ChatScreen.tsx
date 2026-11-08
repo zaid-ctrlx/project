@@ -230,7 +230,7 @@ export default function ChatScreen() {
       forwarded: false,
       reactions: [],
       reply_to_id: quoteSource?.id ?? null,
-      quote_text: quoteSource ? (quoteSource.kind === "sticker" ? "Sticker" : quoteSource.body) : (privateTarget?.text ?? null),
+      quote_text: quoteSource ? (quoteSource.kind === "sticker" ? "Sticker" : quoteSource.kind === "event" ? "Event" : quoteSource.body) : (privateTarget?.text ?? null),
       quote_sender_id: quoteSource ? quoteSource.sender_id : privateTarget ? userId : null,
       quote_kind: quoteSource ? quoteSource.kind : privateTarget ? "text" : null,
     };
@@ -452,7 +452,7 @@ export default function ChatScreen() {
       {!editing && replyTo && (
         <ReplyBar
           name={nameOf(replyTo.sender_id)}
-          text={replyTo.kind === "sticker" ? "Sticker" : replyTo.body}
+          text={replyTo.kind === "sticker" ? "Sticker" : replyTo.kind === "event" ? "Event" : replyTo.body}
           onCancel={() => setReplyTo(null)}
         />
       )}

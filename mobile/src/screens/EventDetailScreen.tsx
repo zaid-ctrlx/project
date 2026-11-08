@@ -12,6 +12,7 @@ import Button from "../components/Button";
 import ConfirmSheet from "../components/ConfirmSheet";
 import FadeInUp from "../components/motion/FadeInUp";
 import PressableScale from "../components/motion/PressableScale";
+import EventActions from "../components/EventActions";
 import ReportPostLink from "../components/ReportPostLink";
 import { ACTIVITY_TYPE_LABELS } from "../constants/eventTags";
 import { EVENT_KIND_ICONS, EVENT_KIND_LABELS } from "../constants/eventKind";
@@ -223,6 +224,8 @@ export default function EventDetailScreen() {
             <Text style={styles.organizer}>
               Organised by <Text style={styles.organizerName}>{event.creator.username}</Text>
             </Text>
+
+            <EventActions event={event} />
 
             <View style={styles.tiles}>
               <View style={styles.tile}>

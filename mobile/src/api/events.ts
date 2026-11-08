@@ -66,6 +66,7 @@ export type Event = {
   location_label: string | null; // forced to "Online" server-side when is_online
   creator: EventCreator;
   join_policy: JoinPolicy; // communities only — always "anyone" for "event"
+  allow_dms: boolean; // organiser lets people message them 1-on-1 from this post
   activity_type: ActivityType | null; // events only — always null for "community"
   // Communities only — the linked ChatGroup id (see backend
   // app/models/event.py's Event.group_id). Null for kind="event". Feed
@@ -105,6 +106,7 @@ export type EventCreatePayload = {
   location_lng: number | null;
   location_label: string | null;
   join_policy: JoinPolicy;
+  allow_dms: boolean;
   activity_type: ActivityType | null;
 };
 

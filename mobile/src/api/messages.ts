@@ -8,7 +8,8 @@ export type MessageParticipant = {
   avatar_url: string | null;
 };
 
-export type MessageKind = "text" | "sticker";
+// "event": a shared event/community card (body = the event id). DMs only.
+export type MessageKind = "text" | "sticker" | "event";
 
 export type Reaction = { user_id: string; emoji: string };
 

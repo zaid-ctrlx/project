@@ -9,6 +9,7 @@ import { ApiError, mediaUrl } from "../api/client";
 import { bookmarkEvent, Event, getEvent, joinCommunity, leaveCommunity, unbookmarkEvent } from "../api/events";
 import { getGroup, setGroupMuted } from "../api/groups";
 import Button from "../components/Button";
+import EventActions from "../components/EventActions";
 import ReportPostLink from "../components/ReportPostLink";
 import { FREQUENCY_LABELS } from "../constants/frequency";
 import { JOIN_POLICY_LABELS, joinButtonIsPrimary, joinButtonLabel } from "../constants/joinPolicy";
@@ -331,6 +332,7 @@ export default function CommunityProfileScreen() {
         </View>
 
         <Text style={styles.creator}>Organized by {event.creator.username}</Text>
+        <EventActions event={event} />
         {!isCreator && <ReportPostLink eventId={event.id} title={event.title} />}
 
         {isAdmin && (

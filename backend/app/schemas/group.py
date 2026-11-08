@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.message import MessageKind, MessageParticipantOut, QuoteFields, ReactionOut
+from app.schemas.message import GroupMessageKind, MessageParticipantOut, QuoteFields, ReactionOut
 
 GROUP_ROLES = Literal["admin", "member"]
 
@@ -59,7 +59,7 @@ class MuteGroupPayload(BaseModel):
 
 class GroupMessageCreate(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
-    kind: MessageKind = "text"
+    kind: GroupMessageKind = "text"
     forwarded: bool = False
     reply_to_id: uuid.UUID | None = None
 

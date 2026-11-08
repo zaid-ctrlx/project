@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import type { MessageExtras } from "../api/messages";
 import { useThemedStyles } from "../hooks/useThemedStyles";
 import { fontSize, radius, spacing } from "../theme";
+import EventShareCard from "./EventShareCard";
 import Sticker from "./Sticker";
 
 // The fields of a DM or group message that the bubble needs.
@@ -91,6 +92,7 @@ export default function MessageBubble({
 
   const deleted = !!message.deleted_at;
   const isSticker = message.kind === "sticker" && !deleted;
+  const isEventCard = message.kind === "event" && !deleted;
   const hasQuote = !!message.quote_text && !deleted;
 
   // emoji -> { count, reactedByMe }, in first-seen order.
@@ -117,13 +119,15 @@ export default function MessageBubble({
               {quoteName(message.quote_sender_id)}
             </Text>
             <Text style={[styles.quoteText, mine && !isSticker && styles.quoteTextMine]} numberOfLines={2}>
-              {message.quote_kind === "sticker" ? "Sticker" : message.quote_text}
+              {message.quote_kind === "sticker" ? "Sticker" : message.quote_kind === "event" ? "Event" : message.quote_text}
             </Text>
           </View>
         </Pressable>
       )}
       {deleted ? (
         <Text style={[styles.deleted, mine && styles.deletedMine]}>This message was deleted</Text>
+      ) : isEventCard ? (
+        <EventShareCard eventId={message.body} />
       ) : isSticker ? (
         <Sticker id={message.body} size={110} />
       ) : (
