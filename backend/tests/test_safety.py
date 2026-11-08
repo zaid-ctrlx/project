@@ -36,3 +36,24 @@ def test_report_requires_a_known_reason_and_target_type():
 def test_report_details_are_length_capped():
     with pytest.raises(ValidationError):
         ReportCreate(target_type="event", target_id="00000000-0000-0000-0000-000000000001", reason="other", details="x" * 501)
+
+
+# ---- hardened /media serving --------------------------------------------------
+def test_media_serves_only_images_with_safe_headers(tmp_path):
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+    from starlette.testclient import TestClient
+
+    from app.core.media import SafeImageFiles
+
+    (tmp_path / "a.jpg").write_bytes(b"\xff\xd8\xff\xe0jpeg")
+    (tmp_path / "a.html").write_text("<script>alert(1)</script>")
+    (tmp_path / "a.svg").write_text("<svg onload=alert(1)/>")
+    client = TestClient(Starlette(routes=[Mount("/media", SafeImageFiles(directory=str(tmp_path)))]))
+
+    ok = client.get("/media/a.jpg")
+    assert ok.status_code == 200
+    assert ok.headers["x-content-type-options"] == "nosniff"
+    assert "default-src 'none'" in ok.headers["content-security-policy"]
+    for blocked in ["/media/a.html", "/media/a.svg", "/media/", "/media/../a.jpg"]:
+        assert client.get(blocked).status_code == 404
