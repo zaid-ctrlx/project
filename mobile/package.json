@@ -35,8 +35,12 @@
     "react-native-webview": "14.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1"
   },
   "scripts": {
     "start": "expo start",

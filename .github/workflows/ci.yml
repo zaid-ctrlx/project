@@ -1,0 +1,73 @@
+name: CI
+
+# Runs on every push and pull request. Nothing here needs a database or any
+# secret: the backend tests are pure logic, and the dummy values below only
+# satisfy the settings loader.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, tests, dependency audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql+psycopg://ci:ci@127.0.0.1:1/ci
+      SECRET_KEY: ci-only-secret-key-ci-only-secret-key-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt ruff pip-audit
+      - name: Lint (real errors only - syntax, undefined names, unused imports)
+        run: ruff check app scripts tests --select E9,F63,F7,F82,F401,F811,F841
+      - name: Unit tests
+        run: python -m pytest -q
+        env:
+          PYTHONPATH: .
+      - name: Dependency vulnerabilities
+        run: pip-audit -r requirements.txt --progress-spinner off
+
+  mobile:
+    name: Mobile (types, lint, build, dependency audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint (errors fail the build; warnings are shown)
+        run: npx eslint .
+      - name: Build Android bundle
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export"
+      - name: Dependency vulnerabilities (high or critical in shipped packages)
+        run: npm audit --omit=dev --audit-level=high
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan the whole history, not just the latest commit
+      - name: Scan for committed secrets
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --verbose

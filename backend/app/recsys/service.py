@@ -16,7 +16,6 @@ from app.models.group import GroupMember
 from app.models.interaction import Interaction
 from app.models.user import Tag, User, user_tags
 from app.recsys import cf as cfmod
-from app.recsys.config import MAX_CF_WEIGHT
 from app.recsys.content import content_scores, haversine_km, tag_similarity
 from app.recsys.hybrid import blend, cf_weight, minmax
 from app.recsys.taxonomy import ACTIVITY_TAGS, TAG_NAMES

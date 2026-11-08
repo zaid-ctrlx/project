@@ -219,7 +219,7 @@ export default function DiscoverScreen() {
 
   const loadMap = useCallback((force = false) => {
     if (!mapMode) return Promise.resolve();
-    let active = true;
+    const active = true;
     setMapLoading(true);
     setMapError(null);
     return listMapItems(undefined, force)
