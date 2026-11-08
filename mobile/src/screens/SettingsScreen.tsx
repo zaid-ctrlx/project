@@ -115,6 +115,16 @@ export default function SettingsScreen() {
         <Text style={styles.rowText}>Blocked profiles</Text>
       </Pressable>
 
+      {user?.is_admin && (
+        <Pressable
+          onPress={() => navigation.navigate("AdminReports")}
+          style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}
+        >
+          <Ionicons name="shield-checkmark-outline" size={20} color={colors.text} />
+          <Text style={styles.rowText}>Reports (moderator)</Text>
+        </Pressable>
+      )}
+
       <Pressable
         onPress={() => setLogoutConfirmOpen(true)}
         style={({ pressed }) => [styles.row, styles.rowBordered, pressed && styles.rowPressed]}

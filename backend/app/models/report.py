@@ -18,7 +18,7 @@ class Report(Base):
 
     One report per (reporter, target): reporting twice is a no-op, so nobody
     can pile on a single target from one account. status is "open" until a
-    moderator handles it (no admin UI yet - see scripts/list_reports.py).
+    moderator handles it (Settings > Reports for admins; or scripts/list_reports.py).
     """
 
     __tablename__ = "reports"

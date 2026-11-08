@@ -1,4 +1,4 @@
-"""Moderator view of user reports (there is no admin UI yet).
+"""Moderator view of user reports (the app has one too: Settings > Reports, for admins).
 
     python -m scripts.list_reports                 # open reports, newest first
     python -m scripts.list_reports --resolve <id>  # mark one handled

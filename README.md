@@ -211,8 +211,8 @@ once even across restarts. Reminders only fire while the backend is running.
 - **Reports.** Users can report a profile (⋯ menu) or an event/community
   ("Report this post"): `POST /api/v1/reports`, fixed reasons plus an optional
   note, one report per reporter per target, 10 per hour per user, private from
-  the reported party. There is no admin UI; review with
-  `python -m scripts.list_reports` (and `--resolve <id>`) from `backend/`.
+  the reported party. Moderators review them in a separate, admin-only section
+  of the app; the server refuses everyone else.
 
 ## Recommender
 
